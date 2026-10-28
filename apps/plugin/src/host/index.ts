@@ -1,85 +1,80 @@
-import { appendFileSync } from 'node:fs';
-import type { Disposable, FetchRoute, PluginContext } from '../types/dsh.js';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import type { FetchRoute, PluginContext } from '../types/dsh.js';
 
 /**
  * Host half.
  *
- * Owns the prototype document on disk. The browser half reaches it through two
- * exact Fetch routes below `/api`; the Connection layer authenticates them
- * (same-origin cookie, owner Peer only).
+ * Owns blueprint documents outside the workspace, under the user's DSH data
+ * directory, one folder per Session:
  *
- * The dependency wait is explicit (`ctx.inject`): a module-level `inject`
- * export is not how a functional Cordis plugin declares prerequisites here.
+ *   ~/.dsh/dsh-blueprints/<sessionId>/document.json
+ *
+ * The browser half reaches them through one exact Fetch route below `/api`
+ * (the registry keys by path, so GET and POST share a registration).
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
-const DOC_FILE = '.dsh-blueprint.json';
-const ACTIVATION_LOG = '/tmp/blueprint-host-activation.log';
+const ROOT_DIR = `${homedir()}/.dsh/dsh-blueprints`;
+const SESSION_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-function log(message: string): void {
-  try {
-    appendFileSync(ACTIVATION_LOG, `${new Date().toISOString()} ${message}\n`);
-  } catch {
-    // Diagnostics must never break activation.
-  }
+/** Directory for one session; unknown callers share a fallback folder. */
+export function sessionDir(sessionId: string | null): string {
+  const key = sessionId && SESSION_PATTERN.test(sessionId) ? sessionId : '_unknown';
+  return `${ROOT_DIR}/${key}`;
 }
 
-/**
- * One exact route owns the whole endpoint: the registry keys by path, so GET and
- * POST share a single registration and dispatch on the method inside.
- */
-function createDocumentRoute(ctx: PluginContext): FetchRoute {
+function documentPath(sessionId: string | null): string {
+  const dir = sessionDir(sessionId);
+  mkdirSync(dir, { recursive: true });
+  return `${dir}/document.json`;
+}
+
+function createDocumentRoute(): FetchRoute {
   return {
     path: DOC_ENDPOINT,
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
     async fetch(request) {
-      const target = await ctx.fs.resolve(`${ctx.workingDirectory.defaultDirectory}/${DOC_FILE}`);
+      const sessionId = new URL(request.url).searchParams.get('session');
+      const file = documentPath(sessionId);
 
       if (request.method === 'GET') {
-        const stat = await ctx.fs.stat(target);
-        if (!stat) {
+        try {
+          const text = readFileSync(file, 'utf8');
+          return new Response(text, { headers: { 'content-type': 'application/json' } });
+        } catch {
           return new Response('null', { status: 404, headers: { 'content-type': 'application/json' } });
         }
-        const text = await ctx.fs.readText(target);
-        return new Response(text, { headers: { 'content-type': 'application/json' } });
       }
 
       const body = await request.text();
       JSON.parse(body); // refuse malformed JSON before it reaches the disk
-      await ctx.fs.writeText(target, body);
-      return Response.json({ ok: true });
+      writeFileSync(file, body);
+      return Response.json({ ok: true, path: file });
     },
   };
 }
 
 export function apply(ctx: PluginContext): void {
-  // Never touch a service property before ctx.inject resolves it: Cordis throws
-  // "cannot get property … without inject", which fails the whole row.
-  log('apply() entered');
-
-  ctx.inject(['connection', 'fs', 'workingDirectory'], (scope) => {
+  ctx.inject(['connection'], (scope) => {
     scope.effect(() => {
-      const disposers: Disposable[] = [];
+      let dispose: (() => void) | undefined;
       let cancelled = false;
 
-      const register = async (): Promise<void> => {
+      void (async () => {
         try {
-          const dispose = await scope.connection.fetch.register(createDocumentRoute(scope));
-          disposers.push(dispose);
-          log('route registered: GET+POST ' + DOC_ENDPOINT);
-          if (cancelled) disposers.splice(0).forEach((fn) => void fn());
+          dispose = await scope.connection.fetch.register(createDocumentRoute());
+          if (cancelled) dispose();
         } catch (error) {
-          log(`route registration failed: ${String(error)}`);
+          console.error('[blueprint] route registration failed', error);
         }
-      };
-
-      void register();
+      })();
 
       return () => {
         cancelled = true;
-        disposers.splice(0).forEach((dispose) => void dispose());
+        dispose?.();
       };
-    }, 'blueprint:document-routes');
+    }, 'blueprint:document-route');
   });
 }

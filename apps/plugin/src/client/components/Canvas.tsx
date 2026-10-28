@@ -27,13 +27,17 @@ export interface ViewportInfo {
   height: number;
 }
 
+export type Tool = 'select' | 'rect' | 'text';
+
 interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
   doc: BlueprintDocument;
   selection: Selection | null;
+  tool: Tool;
   onSelect(selection: Selection | null): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
+  onCreateLayer(frameId: string, kind: 'rect' | 'text', x: number, y: number): void;
 }
 
 type Drag =
@@ -62,6 +66,7 @@ function LayerView({
     height: layer.height,
     borderRadius: layer.radius,
     background: layer.kind === 'rect' ? layer.fill : 'transparent',
+    color: layer.kind === 'text' ? layer.fill : undefined,
   } as const;
 
   return (
@@ -76,7 +81,7 @@ function LayerView({
   );
 }
 
-export function Canvas({ viewportRef, doc, selection, onSelect, onUpdateFrame, onUpdateLayer }: CanvasProps): ReactElement {
+export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
   const drag = useRef<Drag | null>(null);
@@ -136,6 +141,17 @@ export function Canvas({ viewportRef, doc, selection, onSelect, onUpdateFrame, o
     if (event.button !== 0) return;
     event.stopPropagation();
     onSelect({ kind: 'frame', frameId: frame.id });
+
+    if (tool !== 'select') {
+      const host = hostRef.current;
+      if (!host) return;
+      const rect = host.getBoundingClientRect();
+      const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
+      const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
+      onCreateLayer(frame.id, tool, Math.round(worldX - frame.x), Math.round(worldY - frame.y));
+      return;
+    }
+
     drag.current = {
       mode: 'moveFrame',
       id: frame.id,
@@ -227,6 +243,7 @@ export function Canvas({ viewportRef, doc, selection, onSelect, onUpdateFrame, o
     <div
       ref={hostRef}
       className="bp-canvas"
+      data-tool={tool}
       onPointerDown={startPan}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}

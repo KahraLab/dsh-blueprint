@@ -318,6 +318,18 @@
   opacity: 0.35;
   cursor: default;
 }
+.bp-tool[data-on='true'] {
+  background: var(--dsw-alias-brand-primary, #2f6fed);
+  color: #fff;
+}
+.bp-canvas[data-tool='rect'],
+.bp-canvas[data-tool='text'] {
+  cursor: crosshair;
+}
+.bp-el-text {
+  color: inherit;
+}
+
 
 /* ---------- layers inside a frame ---------- */
 .bp-frame-body {

@@ -48,7 +48,7 @@ export const FRAME_MIN_SIZE = 120;
 export const LAYER_MIN_SIZE = 8;
 
 const RECT_DEFAULTS = { width: 200, height: 120, fill: 'rgba(148, 154, 164, 0.35)', radius: 8 } as const;
-const TEXT_DEFAULTS = { width: 200, height: 32, fill: 'transparent', radius: 0 } as const;
+const TEXT_DEFAULTS = { width: 200, height: 32, fill: '#101828', radius: 0 } as const;
 
 export function createDocument(): BlueprintDocument {
   return { frames: [] };
@@ -99,6 +99,7 @@ export function addLayer(
   doc: BlueprintDocument,
   frameId: string,
   kind: LayerKind,
+  at?: { x: number; y: number },
 ): { doc: BlueprintDocument; layer: Layer } | null {
   const frame = doc.frames.find((item) => item.id === frameId);
   if (!frame) return null;
@@ -108,8 +109,8 @@ export function addLayer(
     id: nextId('layer'),
     kind,
     name: LAYER_NAMES[kind],
-    x: 24,
-    y: 24 + frame.layers.length * 16,
+    x: at ? Math.round(at.x) : 24,
+    y: at ? Math.round(at.y) : 24 + frame.layers.length * 16,
     width: defaults.width,
     height: defaults.height,
     fill: defaults.fill,

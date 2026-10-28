@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type ViewportInfo } from './components/Canvas';
-import { AddFrameIcon, LayersIcon, MarkIcon, RectIcon, TextIcon } from './icons';
+import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
+import { AddFrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
   addLayer,
@@ -43,8 +43,17 @@ function createTabTitle(t: (key: string) => string) {
   };
 }
 
-function Panel(): ReactElement {
+interface PanelProps {
+  useTabInfo?: () => { tab?: { sessionId?: string }; sessionId?: string };
+}
+
+function Panel({ useTabInfo }: PanelProps): ReactElement {
+  const tabInfo = typeof useTabInfo === 'function' ? useTabInfo() : undefined;
+  const sessionId = tabInfo?.tab?.sessionId ?? tabInfo?.sessionId ?? null;
+  const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
+
   const [tab, setTab] = useState<Tab>('canvas');
+  const [tool, setTool] = useState<Tool>('select');
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
@@ -59,7 +68,7 @@ function Panel(): ReactElement {
   // Pull the document once on mount. A missing file is a normal first run.
   useEffect(() => {
     let alive = true;
-    fetch(DOC_ENDPOINT, { headers: { accept: 'application/json' } })
+    fetch(docUrl, { headers: { accept: 'application/json' } })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: unknown) => {
         if (!alive || !data || typeof data !== 'object') return;
@@ -73,14 +82,14 @@ function Panel(): ReactElement {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [docUrl]);
 
   // Persist after the first load, debounced so dragging does not hammer the disk.
   useEffect(() => {
     if (!hydrated) return;
     const timer = setTimeout(() => {
       setSaveState('saving');
-      fetch(DOC_ENDPOINT, {
+      fetch(docUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(doc),
@@ -95,7 +104,7 @@ function Panel(): ReactElement {
         });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [doc, hydrated]);
+  }, [doc, hydrated, docUrl]);
 
   const onCreateFrame = (): void => {
     const info = canvasViewport.current;
@@ -108,12 +117,12 @@ function Panel(): ReactElement {
     setTab('canvas');
   };
 
-  const onCreateLayer = (kind: LayerKind): void => {
-    if (!activeFrameId) return;
-    const result = addLayer(doc, activeFrameId, kind);
+  const onCreateLayer = (frameId: string, kind: LayerKind, x: number, y: number): void => {
+    const result = addLayer(doc, frameId, kind, { x, y });
     if (!result) return;
     setDoc(result.doc);
-    setSelection({ kind: 'layer', frameId: activeFrameId, layerId: result.layer.id });
+    setSelection({ kind: 'layer', frameId, layerId: result.layer.id });
+    setTool('select');
   };
 
   const onUpdateFrame = (frameId: string, patch: RectPatch): void => {
@@ -189,31 +198,33 @@ function Panel(): ReactElement {
               viewportRef={canvasViewport}
               doc={doc}
               selection={selection}
+              tool={tool}
               onSelect={setSelection}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
+              onCreateLayer={onCreateLayer}
             />
-            <div className="bp-tools" role="toolbar" aria-label="添加元素">
-              <button
-                type="button"
-                className="bp-tool"
-                disabled={!activeFrameId}
-                title="矩形"
-                aria-label="矩形"
-                onClick={() => onCreateLayer('rect')}
-              >
-                <RectIcon />
-              </button>
-              <button
-                type="button"
-                className="bp-tool"
-                disabled={!activeFrameId}
-                title="文本"
-                aria-label="文本"
-                onClick={() => onCreateLayer('text')}
-              >
-                <TextIcon />
-              </button>
+            <div className="bp-tools" role="toolbar" aria-label="工具">
+              {(
+                [
+                  { id: 'select', label: '选择', Icon: PointerIcon },
+                  { id: 'rect', label: '矩形', Icon: RectIcon },
+                  { id: 'text', label: '文本', Icon: TextIcon },
+                ] as const
+              ).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="bp-tool"
+                  data-on={tool === id}
+                  title={label}
+                  aria-label={label}
+                  aria-pressed={tool === id}
+                  onClick={() => setTool(id)}
+                >
+                  <Icon />
+                </button>
+              ))}
             </div>
           </>
         ) : (

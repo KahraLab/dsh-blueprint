@@ -1,6 +1,7 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
+import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
 import Plus from 'lucide-react/icons/plus';
 import Type from 'lucide-react/icons/type';
 import type { ReactElement } from 'react';
@@ -47,4 +48,9 @@ export function RectIcon({ size = 15, className }: IconProps): ReactElement {
 /** Add a text layer. */
 export function TextIcon({ size = 15, className }: IconProps): ReactElement {
   return <Type size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Select tool. */
+export function PointerIcon({ size = 15, className }: IconProps): ReactElement {
+  return <MousePointer2 size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
