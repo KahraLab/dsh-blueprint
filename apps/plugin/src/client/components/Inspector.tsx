@@ -493,7 +493,7 @@ export function Inspector({
           </div>
         ))}
 
-        {!isFrame && !isText ? (
+        {!isFrame && (layer!.kind === 'rect' || layer!.kind === 'ellipse') ? (
           <div className="bp-grid2">
             <NumberBox label="圆角" value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
           </div>

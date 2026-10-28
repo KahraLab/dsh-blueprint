@@ -7,7 +7,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${counter}`;
 }
 
-export type LayerKind = 'rect' | 'ellipse' | 'text';
+export type LayerKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text';
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
@@ -148,6 +148,16 @@ export function makeStackLayout(overrides: Partial<StackLayout> = {}): StackLayo
 
 const RECT_DEFAULTS = { width: 200, height: 120, radius: 8 } as const;
 const TEXT_DEFAULTS = { width: 200, height: 32, radius: 0 } as const;
+/** Shapes that are drawn rather than boxed keep a thin, grabbable box. */
+const LINE_DEFAULTS = { width: 160, height: 16, radius: 0 } as const;
+const FIGURE_DEFAULTS = { width: 120, height: 120, radius: 0 } as const;
+
+function defaultsFor(kind: LayerKind): { width: number; height: number; radius: number } {
+  if (kind === 'text') return TEXT_DEFAULTS;
+  if (kind === 'line' || kind === 'arrow') return LINE_DEFAULTS;
+  if (kind === 'polygon' || kind === 'star') return FIGURE_DEFAULTS;
+  return RECT_DEFAULTS;
+}
 
 const DEFAULT_SHAPE_FILL = '#D9D9D9';
 const DEFAULT_TEXT_FILL = '#101828';
@@ -474,9 +484,13 @@ export function addLayer(
   kind: LayerKind,
   point: { x: number; y: number },
   fill?: string,
+  size?: { width: number; height: number },
 ): { doc: BlueprintDocument; layer: Layer } {
   const names = doc.frames.reduce<string[]>((into, frame) => collectNames(frame.children, into), collectNames(doc.layers, []));
-  const layer = makeLayer(kind, nextName(names, LAYER_NAMES[kind]), point.x, point.y, fill);
+  const base = makeLayer(kind, nextName(names, LAYER_NAMES[kind]), point.x, point.y, fill);
+  const layer: Layer = size
+    ? { ...base, width: Math.max(1, Math.round(size.width)), height: Math.max(1, Math.round(size.height)) }
+    : base;
   return { doc: insertLayer(doc, target, layer), layer };
 }
 
@@ -526,7 +540,15 @@ export function addFrameRect(
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
 }
 
-const LAYER_NAMES: Record<LayerKind, string> = { rect: '矩形', ellipse: '椭圆', text: '文本' };
+const LAYER_NAMES: Record<LayerKind, string> = {
+  rect: '矩形',
+  ellipse: '椭圆',
+  line: '直线',
+  arrow: '箭头',
+  polygon: '多边形',
+  star: '星形',
+  text: '文本',
+};
 
 function collectNames(layers: readonly Layer[], into: string[]): string[] {
   for (const layer of layers) {
@@ -548,7 +570,7 @@ function nextName(existing: readonly string[], base: string): string {
 }
 
 function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: string): Layer {
-  const defaults = kind === 'text' ? TEXT_DEFAULTS : RECT_DEFAULTS;
+  const defaults = defaultsFor(kind);
   const isText = kind === 'text';
   return {
     id: nextId('layer'),

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EditingLayer, NewLayerRequest, Tool } from './components/Canvas';
+import type { EditingLayer, NewLayerRequest, ShapeKind, Tool } from './components/Canvas';
 import {
   addFrame,
   addFrameRect,
@@ -30,7 +30,7 @@ interface BlueprintState {
   selections: readonly Selection[];
   editing: EditingLayer | null;
   tool: Tool;
-  shapeKind: 'rect' | 'ellipse';
+  shapeKind: ShapeKind;
   tab: Tab;
   uiMinimized: boolean;
 
@@ -38,7 +38,7 @@ interface BlueprintState {
   setSelections(selections: readonly Selection[]): void;
   setEditing(editing: EditingLayer | null): void;
   setTool(tool: Tool): void;
-  setShapeKind(kind: 'rect' | 'ellipse'): void;
+  setShapeKind(kind: ShapeKind): void;
   setTab(tab: Tab): void;
   toggleUiMinimized(): void;
   setSaveState(state: SaveState): void;
@@ -88,7 +88,7 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
 
   createLayer: (request) => {
     const target: InsertTarget = { frameId: request.frameId, parentId: request.parentId, beforeId: null };
-    const result = addLayer(get().doc, target, request.kind, request.point, request.fill);
+    const result = addLayer(get().doc, target, request.kind, request.point, request.fill, request.size);
     set({
       doc: result.doc,
       selections: [{ kind: 'layer', frameId: request.frameId, layerId: result.layer.id }],
@@ -193,9 +193,39 @@ export function handleDeleteKey(event: Pick<KeyboardEvent, 'key' | 'target' | 'p
   return true;
 }
 
-export function installDeleteKey(): () => void {
+/** Single-key tool switching, the way the toolbar menu advertises it. */
+const TOOL_KEYS: Record<string, { tool: Tool; shape?: ShapeKind }> = {
+  v: { tool: 'move' },
+  h: { tool: 'hand' },
+  f: { tool: 'frame' },
+  t: { tool: 'text' },
+  r: { tool: 'shape', shape: 'rect' },
+  l: { tool: 'shape', shape: 'line' },
+  L: { tool: 'shape', shape: 'arrow' },
+  o: { tool: 'shape', shape: 'ellipse' },
+  p: { tool: 'shape', shape: 'polygon' },
+  P: { tool: 'shape', shape: 'star' },
+};
+
+export function handleToolKey(
+  event: Pick<KeyboardEvent, 'key' | 'target' | 'metaKey' | 'ctrlKey' | 'altKey'>,
+): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return false;
+  const binding = TOOL_KEYS[event.key] ?? TOOL_KEYS[event.key.toLowerCase()];
+  if (!binding) return false;
+  const state = useBlueprint.getState();
+  state.setTool(binding.tool);
+  if (binding.shape) state.setShapeKind(binding.shape);
+  return true;
+}
+
+/** Delete and the single-key tool switches, installed once per session. */
+export function installKeys(): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
-    handleDeleteKey(event);
+    if (handleDeleteKey(event)) return;
+    handleToolKey(event);
   };
   window.addEventListener('keydown', onKeyDown);
   return () => window.removeEventListener('keydown', onKeyDown);

@@ -8,6 +8,7 @@ import {
   type Frame,
   type InsertTarget,
   type Layer,
+  type LayerKind,
   type LayerRectPatch,
   type RectPatch,
   type Selection,
@@ -34,6 +35,9 @@ export interface ViewportInfo extends Viewport {
 
 export type Tool = 'move' | 'hand' | 'frame' | 'shape' | 'text';
 
+/** The shapes the toolbar can draw. */
+export type ShapeKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star';
+
 export interface EditingLayer {
   frameId: string | null;
   layerId: string;
@@ -43,8 +47,10 @@ export interface NewLayerRequest {
   frameId: string | null;
   parentId: string | null;
   point: { x: number; y: number };
-  kind: 'rect' | 'ellipse' | 'text';
+  kind: LayerKind;
   fill?: string;
+  /** Size for a shape dragged out on the canvas. */
+  size?: { width: number; height: number };
 }
 
 interface CanvasProps {
@@ -52,7 +58,7 @@ interface CanvasProps {
   doc: BlueprintDocument;
   selections: readonly Selection[];
   tool: Tool;
-  shapeKind: 'rect' | 'ellipse';
+  shapeKind: ShapeKind;
   editing: EditingLayer | null;
   initialViewport?: Viewport;
   onViewportChange?(viewport: Viewport): void;
@@ -111,6 +117,17 @@ type Drag =
   | { mode: 'pan'; pointerX: number; pointerY: number; originX: number; originY: number }
   | { mode: 'marquee'; startX: number; startY: number }
   | { mode: 'drawFrame'; startX: number; startY: number }
+  | {
+      mode: 'drawShape';
+      startX: number;
+      startY: number;
+      frameId: string | null;
+      parentId: string | null;
+      /** World point of the container's top-left corner, for local coordinates. */
+      origin: { x: number; y: number };
+      /** Inside a stack the box has no coordinates of its own. */
+      flow: boolean;
+    }
   | {
       mode: 'moveFrame';
       id: string;
@@ -286,12 +303,48 @@ function freeItemStyle(layer: Layer): CSSProperties {
   return style;
 }
 
+const POLYGON_PATH = 'M 50 0 L 100 100 L 0 100 Z';
+const STAR_PATH =
+  'M 50 0 L 61.17 34.63 L 97.55 34.55 L 68.07 55.87 L 79.39 90.45 L 50 69 L 20.61 90.45 L 31.93 55.87 L 2.45 34.55 L 38.83 34.63 Z';
+
+/** Line, arrow, polygon and star are drawn as SVG inside their box. */
+function ShapeGraphic({ layer }: { layer: Layer }): ReactElement | null {
+  const color = topFillColor(layer.fills);
+  const width = Math.max(1, layer.width);
+  const height = Math.max(1, layer.height);
+
+  if (layer.kind === 'line' || layer.kind === 'arrow') {
+    const y = height / 2;
+    const head = layer.kind === 'arrow' ? Math.min(12, width / 3) : 0;
+    return (
+      <svg className="bp-shape-graphic" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+        <line x1={0} y1={y} x2={width - head} y2={y} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        {head > 0 ? <path d={`M ${width} ${y} L ${width - head} ${y - 5} L ${width - head} ${y + 5} Z`} fill={color} /> : null}
+      </svg>
+    );
+  }
+
+  if (layer.kind === 'polygon' || layer.kind === 'star') {
+    return (
+      <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path d={layer.kind === 'polygon' ? POLYGON_PATH : STAR_PATH} fill={color} />
+      </svg>
+    );
+  }
+
+  return null;
+}
+
 /** Paint, corner radius and type. */
 function visualStyle(layer: Layer): CSSProperties {
   const isText = layer.kind === 'text';
-  const fill = isText ? 'transparent' : fillBackground(layer.fills);
   if (!isText) {
-    return { borderRadius: layer.radius, background: fill, opacity: layer.opacity };
+    const boxed = layer.kind === 'rect' || layer.kind === 'ellipse';
+    return {
+      borderRadius: boxed ? layer.radius : undefined,
+      background: boxed ? fillBackground(layer.fills) : 'transparent',
+      opacity: layer.opacity,
+    };
   }
   return {
     color: topFillColor(layer.fills),
@@ -340,6 +393,7 @@ export function Canvas({
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
+  const [draftShape, setDraftShape] = useState<WorldRect | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const [dropIndicator, setDropIndicator] = useState<LocalRect | null>(null);
   const [dropFrameId, setDropFrameId] = useState<string | null>(null);
@@ -522,22 +576,39 @@ export function Canvas({
       return;
     }
 
-    if (tool === 'shape' || tool === 'text') {
+    if (tool === 'shape') {
+      // Drag to size it; a click without movement falls back to the default size.
+      event.preventDefault();
+      const hit = containerAtElement(event.target as HTMLElement | null);
+      const box = hit?.element.getBoundingClientRect();
+      drag.current = {
+        mode: 'drawShape',
+        startX: world.x,
+        startY: world.y,
+        frameId: hit?.frameId ?? null,
+        parentId: hit?.parentId ?? null,
+        origin: box ? toWorld(box.left, box.top) : { x: 0, y: 0 },
+        flow: Boolean(hit?.layout),
+      };
+      setDraftShape({ x: world.x, y: world.y, width: 0, height: 0 });
+      return;
+    }
+
+    if (tool === 'text') {
       // Keep the pointer from stealing focus away from the freshly created editor.
       event.preventDefault();
       const hit = containerAtElement(event.target as HTMLElement | null);
-      const kind = tool === 'text' ? 'text' : shapeKind;
-      const fill = tool === 'text' ? textColourAt(event.clientX, event.clientY) : undefined;
+      const fill = textColourAt(event.clientX, event.clientY);
 
       if (!hit) {
-        onCreateLayer({ frameId: null, parentId: null, point: world, kind, fill });
+        onCreateLayer({ frameId: null, parentId: null, point: world, kind: 'text', fill });
         return;
       }
       const box = hit.element.getBoundingClientRect();
       const point = hit.layout
         ? { x: 0, y: 0 }
         : { x: (event.clientX - box.left) / live.current.zoom, y: (event.clientY - box.top) / live.current.zoom };
-      onCreateLayer({ frameId: hit.frameId, parentId: hit.parentId, point, kind, fill });
+      onCreateLayer({ frameId: hit.frameId, parentId: hit.parentId, point, kind: 'text', fill });
       return;
     }
 
@@ -793,6 +864,33 @@ export function Canvas({
         return;
       }
 
+      case 'drawShape': {
+        const world = toWorld(event.clientX, event.clientY);
+        const draft = {
+          x: Math.min(current.startX, world.x),
+          y: Math.min(current.startY, world.y),
+          width: Math.abs(world.x - current.startX),
+          height: Math.abs(world.y - current.startY),
+        };
+        setDraftShape(draft);
+        const host = hostRef.current;
+        if (host) {
+          const hostRect = host.getBoundingClientRect();
+          const view = live.current;
+          showSizeChip(
+            new DOMRect(
+              hostRect.left + view.x + draft.x * view.zoom,
+              hostRect.top + view.y + draft.y * view.zoom,
+              draft.width * view.zoom,
+              draft.height * view.zoom,
+            ),
+            draft.width,
+            draft.height,
+          );
+        }
+        return;
+      }
+
       case 'drawFrame': {
         const world = toWorld(event.clientX, event.clientY);
         const draft = {
@@ -1014,6 +1112,29 @@ export function Canvas({
       setDraftFrame(null);
     }
 
+    if (current?.mode === 'drawShape') {
+      const world = toWorld(event.clientX, event.clientY);
+      const drawn = {
+        x: Math.min(current.startX, world.x),
+        y: Math.min(current.startY, world.y),
+        width: Math.abs(world.x - current.startX),
+        height: Math.abs(world.y - current.startY),
+      };
+      const sized = drawn.width >= 6 && drawn.height >= 6;
+      const corner = sized ? { x: drawn.x, y: drawn.y } : { x: current.startX, y: current.startY };
+      const point = current.flow
+        ? { x: 0, y: 0 }
+        : { x: Math.round(corner.x - current.origin.x), y: Math.round(corner.y - current.origin.y) };
+      onCreateLayer({
+        frameId: current.frameId,
+        parentId: current.parentId,
+        point,
+        kind: shapeKind,
+        size: sized ? { width: drawn.width, height: drawn.height } : undefined,
+      });
+      setDraftShape(null);
+    }
+
     if (current?.mode === 'moveFrame') onUpdateFrame(current.id, { x: current.originX + current.dx, y: current.originY + current.dy });
     if (current?.mode === 'resize') {
       const { target, next, free } = current;
@@ -1137,7 +1258,10 @@ export function Canvas({
             layer.text
           )
         ) : (
-          layer.children.map((child) => renderLayer(child, frameId, layer.layout))
+          <>
+            <ShapeGraphic layer={layer} />
+            {layer.children.map((child) => renderLayer(child, frameId, layer.layout))}
+          </>
         )}
       </div>
     );
@@ -1158,6 +1282,13 @@ export function Canvas({
         className="bp-world"
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}
       >
+        {draftShape ? (
+          <div
+            className="bp-draw-frame"
+            style={{ left: draftShape.x, top: draftShape.y, width: draftShape.width, height: draftShape.height }}
+          />
+        ) : null}
+
         {draftFrame ? (
           <div
             className="bp-draw-frame"

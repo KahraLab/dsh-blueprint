@@ -385,6 +385,15 @@
   color: var(--dsw-alias-label-primary, #101828);
   overflow-wrap: break-word;
 }
+.bp-shape-graphic {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  overflow: visible;
+}
 
 
 .bp-save {
@@ -433,7 +442,7 @@
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
-  min-width: 132px;
+  min-width: 152px;
   padding: 4px;
   border-radius: 9px;
   background: var(--dsw-alias-bg-layer-2, #242424);
@@ -451,10 +460,31 @@
   color: var(--dsw-alias-label-primary, #e6e8eb);
   font: inherit;
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   text-align: left;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
+}
+.bp-menu-item svg {
+  flex: none;
+  display: block;
+}
+.bp-menu-label {
+  flex: 1;
+  min-width: 0;
+}
+.bp-menu-shortcut {
+  flex: none;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+  font-variant-numeric: tabular-nums;
+}
+.bp-menu-shapes {
+  min-width: 168px;
 }
 .bp-menu-item:hover {
   background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.08));

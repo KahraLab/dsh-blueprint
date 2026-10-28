@@ -6,6 +6,11 @@ import AlignLeft from 'lucide-react/icons/align-left';
 import AlignRight from 'lucide-react/icons/align-right';
 import AlignStartVertical from 'lucide-react/icons/align-start-vertical';
 import ArrowUpToLine from 'lucide-react/icons/arrow-up-to-line';
+import Circle from 'lucide-react/icons/circle';
+import Slash from 'lucide-react/icons/slash';
+import MoveUpRight from 'lucide-react/icons/move-up-right';
+import Triangle from 'lucide-react/icons/triangle';
+import Star from 'lucide-react/icons/star';
 import ArrowDownToLine from 'lucide-react/icons/arrow-down-to-line';
 import Move from 'lucide-react/icons/move';
 import ArrowDown from 'lucide-react/icons/arrow-down';
@@ -207,4 +212,29 @@ export function StretchIcon({ axis, size = 14 }: { axis: 'x' | 'y'; size?: numbe
   return axis === 'x'
     ? <StretchHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />
     : <StretchVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Ellipse tool. */
+export function EllipseIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Circle size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Line tool: a single diagonal stroke, the way the menu shows it. */
+export function LineIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Slash size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Arrow tool. */
+export function ArrowShapeIcon({ size = 15, className }: IconProps): ReactElement {
+  return <MoveUpRight size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Polygon tool. */
+export function PolygonIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Triangle size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Star tool. */
+export function StarIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Star size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }

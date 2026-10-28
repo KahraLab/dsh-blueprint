@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type Viewport, type ViewportInfo } from './components/Canvas';
+import { Canvas, type ShapeKind, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
-import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
-import { installDeleteKey, loadDocument, startSession, useBlueprint, type Tab } from './store';
+import { ShapeIcon, ShapeMenu, shapeLabel } from './components/ShapeMenu';
+import {
+  CaretIcon,
+  FrameIcon,
+  HandIcon,
+  LockIcon,
+  MarkIcon,
+  MinimizeUiIcon,
+  PointerIcon,
+  RectIcon,
+  TextIcon,
+  VisibilityIcon,
+} from './icons';
+import { installKeys, loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
@@ -105,7 +117,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   useEffect(() => {
     void loadDocument(docUrl);
     const stopSession = startSession(docUrl);
-    const stopKeys = installDeleteKey();
+    const stopKeys = installKeys();
     return () => {
       stopSession();
       stopKeys();
@@ -263,7 +275,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                         key={item.id}
                         type="button"
                         role="menuitem"
-                        className="bp-menu-item bp-menu-item-icon"
+                        className="bp-menu-item"
                         data-on={tool === item.id}
                         onClick={() => {
                           setTool(item.id);
@@ -271,7 +283,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                         }}
                       >
                         <item.Icon size={13} />
-                        {item.label}
+                        <span className="bp-menu-label">{item.label}</span>
                       </button>
                     ))}
                   </div>
@@ -295,44 +307,31 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   type="button"
                   className="bp-tool"
                   data-on={tool === 'shape'}
-                  title={shapeKind === 'rect' ? '矩形' : '椭圆'}
-                  aria-label="形状"
+                  title={shapeLabel(shapeKind)}
+                  aria-label={`形状：${shapeLabel(shapeKind)}`}
                   aria-pressed={tool === 'shape'}
                   onClick={() => setTool('shape')}
                 >
-                  <RectIcon />
+                  <ShapeIcon kind={shapeKind} />
                 </button>
                 <button
                   type="button"
                   className="bp-caret"
-                  aria-label="更多形状"
+                  aria-label="选择形状"
                   aria-expanded={shapeMenuOpen}
                   onClick={() => { setShapeMenuOpen((open) => !open); setMoveMenuOpen(false); }}
                 >
                   <CaretIcon />
                 </button>
                 {shapeMenuOpen ? (
-                  <div className="bp-menu" role="menu">
-                    {([
-                      { id: 'rect', label: '矩形' },
-                      { id: 'ellipse', label: '椭圆' },
-                    ] as const).map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        role="menuitem"
-                        className="bp-menu-item"
-                        data-on={shapeKind === item.id}
-                        onClick={() => {
-                          setShapeKind(item.id);
-                          setTool('shape');
-                          setShapeMenuOpen(false);
-                        }}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ShapeMenu
+                    shapeKind={shapeKind}
+                    onPick={(kind) => {
+                      setShapeKind(kind);
+                      setTool('shape');
+                      setShapeMenuOpen(false);
+                    }}
+                  />
                 ) : null}
               </div>
 
