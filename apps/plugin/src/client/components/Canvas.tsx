@@ -44,7 +44,7 @@ export interface NewLayerRequest {
   parentId: string | null;
   point: { x: number; y: number };
   kind: 'rect' | 'ellipse' | 'text';
-  fill: string;
+  fill?: string;
 }
 
 interface CanvasProps {
@@ -527,7 +527,7 @@ export function Canvas({
       event.preventDefault();
       const hit = containerAtElement(event.target as HTMLElement | null);
       const kind = tool === 'text' ? 'text' : shapeKind;
-      const fill = tool === 'text' ? textColourAt(event.clientX, event.clientY) : 'rgba(148, 154, 164, 0.35)';
+      const fill = tool === 'text' ? textColourAt(event.clientX, event.clientY) : undefined;
 
       if (!hit) {
         onCreateLayer({ frameId: null, parentId: null, point: world, kind, fill });

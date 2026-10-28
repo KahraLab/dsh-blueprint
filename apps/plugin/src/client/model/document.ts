@@ -149,7 +149,7 @@ export function makeStackLayout(overrides: Partial<StackLayout> = {}): StackLayo
 const RECT_DEFAULTS = { width: 200, height: 120, radius: 8 } as const;
 const TEXT_DEFAULTS = { width: 200, height: 32, radius: 0 } as const;
 
-const DEFAULT_SHAPE_FILL = 'rgba(148, 154, 164, 0.35)';
+const DEFAULT_SHAPE_FILL = '#D9D9D9';
 const DEFAULT_TEXT_FILL = '#101828';
 const DEFAULT_FRAME_FILL = '#FFFFFF';
 
@@ -475,7 +475,8 @@ export function addLayer(
   point: { x: number; y: number },
   fill?: string,
 ): { doc: BlueprintDocument; layer: Layer } {
-  const layer = makeLayer(kind, point.x, point.y, fill);
+  const names = doc.frames.reduce<string[]>((into, frame) => collectNames(frame.children, into), collectNames(doc.layers, []));
+  const layer = makeLayer(kind, nextName(names, LAYER_NAMES[kind]), point.x, point.y, fill);
   return { doc: insertLayer(doc, target, layer), layer };
 }
 
@@ -494,7 +495,6 @@ function overlaps(a: Frame, x: number, y: number): boolean {
  * already taken, the new frame slides right past the frames in the way.
  */
 export function addFrame(doc: BlueprintDocument, center: { x: number; y: number }): { doc: BlueprintDocument; frame: Frame } {
-  const index = doc.frames.length;
   let x = Math.round(center.x - FRAME_WIDTH / 2);
   const y = Math.round(center.y - FRAME_HEIGHT / 2);
 
@@ -502,7 +502,7 @@ export function addFrame(doc: BlueprintDocument, center: { x: number; y: number 
     x += FRAME_WIDTH + FRAME_GAP;
   }
 
-  return addFrameRect(doc, { x, y, width: FRAME_WIDTH, height: FRAME_HEIGHT, name: `画板 ${index + 1}` });
+  return addFrameRect(doc, { x, y, width: FRAME_WIDTH, height: FRAME_HEIGHT });
 }
 
 export function addFrameRect(
@@ -511,7 +511,7 @@ export function addFrameRect(
 ): { doc: BlueprintDocument; frame: Frame } {
   const frame: Frame = {
     id: nextId('frame'),
-    name: rect.name ?? `画板 ${doc.frames.length + 1}`,
+    name: rect.name ?? nextName(doc.frames.map((frame) => frame.name), '画板'),
     x: Math.round(rect.x),
     y: Math.round(rect.y),
     width: Math.max(40, Math.round(rect.width)),
@@ -528,13 +528,32 @@ export function addFrameRect(
 
 const LAYER_NAMES: Record<LayerKind, string> = { rect: '矩形', ellipse: '椭圆', text: '文本' };
 
-function makeLayer(kind: LayerKind, x: number, y: number, fill?: string): Layer {
+function collectNames(layers: readonly Layer[], into: string[]): string[] {
+  for (const layer of layers) {
+    into.push(layer.name);
+    collectNames(layer.children, into);
+  }
+  return into;
+}
+
+/** "矩形3" → 矩形4, so deleting the latest one never makes the next name collide. */
+function nextName(existing: readonly string[], base: string): string {
+  const pattern = new RegExp(`^${base}(\\d+)$`);
+  let highest = 0;
+  for (const name of existing) {
+    const match = pattern.exec(name);
+    if (match?.[1]) highest = Math.max(highest, Number(match[1]));
+  }
+  return `${base}${highest + 1}`;
+}
+
+function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: string): Layer {
   const defaults = kind === 'text' ? TEXT_DEFAULTS : RECT_DEFAULTS;
   const isText = kind === 'text';
   return {
     id: nextId('layer'),
     kind,
-    name: LAYER_NAMES[kind],
+    name,
     x: Math.round(x),
     y: Math.round(y),
     width: defaults.width,
