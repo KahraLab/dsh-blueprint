@@ -227,35 +227,102 @@ export function Inspector({
       </section>
 
       {!isFrame && layer?.kind === 'text' ? (
-        <section className="bp-inspector-section">
-          <h5>文字</h5>
-          <textarea
-            className="bp-field-textarea"
-            value={layer.text}
-            onChange={(event) => patchLayer({ text: event.target.value })}
-          />
-          <div className="bp-grid2">
-            <NumberBox label="字号" value={layer.fontSize} onChange={(fontSize) => patchLayer({ fontSize: Math.max(6, fontSize) })} />
-            <label className="bp-input-box">
-              <span className="bp-input-label">字重</span>
+        <>
+          <section className="bp-inspector-section">
+            <h5>内容</h5>
+            <textarea
+              className="bp-field-textarea"
+              value={layer.text}
+              onChange={(event) => patchLayer({ text: event.target.value })}
+            />
+          </section>
+
+          <section className="bp-inspector-section">
+            <h5>字体</h5>
+
+            <label className="bp-input-box bp-full">
               <select
                 className="bp-input-field"
-                value={layer.fontWeight}
-                onChange={(event) => patchLayer({ fontWeight: Number(event.target.value) })}
+                value={layer.fontFamily}
+                onChange={(event) => patchLayer({ fontFamily: event.target.value })}
               >
-                {[300, 400, 500, 600, 700].map((weight) => (
-                  <option key={weight} value={weight}>
-                    {weight}
+                {['Figtree', 'Inter', 'system-ui'].map((family) => (
+                  <option key={family} value={family}>
+                    {family}
                   </option>
                 ))}
               </select>
             </label>
-          </div>
-          <div className="bp-grid2">
-            <NumberBox label="行高" value={layer.lineHeight} onChange={(lineHeight) => patchLayer({ lineHeight: Math.max(0.8, lineHeight) })} />
-            <AlignBox value={layer.textAlign} onChange={(textAlign) => patchLayer({ textAlign })} />
-          </div>
-        </section>
+
+            <div className="bp-grid2">
+              <label className="bp-input-box">
+                <select
+                  className="bp-input-field"
+                  value={layer.fontWeight}
+                  onChange={(event) => patchLayer({ fontWeight: Number(event.target.value) })}
+                >
+                  {[300, 400, 500, 600, 700].map((weight) => (
+                    <option key={weight} value={weight}>
+                      {weight === 300
+                        ? 'Light'
+                        : weight === 400
+                          ? 'Regular'
+                          : weight === 500
+                            ? 'Medium'
+                            : weight === 600
+                              ? 'Semibold'
+                              : 'Bold'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <NumberBox label="字号" value={layer.fontSize} onChange={(fontSize) => patchLayer({ fontSize: Math.max(6, fontSize) })} />
+            </div>
+
+            <div className="bp-grid2">
+              <div className="bp-typo-field">
+                <span className="bp-typo-label">行高</span>
+                <NumberBox label="↕" value={layer.lineHeight} onChange={(lineHeight) => patchLayer({ lineHeight: Math.max(0.8, lineHeight) })} />
+              </div>
+              <div className="bp-typo-field">
+                <span className="bp-typo-label">字间距</span>
+                <NumberBox label="↔" value={layer.letterSpacing} onChange={(letterSpacing) => patchLayer({ letterSpacing })} />
+              </div>
+            </div>
+
+            <div className="bp-typo-field">
+              <span className="bp-typo-label">对齐</span>
+              <div className="bp-align-row">
+                <div className="bp-align-box">
+                  {(['left', 'center', 'right'] as const).map((align) => (
+                    <button
+                      key={align}
+                      type="button"
+                      className="bp-align-btn"
+                      data-on={(layer.textAlign ?? 'left') === align}
+                      onClick={() => patchLayer({ textAlign: align })}
+                    >
+                      {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
+                    </button>
+                  ))}
+                </div>
+                <div className="bp-align-box">
+                  {(['top', 'middle', 'bottom'] as const).map((align) => (
+                    <button
+                      key={align}
+                      type="button"
+                      className="bp-align-btn"
+                      data-on={(layer.verticalAlign ?? 'top') === align}
+                      onClick={() => patchLayer({ verticalAlign: align })}
+                    >
+                      {align === 'top' ? '上' : align === 'middle' ? '中' : '下'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
       ) : null}
     </aside>
   );

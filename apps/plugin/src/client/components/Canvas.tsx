@@ -130,13 +130,18 @@ function prefersDarkText(color: string, fallback: boolean): boolean {
 let measureCanvas: HTMLCanvasElement | null = null;
 
 /** Text follows the glyphs: the box is measured from the characters, not fixed. */
-function measureText(layer: Pick<Layer, 'text' | 'fontSize' | 'fontWeight' | 'lineHeight'>): { width: number; height: number } {
+function measureText(
+  layer: Pick<Layer, 'text' | 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing'>,
+): { width: number; height: number } {
   if (!measureCanvas) measureCanvas = document.createElement('canvas');
   const ctx = measureCanvas.getContext('2d');
   const height = Math.ceil(layer.fontSize * layer.lineHeight);
   if (!ctx) return { width: 8, height };
-  ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${TEXT_FONT_STACK}`;
-  const width = Math.ceil(ctx.measureText(layer.text.length > 0 ? layer.text : ' ').width) + 2;
+  const family = layer.fontFamily ? `"${layer.fontFamily}", ${TEXT_FONT_STACK}` : TEXT_FONT_STACK;
+  ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${family}`;
+  const glyphs = layer.text.length > 0 ? layer.text : ' ';
+  const tracking = layer.letterSpacing * Math.max(0, glyphs.length - 1);
+  const width = Math.ceil(ctx.measureText(glyphs).width + tracking) + 2;
   return { width: Math.max(8, width), height };
 }
 
@@ -188,16 +193,27 @@ function LayerView({
         left: layer.x,
         top: layer.y,
         width: isText ? undefined : layer.width,
-        height: isText ? undefined : layer.height,
+        height: isText ? layer.height : layer.height,
         borderRadius: layer.radius,
         background: isText ? 'transparent' : layer.fill,
         color: isText ? layer.fill : undefined,
         opacity: layer.opacity,
         fontSize: isText ? layer.fontSize : undefined,
+        fontFamily: isText ? `"${layer.fontFamily}", ${TEXT_FONT_STACK}` : undefined,
         fontWeight: isText ? layer.fontWeight : undefined,
         lineHeight: isText ? layer.lineHeight : undefined,
+        letterSpacing: isText ? `${layer.letterSpacing}px` : undefined,
         textAlign: isText ? layer.textAlign : undefined,
         whiteSpace: isText ? 'pre' : undefined,
+        display: isText ? 'flex' : undefined,
+        alignItems:
+          isText
+            ? layer.verticalAlign === 'middle'
+              ? 'center'
+              : layer.verticalAlign === 'bottom'
+                ? 'flex-end'
+                : 'flex-start'
+            : undefined,
       }}
       onPointerDown={onPointerDown}
       onDoubleClick={(event) => {

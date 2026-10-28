@@ -9,6 +9,7 @@ function nextId(prefix: string): string {
 
 export type LayerKind = 'rect' | 'ellipse' | 'text';
 export type TextAlign = 'left' | 'center' | 'right';
+export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
 export interface Layer {
   id: string;
@@ -22,10 +23,13 @@ export interface Layer {
   radius: number;
   opacity: number;
   text: string;
+  fontFamily: string;
   fontSize: number;
   fontWeight: number;
   lineHeight: number;
+  letterSpacing: number;
   textAlign: TextAlign;
+  verticalAlign: VerticalAlign;
   visible: boolean;
   locked: boolean;
 }
@@ -68,10 +72,13 @@ export type LayerRectPatch = Partial<
     | 'radius'
     | 'opacity'
     | 'text'
+    | 'fontFamily'
     | 'fontSize'
     | 'fontWeight'
     | 'lineHeight'
+    | 'letterSpacing'
     | 'textAlign'
+    | 'verticalAlign'
     | 'visible'
     | 'locked'
   >
@@ -88,10 +95,13 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
   const normalizeLayer = (layer: Layer): Layer => ({
     ...layer,
     opacity: layer.opacity ?? 1,
+    fontFamily: layer.fontFamily ?? 'Figtree',
     fontSize: layer.fontSize ?? 14,
     fontWeight: layer.fontWeight ?? 400,
     lineHeight: layer.lineHeight ?? 1.5,
+    letterSpacing: layer.letterSpacing ?? 0,
     textAlign: layer.textAlign ?? 'left',
+    verticalAlign: layer.verticalAlign ?? 'top',
     visible: layer.visible ?? true,
     locked: layer.locked ?? false,
   });
@@ -169,10 +179,13 @@ function makeLayer(kind: LayerKind, x: number, y: number, options: { fill?: stri
     radius: kind === 'ellipse' ? 999 : defaults.radius,
     opacity: 1,
     text: options.text ?? (kind === 'text' ? '' : ''),
+    fontFamily: 'Figtree',
     fontSize: 14,
     fontWeight: 400,
     lineHeight: 1.5,
+    letterSpacing: 0,
     textAlign: 'left',
+    verticalAlign: 'top',
     visible: true,
     locked: false,
   };

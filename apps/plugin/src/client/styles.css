@@ -798,3 +798,25 @@
   border-color: rgba(79, 195, 247, 0.5);
   color: #4fc3f7;
 }
+
+.bp-full {
+  width: 100%;
+  box-sizing: border-box;
+}
+.bp-typo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bp-typo-label {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+}
+.bp-align-row {
+  display: flex;
+  gap: 6px;
+}
+.bp-align-row .bp-align-box {
+  flex: 1;
+}
