@@ -126,6 +126,10 @@
   border-radius: 2px;
   cursor: default;
 }
+.bp-frame[data-drop-target='true'] {
+  outline: 1.5px dashed #4fc3f7;
+  outline-offset: 2px;
+}
 .bp-frame[data-selected='true'] {
   outline: 1.5px solid #4fc3f7;
   outline-offset: 0;
@@ -235,8 +239,6 @@
   justify-content: space-between;
   min-height: 24px;
   margin: 0 4px 6px 8px;
-  /* The heading sits in the name column, past the caret slot. */
-  padding-left: 16px;
 }
 .bp-layers {
   padding: 10px 6px;

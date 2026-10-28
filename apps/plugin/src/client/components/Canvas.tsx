@@ -341,6 +341,7 @@ export function Canvas({
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const [dropIndicator, setDropIndicator] = useState<LocalRect | null>(null);
+  const [dropFrameId, setDropFrameId] = useState<string | null>(null);
   const [measure, setMeasure] = useState<MeasureItem[] | null>(null);
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
@@ -650,40 +651,55 @@ export function Canvas({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  /** Work out where a layer dragged to this pointer position would land. */
+  /** Topmost visible frame holding a world point, read from the document. */
+  const frameAtWorld = (world: { x: number; y: number }): Frame | undefined => {
+    for (let index = doc.frames.length - 1; index >= 0; index -= 1) {
+      const frame = doc.frames[index];
+      if (!frame || !frame.visible) continue;
+      if (world.x >= frame.x && world.x <= frame.x + frame.width && world.y >= frame.y && world.y <= frame.y + frame.height) {
+        return frame;
+      }
+    }
+    return undefined;
+  };
+
+  /**
+   * Where a layer dragged to this pointer position would land. The frame comes
+   * from document geometry, so it does not depend on what happens to be painted
+   * under the pointer; only the insertion point inside a stack needs the DOM.
+   */
   const resolveDrop = (clientX: number, clientY: number, layerId: string): Drop | null => {
     const host = hostRef.current;
     if (!host) return null;
+    const world = toWorld(clientX, clientY);
+    const frame = frameAtWorld(world);
     const draggedElement = host.querySelector<HTMLElement>(`[data-layer-id="${layerId}"]`);
     const hostRect = host.getBoundingClientRect();
     const zoom = live.current.zoom;
+
+    if (!frame) {
+      // Outside every frame but still on the canvas: the layer goes to the page root.
+      const insideCanvas =
+        clientX >= hostRect.left && clientX <= hostRect.right && clientY >= hostRect.top && clientY <= hostRect.bottom;
+      return insideCanvas
+        ? { frameId: null, parentId: null, beforeId: null, point: { x: Math.round(world.x), y: Math.round(world.y) }, indicator: null }
+        : null;
+    }
+
     const under = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+    const stackElement = under.find((element) => {
+      if (element.dataset?.flow !== 'stack') return false;
+      if (element.dataset.frame !== frame.id) return false;
+      if (!draggedElement) return true;
+      return element !== draggedElement && !draggedElement.contains(element);
+    });
 
-    for (const element of under) {
-      const token = element.dataset?.container;
-      if (!token) continue;
-      if (draggedElement && (element === draggedElement || draggedElement.contains(element))) continue;
-
-      const frameAttr = element.dataset.frame ?? '';
-      const targetFrameId = frameAttr === '' ? null : frameAttr;
-      const parentId = token.startsWith('layer:') ? token.slice('layer:'.length) : null;
-      // Free layers position their children by hand, so they are not drop targets;
-      // frames and stacking containers are.
-      if (parentId !== null && element.dataset.flow !== 'stack') continue;
-
-      if (element.dataset.flow !== 'stack') {
-        const box = element.getBoundingClientRect();
-        return {
-          frameId: targetFrameId,
-          parentId,
-          beforeId: null,
-          point: { x: Math.round((clientX - box.left) / zoom), y: Math.round((clientY - box.top) / zoom) },
-          indicator: null,
-        };
-      }
-
-      const row = element.dataset.direction === 'row';
-      const kids = Array.from(element.querySelectorAll<HTMLElement>(':scope > [data-layer-id]')).filter(
+    if (stackElement) {
+      const row = stackElement.dataset.direction === 'row';
+      const parentId = stackElement.dataset.container?.startsWith('layer:')
+        ? stackElement.dataset.container.slice('layer:'.length)
+        : null;
+      const kids = Array.from(stackElement.querySelectorAll<HTMLElement>(':scope > [data-layer-id]')).filter(
         (kid) => kid !== draggedElement && !(draggedElement && draggedElement.contains(kid)),
       );
 
@@ -710,23 +726,26 @@ export function Canvas({
             ? { left: box.right - hostRect.left - 1, top: box.top - hostRect.top, width: 2, height: box.height }
             : { left: box.left - hostRect.left, top: box.bottom - hostRect.top - 1, width: box.width, height: 2 };
         } else {
-          const box = element.getBoundingClientRect();
+          const box = stackElement.getBoundingClientRect();
           indicator = row
             ? { left: box.left - hostRect.left, top: box.top - hostRect.top, width: 2, height: box.height }
             : { left: box.left - hostRect.left, top: box.top - hostRect.top, width: box.width, height: 2 };
         }
       }
 
-      return { frameId: targetFrameId, parentId, beforeId, point: null, indicator };
+      return { frameId: frame.id, parentId, beforeId, point: null, indicator };
     }
 
-    // Nothing under the pointer but the canvas itself: the page root takes it,
-    // so a layer can leave its frame the same way it left its container.
-    if (clientX >= hostRect.left && clientX <= hostRect.right && clientY >= hostRect.top && clientY <= hostRect.bottom) {
-      const world = toWorld(clientX, clientY);
-      return { frameId: null, parentId: null, beforeId: null, point: { x: Math.round(world.x), y: Math.round(world.y) }, indicator: null };
-    }
-    return null;
+    // Free frame: the layer keeps its own coordinates, measured inside this frame.
+    const body = host.querySelector<HTMLElement>(`[data-container="frame:${frame.id}"]`);
+    const origin = body ? body.getBoundingClientRect() : hostRect;
+    return {
+      frameId: frame.id,
+      parentId: null,
+      beforeId: null,
+      point: { x: Math.round((clientX - origin.left) / zoom), y: Math.round((clientY - origin.top) / zoom) },
+      indicator: null,
+    };
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -900,6 +919,7 @@ export function Canvas({
         current.element.style.top = `${current.originY + dy}px`;
         current.drop = resolveDrop(event.clientX, event.clientY, current.layerId);
         setDropIndicator(current.drop?.indicator ?? null);
+        setDropFrameId(current.drop && current.drop.frameId !== current.frameId ? current.drop.frameId : null);
         return;
       }
 
@@ -910,6 +930,7 @@ export function Canvas({
         current.element.style.opacity = '0.55';
         current.element.style.zIndex = '3';
         setDropIndicator(drop?.indicator ?? null);
+        setDropFrameId(drop && drop.frameId !== current.frameId ? drop.frameId : null);
         return;
       }
 
@@ -920,6 +941,10 @@ export function Canvas({
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
+    // The last pointermove can lag behind the release; decide the drop here.
+    if (current?.mode === 'moveLayer' || current?.mode === 'moveInStack') {
+      current.drop = resolveDrop(event.clientX, event.clientY, current.layerId) ?? current.drop;
+    }
 
     if (current?.mode === 'marquee' && marquee) {
       const host = hostRef.current;
@@ -991,6 +1016,7 @@ export function Canvas({
     }
 
     setDropIndicator(null);
+    setDropFrameId(null);
     setGuides({ x: [], y: [] });
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1127,6 +1153,7 @@ export function Canvas({
               className="bp-frame"
               data-frame-id={frame.id}
               data-selected={frameSelected || undefined}
+              data-drop-target={dropFrameId === frame.id || undefined}
               style={{
                 left: frame.x,
                 top: frame.y,
