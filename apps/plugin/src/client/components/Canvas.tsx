@@ -153,12 +153,16 @@ type Drag =
     }
   | {
       mode: 'moveLayer';
+      /** Frame the layer lives in right now; it changes as the drag crosses out. */
       frameId: string | null;
       layerId: string;
       pointerX: number;
       pointerY: number;
       originX: number;
       originY: number;
+      /** World point of the parent container's origin, for world-space reasoning. */
+      parentOrigin: { x: number; y: number };
+      size: { width: number; height: number };
       element: HTMLDivElement;
       drop: Drop | null;
       dx: number;
@@ -365,6 +369,32 @@ function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): Rea
       <ShapeGraphic kind={kind} fills={fills} width={rect.width} height={rect.height} />
     </div>
   );
+}
+
+/**
+ * Which container should own an element sitting at this world rect. The frame
+ * holding the largest share of the area wins; when the empty canvas holds more,
+ * the element belongs to the page. That is Figma's half-out rule, and it keeps an
+ * oversized element inside its own frame because that frame still holds most of it.
+ */
+function ownerOfRect(doc: BlueprintDocument, rect: WorldRect): string | null {
+  const area = Math.max(1, rect.width * rect.height);
+  let bestId: string | null = null;
+  let bestShare = 0;
+  let covered = 0;
+  for (const frame of doc.frames) {
+    if (!frame.visible) continue;
+    const overlapX = Math.max(0, Math.min(rect.x + rect.width, frame.x + frame.width) - Math.max(rect.x, frame.x));
+    const overlapY = Math.max(0, Math.min(rect.y + rect.height, frame.y + frame.height) - Math.max(rect.y, frame.y));
+    const overlap = overlapX * overlapY;
+    covered += overlap;
+    if (overlap > bestShare) {
+      bestShare = overlap;
+      bestId = frame.id;
+    }
+  }
+  const outside = Math.max(0, area - covered);
+  return outside > bestShare ? null : bestId;
 }
 
 /** Equal sides while shift is held: the dominant direction wins, the corner anchors. */
@@ -779,8 +809,9 @@ export function Canvas({
         drop: null,
       };
     } else {
-      // The frame body stops clipping on its own: once this layer is selected it
-      // is in the unclip chain, so dragging past the edge keeps it visible.
+      const parentBox = element.parentElement?.getBoundingClientRect();
+      const parentOrigin = parentBox ? toWorld(parentBox.left, parentBox.top) : { x: 0, y: 0 };
+      const rect = element.getBoundingClientRect();
       drag.current = {
         mode: 'moveLayer',
         frameId,
@@ -789,6 +820,8 @@ export function Canvas({
         pointerY: event.clientY,
         originX: layer.x,
         originY: layer.y,
+        parentOrigin,
+        size: { width: rect.width / live.current.zoom, height: rect.height / live.current.zoom },
         element,
         drop: null,
         dx: 0,
@@ -1117,6 +1150,11 @@ export function Canvas({
       }
 
       case 'moveLayer': {
+        // A reparent remounts the element under a new parent, so the node held by
+        // the drag can be stale; pick the live one up before writing to it.
+        const live = hostRef.current?.querySelector<HTMLDivElement>(`[data-layer-id="${current.layerId}"]`);
+        if (live) current.element = live;
+
         let dx = Math.round((event.clientX - current.pointerX) / zoom);
         let dy = Math.round((event.clientY - current.pointerY) / zoom);
 
@@ -1156,6 +1194,35 @@ export function Canvas({
 
           const left = current.originX + dx;
           const top = current.originY + dy;
+
+          // Change parent mid-drag, the way Figma does: whichever frame holds the
+          // larger share of the element owns it, and the empty canvas competes too.
+          const owner = ownerOfRect(doc, {
+            x: current.parentOrigin.x + left,
+            y: current.parentOrigin.y + top,
+            width: current.size.width,
+            height: current.size.height,
+          });
+          if (owner !== current.frameId) {
+            const targetFrame = owner ? findFrame(doc, owner) : undefined;
+            const targetOrigin = targetFrame ? { x: targetFrame.x, y: targetFrame.y } : { x: 0, y: 0 };
+            const point = {
+              x: Math.round(current.parentOrigin.x + left - targetOrigin.x),
+              y: Math.round(current.parentOrigin.y + top - targetOrigin.y),
+            };
+            onMoveLayer(current.frameId, current.layerId, { frameId: owner, parentId: null, beforeId: null }, point);
+            current.frameId = owner;
+            current.parentOrigin = targetOrigin;
+            current.originX = point.x;
+            current.originY = point.y;
+            current.dx = 0;
+            current.dy = 0;
+            current.pointerX = event.clientX;
+            current.pointerY = event.clientY;
+            setDropFrameId(null);
+            return;
+          }
+
           const snapX = snapDelta([left, left + layer.width / 2, left + layer.width], xs, SNAP_THRESHOLD_PX / zoom);
           const snapY = snapDelta([top, top + layer.height / 2, top + layer.height], ys, SNAP_THRESHOLD_PX / zoom);
           if (snapX) dx += snapX.delta;
@@ -1171,9 +1238,7 @@ export function Canvas({
         current.element.style.left = `${current.originX + dx}px`;
         current.element.style.top = `${current.originY + dy}px`;
         applySelectionOverlay();
-        current.drop = resolveDrop(event.clientX, event.clientY, current.layerId);
-        setDropIndicator(current.drop?.indicator ?? null);
-        setDropFrameId(current.drop && current.drop.frameId !== current.frameId ? current.drop.frameId : null);
+        setDropIndicator(null);
         return;
       }
 
@@ -1272,20 +1337,30 @@ export function Canvas({
       else onUpdateLayer(target.frameId, target.id, { width: next.width, height: next.height, sizeW: 'fixed', sizeH: 'fixed' });
     }
     if (current?.mode === 'moveLayer') {
-      const { drop } = current;
-      const sourceParent = findParent(doc, current.frameId, current.layerId)?.parentId ?? null;
-      // Leaving the frame or entering a stacking container changes the parent;
-      // moving inside the same free container only changes coordinates.
-      const reparent = drop !== null && (drop.frameId !== current.frameId || (drop.parentId !== null && drop.parentId !== sourceParent));
-      if (reparent && drop) {
+      const zoom = live.current.zoom;
+      const dx = Math.round((event.clientX - current.pointerX) / zoom);
+      const dy = Math.round((event.clientY - current.pointerY) / zoom);
+      // A quick drag can release before the last move was evaluated.
+      const owner = ownerOfRect(doc, {
+        x: current.parentOrigin.x + current.originX + dx,
+        y: current.parentOrigin.y + current.originY + dy,
+        width: current.size.width,
+        height: current.size.height,
+      });
+      if (owner !== current.frameId) {
+        const targetFrame = owner ? findFrame(doc, owner) : undefined;
+        const targetOrigin = targetFrame ? { x: targetFrame.x, y: targetFrame.y } : { x: 0, y: 0 };
         onMoveLayer(
           current.frameId,
           current.layerId,
-          { frameId: drop.frameId, parentId: drop.parentId, beforeId: drop.beforeId },
-          drop.point,
+          { frameId: owner, parentId: null, beforeId: null },
+          {
+            x: Math.round(current.parentOrigin.x + current.originX + dx - targetOrigin.x),
+            y: Math.round(current.parentOrigin.y + current.originY + dy - targetOrigin.y),
+          },
         );
       } else {
-        onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
+        onUpdateLayer(current.frameId, current.layerId, { x: current.originX + dx, y: current.originY + dy });
       }
     }
     if (current?.mode === 'moveInStack') {
@@ -1295,7 +1370,19 @@ export function Canvas({
       if (selectionRef.current) selectionRef.current.style.transform = '';
       if (current.drop) {
         // Source frame is where the layer lives now; the drop carries the target.
-        const { frameId: targetFrameId, parentId, beforeId, point } = current.drop;
+        const { frameId: targetFrameId, parentId, beforeId } = current.drop;
+        let point = current.drop.point;
+        if (point) {
+          // Keep the ghost where the pointer left it instead of snapping its
+          // corner to the cursor.
+          const rect = current.element.getBoundingClientRect();
+          const world = toWorld(rect.left, rect.top);
+          const frame = targetFrameId ? findFrame(doc, targetFrameId) : undefined;
+          point = {
+            x: Math.round(world.x - (frame?.x ?? 0)),
+            y: Math.round(world.y - (frame?.y ?? 0)),
+          };
+        }
         onMoveLayer(current.frameId, current.layerId, { frameId: targetFrameId, parentId, beforeId }, point);
       }
     }
@@ -1475,9 +1562,34 @@ export function Canvas({
           ref={selectionRef}
           className="bp-selection"
           onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            // The chrome covers the canvas, so look through it first: whatever
+            // really sits under the pointer wins, and only an empty patch drags
+            // the selected element (that is how a clipped layer gets grabbed).
+            const under = document.elementsFromPoint(event.clientX, event.clientY) as HTMLElement[];
+            for (const element of under) {
+              if (element.closest('.bp-selection')) continue;
+              const layerElement = element.closest<HTMLElement>('[data-layer-id]');
+              if (layerElement?.dataset.layerId) {
+                const layerFrame = layerElement.dataset.frame ? layerElement.dataset.frame : null;
+                const layer = findLayer(doc, layerFrame, layerElement.dataset.layerId);
+                if (!layer) break;
+                startLayerDrag(event, layerFrame, layer, findParent(doc, layerFrame, layer.id)?.layout ?? null, layerElement as HTMLDivElement);
+                return;
+              }
+              const frameElement = element.closest<HTMLElement>('.bp-frame');
+              if (frameElement?.dataset.frameId) {
+                const frame = findFrame(doc, frameElement.dataset.frameId);
+                if (!frame) break;
+                startMoveFrame(event, frame, frameElement as HTMLDivElement);
+                return;
+              }
+              break;
+            }
+
             const target = selectionTarget.current;
             const host = hostRef.current;
-            if (!target || !host || event.button !== 0) return;
+            if (!target || !host) return;
             if (target.kind === 'frame') {
               const frame = findFrame(doc, target.id);
               const element = host.querySelector<HTMLDivElement>(`[data-frame-id="${target.id}"]`);
@@ -1487,8 +1599,7 @@ export function Canvas({
             const layer = findLayer(doc, target.frameId, target.id);
             const element = host.querySelector<HTMLDivElement>(`[data-layer-id="${target.id}"]`);
             if (!layer || !element) return;
-            const parent = findParent(doc, target.frameId, target.id);
-            startLayerDrag(event, target.frameId, layer, parent?.layout ?? null, element);
+            startLayerDrag(event, target.frameId, layer, findParent(doc, target.frameId, target.id)?.layout ?? null, element);
           }}
         >
           {CORNERS.map((corner) => (
