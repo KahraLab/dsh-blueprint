@@ -1,6 +1,10 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
 import ChevronDown from 'lucide-react/icons/chevron-down';
+import Eye from 'lucide-react/icons/eye';
+import EyeOff from 'lucide-react/icons/eye-off';
 import Frame from 'lucide-react/icons/frame';
+import Lock from 'lucide-react/icons/lock';
+import LockOpen from 'lucide-react/icons/lock-open';
 import Hand from 'lucide-react/icons/hand';
 import MoreHorizontal from 'lucide-react/icons/ellipsis';
 import ListTree from 'lucide-react/icons/list-tree';
@@ -76,4 +80,18 @@ export function HandIcon({ size = 15, className }: IconProps): ReactElement {
 /** Row overflow menu trigger. */
 export function MoreIcon({ size = 14, className }: IconProps): ReactElement {
   return <MoreHorizontal size={size} className={className} strokeWidth={2} aria-hidden="true" />;
+}
+
+/** Layer visibility toggle. */
+export function VisibilityIcon({ visible, size = 13 }: { visible: boolean; size?: number }): ReactElement {
+  return visible
+    ? <Eye size={size} strokeWidth={1.8} aria-hidden="true" />
+    : <EyeOff size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Layer lock toggle. */
+export function LockIcon({ locked, size = 13 }: { locked: boolean; size?: number }): ReactElement {
+  return locked
+    ? <Lock size={size} strokeWidth={1.8} aria-hidden="true" />
+    : <LockOpen size={size} strokeWidth={1.8} aria-hidden="true" />;
 }

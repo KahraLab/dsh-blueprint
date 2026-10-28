@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentType, type PointerEvent as R
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { AddFrameIcon, CaretIcon, FrameIcon, HandIcon, LayersIcon, MarkIcon, MoreIcon, PointerIcon, RectIcon, TextIcon } from './icons';
+import { AddFrameIcon, CaretIcon, FrameIcon, HandIcon, LayersIcon, LockIcon, MarkIcon, MoreIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
@@ -123,6 +123,19 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setSelections([{ kind: 'frame', frameId: result.frame.id }]);
     setTab('canvas');
   };
+
+  // Any pointerdown outside a menu (and outside its trigger) closes every menu.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.bp-menu, .bp-row-menu, .bp-caret, .bp-layer-more, .bp-layer-action')) return;
+      setMoveMenuOpen(false);
+      setShapeMenuOpen(false);
+      setRowMenu(null);
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+  }, []);
 
   // Delete removes whatever is selected, unless focus is inside a text field.
   useEffect(() => {
@@ -253,7 +266,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   className="bp-caret"
                   aria-label="移动工具选项"
                   aria-expanded={moveMenuOpen}
-                  onClick={() => setMoveMenuOpen((open) => !open)}
+                  onClick={() => { setMoveMenuOpen((open) => !open); setShapeMenuOpen(false); }}
                 >
                   <CaretIcon />
                 </button>
@@ -311,7 +324,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   className="bp-caret"
                   aria-label="更多形状"
                   aria-expanded={shapeMenuOpen}
-                  onClick={() => setShapeMenuOpen((open) => !open)}
+                  onClick={() => { setShapeMenuOpen((open) => !open); setMoveMenuOpen(false); }}
                 >
                   <CaretIcon />
                 </button>
@@ -411,7 +424,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             ) : (
               doc.frames.map((frame) => (
                 <div key={frame.id}>
-                  <div className="bp-layer-row">
+                  <div className="bp-layer-row" data-hidden={String(!frame.visible)} data-locked={String(frame.locked)}>
                     <button
                       type="button"
                       className="bp-layer"
@@ -420,6 +433,26 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                     >
                       {frame.name}
                     </button>
+                    <span className="bp-layer-actions">
+                      <button
+                        type="button"
+                        className="bp-layer-action"
+                        title={frame.visible ? '隐藏' : '显示'}
+                        aria-label={frame.visible ? '隐藏画板' : '显示画板'}
+                        onClick={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
+                      >
+                        <VisibilityIcon visible={frame.visible} />
+                      </button>
+                      <button
+                        type="button"
+                        className="bp-layer-action"
+                        title={frame.locked ? '解锁' : '锁定'}
+                        aria-label={frame.locked ? '解锁画板' : '锁定画板'}
+                        onClick={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
+                      >
+                        <LockIcon locked={frame.locked} />
+                      </button>
+                    </span>
                     <button
                       type="button"
                       className="bp-layer-more"
@@ -446,7 +479,12 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   </div>
 
                   {frame.layers.map((layer) => (
-                    <div className="bp-layer-row bp-layer-row-child" key={layer.id}>
+                    <div
+                      className="bp-layer-row bp-layer-row-child"
+                      key={layer.id}
+                      data-hidden={String(!layer.visible)}
+                      data-locked={String(layer.locked)}
+                    >
                       <button
                         type="button"
                         className="bp-layer bp-layer-child"
@@ -455,6 +493,26 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                       >
                         {layer.name}
                       </button>
+                      <span className="bp-layer-actions">
+                        <button
+                          type="button"
+                          className="bp-layer-action"
+                          title={layer.visible ? '隐藏' : '显示'}
+                          aria-label={layer.visible ? '隐藏图层' : '显示图层'}
+                          onClick={() => onUpdateLayer(frame.id, layer.id, { visible: !layer.visible })}
+                        >
+                          <VisibilityIcon visible={layer.visible} />
+                        </button>
+                        <button
+                          type="button"
+                          className="bp-layer-action"
+                          title={layer.locked ? '解锁' : '锁定'}
+                          aria-label={layer.locked ? '解锁图层' : '锁定图层'}
+                          onClick={() => onUpdateLayer(frame.id, layer.id, { locked: !layer.locked })}
+                        >
+                          <LockIcon locked={layer.locked} />
+                        </button>
+                      </span>
                       <button
                         type="button"
                         className="bp-layer-more"

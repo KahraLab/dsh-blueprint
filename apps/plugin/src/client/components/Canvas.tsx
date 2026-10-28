@@ -188,7 +188,7 @@ export function Canvas({
   };
 
   const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
-    if (event.button !== 0 || tool === 'hand') return;
+    if (event.button !== 0 || tool === 'hand' || frame.locked) return;
     event.stopPropagation();
 
     if (tool === 'shape' || tool === 'text') {
@@ -227,7 +227,7 @@ export function Canvas({
   };
 
   const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame, layer: Layer): void => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || frame.locked || layer.locked) return;
     event.stopPropagation();
 
     if (tool === 'shape' || tool === 'text') {
@@ -318,8 +318,10 @@ export function Canvas({
     if (current?.mode === 'marquee' && marquee) {
       const hits: Selection[] = [];
       for (const frame of doc.frames) {
+        if (!frame.visible || frame.locked) continue;
         if (intersects(marquee, frame)) hits.push({ kind: 'frame', frameId: frame.id });
         for (const layer of frame.layers) {
+          if (!layer.visible || layer.locked) continue;
           const world: WorldRect = { x: frame.x + layer.x, y: frame.y + layer.y, width: layer.width, height: layer.height };
           if (intersects(marquee, world)) hits.push({ kind: 'layer', frameId: frame.id, layerId: layer.id });
         }
@@ -369,7 +371,7 @@ export function Canvas({
           />
         ) : null}
 
-        {doc.frames.map((frame) => {
+        {doc.frames.filter((frame) => frame.visible).map((frame) => {
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
           const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
           return (
@@ -386,7 +388,7 @@ export function Canvas({
               </span>
 
               <div className="bp-frame-body">
-                {frame.layers.map((layer) => (
+                {frame.layers.filter((layer) => layer.visible).map((layer) => (
                   <LayerView
                     key={layer.id}
                     layer={layer}
@@ -401,8 +403,6 @@ export function Canvas({
           );
         })}
       </div>
-
-      {doc.frames.length === 0 ? <div className="bp-canvas-empty">还没有画板，用 Frame 工具拖一个</div> : null}
 
       <div className="bp-zoom">{Math.round(viewport.zoom * 100)}%</div>
     </div>

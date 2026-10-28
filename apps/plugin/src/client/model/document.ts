@@ -20,6 +20,8 @@ export interface Layer {
   fill: string;
   radius: number;
   text: string;
+  visible: boolean;
+  locked: boolean;
 }
 
 export interface Frame {
@@ -30,6 +32,8 @@ export interface Frame {
   width: number;
   height: number;
   background: string;
+  visible: boolean;
+  locked: boolean;
   layers: readonly Layer[];
 }
 
@@ -41,8 +45,12 @@ export type Selection =
   | { kind: 'frame'; frameId: string }
   | { kind: 'layer'; frameId: string; layerId: string };
 
-export type RectPatch = Partial<Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background'>>;
-export type LayerRectPatch = Partial<Pick<Layer, 'x' | 'y' | 'width' | 'height' | 'fill' | 'radius' | 'text'>>;
+export type RectPatch = Partial<
+  Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background' | 'visible' | 'locked'>
+>;
+export type LayerRectPatch = Partial<
+  Pick<Layer, 'x' | 'y' | 'width' | 'height' | 'fill' | 'radius' | 'text' | 'visible' | 'locked'>
+>;
 
 export const FRAME_MIN_SIZE = 120;
 export const LAYER_MIN_SIZE = 8;
@@ -87,6 +95,8 @@ export function addFrame(
     width: FRAME_WIDTH,
     height: FRAME_HEIGHT,
     background: '#FFFFFF',
+    visible: true,
+    locked: false,
     layers: [],
   };
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
@@ -116,6 +126,8 @@ export function addLayer(
     fill: defaults.fill,
     radius: kind === 'ellipse' ? 999 : defaults.radius,
     text: kind === 'text' ? '文本' : '',
+    visible: true,
+    locked: false,
   };
 
   const next: Frame = { ...frame, layers: [...frame.layers, layer] };
@@ -138,6 +150,8 @@ export function addFrameRect(
     width: Math.max(40, Math.round(rect.width)),
     height: Math.max(40, Math.round(rect.height)),
     background: '#FFFFFF',
+    visible: true,
+    locked: false,
     layers: [],
   };
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
