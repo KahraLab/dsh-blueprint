@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台。人和 AI 一边聊，一边在画布上把整个产品的流程做成能点、能改、高保真的原型，做完交给编码 Agent 实现。
+DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台：一边和 AI 聊，一边在画布上把整个产品的流程做成能点、能改、高保真的原型，做完交给编码 Agent 实现。
 
 完整说明在 [.agent-works/OVERVIEW.md](.agent-works/OVERVIEW.md)。
 
@@ -13,12 +13,11 @@ DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台。人
 | 想知道什么 | 读哪里 |
 |---|---|
 | 项目要做成什么样、为什么做 | `.agent-works/OVERVIEW.md` |
-| 现在定到哪一步、下一步做什么 | `.agent-works/issues/bp-map.md` |
+| 做到哪一步、下一步做什么 | `.agent-works/issues/bp-map.md`（总看板） |
 | 某个词是什么意思 | `.agent-works/GLOSSARY.md` |
 | 某块已经定稿的规则 | `.agent-works/specs/` |
-| 调研过程、证据、现有脚本 | `.tmp/research/` |
 | 插件代码（TypeScript） | `apps/plugin/` |
-| 早期的实验脚手架 | `.tmp/scaffold/`（仅作历史参考） |
+| 调研笔记、一次性脚本 | `.tmp/`（本机工作副本，不进版本库） |
 
 ## 目录
 
@@ -30,57 +29,28 @@ dsh-blueprint/
 │   ├── OVERVIEW.md        # 项目是什么、目标是什么
 │   ├── GLOSSARY.md        # 领域术语
 │   ├── specs/             # 已定稿的规格
-│   └── issues/            # 路线图（地图 + 决策票）
-├── apps/
-│   └── plugin/            # DSH 插件，TypeScript
-│       ├── src/host/      # host 半：跑在 Node，将来放存储、工具、路由
-│       ├── src/client/    # client 半：跑在浏览器，右侧栏面板
-│       ├── scripts/       # 构建脚本（esbuild）
-│       └── lib/           # 构建产物，不进版本库
-└── .tmp/                  # 过程资料，已 gitignore，不进版本库
-    ├── research/          # 调研笔记与证据
-    ├── scaffold/          # 已验证过的插件骨架
-    └── scratch/           # 一次性脚本、抓包、截图
+│   └── issues/            # 路线图、票、总看板
+├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
+└── .tmp/                  # 过程资料，不进版本库
 ```
 
-## 现在做到哪一步
-
-插件能在 DSH 右侧栏打开，已经能正经画东西：
-
-- 画布：无限画布、平移缩放、框选多选、视口剔除；
-- 画板：拖拽绘制、预设尺寸、移动/缩放、显示与锁定；
-- 图层：矩形、椭圆、直线、箭头、多边形、星形、文字，可以任意嵌套；多层填充、圆角、不透明度；形状用工具拖出来定尺寸；
-- 布局：容器分自由与流向两种，流向有横纵、间距、内边距、两轴对齐；宽高各有固定/自动/填满三态（见 `.agent-works/specs/layout.md`）；
-- 文字：画布任意位置插入，先输入后按字量出尺寸，字体/字重/字号/行高/字间距/对齐齐全；
-- 交互：拖动可跨画板换父级（按面积过半判定），自由布局带磁吸与参考线，流向里拖动即换位并显示插入线，四角手柄缩放，按住 ctrl 量距离，Delete 删除；
-- 层级树：带子项的节点可展开收起，拖动同级节点改先后（也就是 z 序），有插入线提示；
-- 状态：界面状态放在 `src/client/store.ts`（zustand）；文档读写在 store 里，读盘一次、写盘靠订阅加防抖，不挂在渲染路径上。
-- 存储：按会话存到 `~/.dsh/dsh-blueprints/<sessionId>/document.json`。
-
-还没做：AI 工具层（模型操作画板）、流程视图、导出、版本历史。
-
-界面改动的验证办法：`.tmp/visual-harness/` 里有一套离线渲染夹具（React 18 + esbuild + 无头 Chromium），能截图、能跑拖拽断言，不必启动 DSH 就能看到属性栏和画布长什么样。跑 `node build.mjs` 出页面，`node interact.mjs` 跑拖拽用例。
-
-## 继续工作的步骤
+## 工作方式
 
 1. 跑 `python3 .agent-works/issues/frontier.py`，看现在能动的票。
-2. 读 `.agent-works/issues/bp-map.md` 的 Destination、Notes、Decisions so far。
+2. 读地图的 Destination、Notes、Decisions so far。
 3. 认领一张票：把票 frontmatter 里的 `assignee` 写成自己的名字。
-4. 按票的 `labels` 做事：
-   - `wayfinder:research`：派子代理查，结果写进 `.tmp/research/`；
-   - `wayfinder:grilling`：和用户把问题谈定，不要自己替他做决定；
-   - `wayfinder:prototype`：在 `.tmp/prototype/` 里做一个粗糙能看的东西；
-   - `wayfinder:task`：做完，产出一句可引用的事实。
-5. 收口：票里补 `## Resolution`，`status` 改 `closed`，在地图 Decisions so far 加一行，指向这张票。
+4. 按票的 `labels` 做事：`research` 派子代理查、结果进 `.tmp/research/`；`grilling` 和用户谈定、不替他决定；`prototype` 在 `.tmp/prototype/` 做个粗糙能看的；`task` 做完产出一句可引用的事实。
+5. 收口：票里补 `## Resolution`，`status` 改 `closed`，在地图 Decisions so far 加一行。
 6. 一个会话只收一张票，research 票可以并行。
-7. 票解完后如果冒出新问题，新开票；如果发现某张票超出范围，关掉它，在地图 Out of scope 里留一行。
+7. 冒出新的问题就新开票；发现某张票超范围就关掉，在地图 Out of scope 留一行。
 
 ## 约定
 
 - 用中文，平实的白话，把背景讲清楚，不默认读者懂。
-- 文档写成品状态：不写「上一版改成了什么」，不附草稿、评审轮次、变更记录。
-- 前端用 React 18，跟平台走。槽位、渲染器、组件库同一套运行时，不引入其它框架。
-- 设计语言的令牌只挂在 `[data-bp-dl]` 作用域，不写 `:root`，避免漏进宿主界面。
+- **写终态，不写过程。** 讨论留在对话里，进 `.agent-works/` 的只有结论：一条决策一行，不记流水账、不附草稿、不写「上一版改成了什么」。
+- **进度只有一处。** 做到哪一步看地图的「实现进度」；规格和概览不记进度。
+- 前端用 React 18，跟平台走；槽位、渲染器、组件库同一套运行时，不引入别的框架。
+- 设计语言的令牌只挂 `[data-bp-dl]` 作用域，不写 `:root`，避免漏进宿主界面。
 - 过程产物一律放 `.tmp/`。`.agent-works/` 只放定稿的东西，仓库根目录不放临时文件、截图、脚本。
 - 定稿之前不写实现代码。这张地图用来定决策，不是用来赶工。
 
@@ -88,12 +58,14 @@ dsh-blueprint/
 
 | 命令 | 作用 |
 |---|---|
-| `python3 .agent-works/issues/frontier.py` | 列出当前可认领的票 |
-| `pnpm -C apps/plugin typecheck` | 类型检查（TypeScript，strict） |
-| `pnpm -C apps/plugin build` | 构建插件：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
-| `pnpm -C apps/plugin build:watch` | 开发模式，改动自动重建（DSH 客户端 HMR 会接住） |
+| `python3 .agent-works/issues/frontier.py` | 列出当前能认领的票 |
+| `pnpm -C apps/plugin typecheck` | 类型检查（strict） |
+| `pnpm -C apps/plugin build` | 构建：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
+| `pnpm -C apps/plugin build:watch` | 改动静默重建，DSH 客户端热更新接住 |
 | `git log --oneline` | 看最近改了什么 |
 
-插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 里两个入口。不要拆成两个 npm 包，平台就是这么设计的。
+插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 两个入口。不要拆成两个 npm 包，平台就是这么设计的。
 
-插件用 `plugin_manager install_bundle` 从 `apps/plugin` 目录安装（本地 link），改完代码跑一次 `build`，DSH 的热更新会接住；不动安装信息时不需要重新 link。
+装进 DSH 用 `plugin_manager install_bundle`，target 写 `apps/plugin` 的绝对路径（本地 link）。改完代码跑一次 `build`，热更新会接住；不动安装信息时不用重新 link。
+
+界面改动怎么验：`build` 之后直接看右侧栏的「蓝图」tab；要截图或跑断言，在 `.tmp/` 里用自己搭的夹具。
