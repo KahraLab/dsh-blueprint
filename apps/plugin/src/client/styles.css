@@ -498,9 +498,19 @@
 .bp-layer-row:hover .bp-layer-more,
 
 /* ---------- property inspector ---------- */
+.bp-inspector-resizer {
+  flex: none;
+  width: 5px;
+  margin-left: -3px;
+  z-index: 6;
+  cursor: col-resize;
+  touch-action: none;
+}
+.bp-inspector-resizer:hover {
+  background: rgba(79, 195, 247, 0.35);
+}
 .bp-inspector {
   flex: none;
-  width: 196px;
   overflow-y: auto;
   border-left: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.1));
   background: var(--dsw-alias-bg-layer-1, #1d1d1f);
@@ -819,4 +829,22 @@
 }
 .bp-align-row .bp-align-box {
   flex: 1;
+}
+
+/* ---------- smart guides ---------- */
+.bp-guide {
+  position: absolute;
+  background: #f24822;
+  z-index: 7;
+  pointer-events: none;
+}
+.bp-guide-v {
+  top: -20000px;
+  height: 40000px;
+  width: 1px;
+}
+.bp-guide-h {
+  left: -20000px;
+  width: 40000px;
+  height: 1px;
 }

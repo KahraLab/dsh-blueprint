@@ -1,4 +1,12 @@
 import type { ReactElement } from 'react';
+import {
+  AlignBottomIcon,
+  AlignMiddleIcon,
+  AlignTopIcon,
+  TextAlignCenterIcon,
+  TextAlignLeftIcon,
+  TextAlignRightIcon,
+} from '../icons';
 import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection, TextAlign } from '../model/document';
 
 const FRAME_PRESETS = [
@@ -9,6 +17,7 @@ const FRAME_PRESETS = [
 ] as const;
 
 interface InspectorProps {
+  width: number;
   doc: BlueprintDocument;
   selections: readonly Selection[];
   framePresets: boolean;
@@ -107,6 +116,7 @@ function AlignBox({
 }
 
 export function Inspector({
+  width,
   doc,
   selections,
   framePresets,
@@ -125,7 +135,7 @@ export function Inspector({
 
   if (framePresets) {
     return (
-      <aside className="bp-inspector" aria-label="画板尺寸">
+      <aside className="bp-inspector" aria-label="画板尺寸" style={{ width }}>
         <div className="bp-inspector-head">画板尺寸</div>
         <section className="bp-inspector-section">
           <h5>新建画板</h5>
@@ -149,7 +159,7 @@ export function Inspector({
 
   if (!picked) {
     return (
-      <aside className="bp-inspector" aria-label="属性">
+      <aside className="bp-inspector" aria-label="属性" style={{ width }}>
         <div className="bp-inspector-head">属性</div>
         <div className="bp-inspector-empty">{selections.length === 0 ? '未选择' : `已选 ${selections.length} 项`}</div>
       </aside>
@@ -160,7 +170,7 @@ export function Inspector({
   const target = isFrame ? frame : layer;
   if (!target) {
     return (
-      <aside className="bp-inspector" aria-label="属性">
+      <aside className="bp-inspector" aria-label="属性" style={{ width }}>
         <div className="bp-inspector-head">属性</div>
         <div className="bp-inspector-empty">未选择</div>
       </aside>
@@ -175,7 +185,7 @@ export function Inspector({
   };
 
   return (
-    <aside className="bp-inspector" aria-label="属性">
+    <aside className="bp-inspector" aria-label="属性" style={{ width }}>
       <div className="bp-inspector-head">{picked.kind === 'frame' ? '画板' : layer?.name ?? '图层'}</div>
 
       <section className="bp-inspector-section">
@@ -294,28 +304,40 @@ export function Inspector({
               <span className="bp-typo-label">对齐</span>
               <div className="bp-align-row">
                 <div className="bp-align-box">
-                  {(['left', 'center', 'right'] as const).map((align) => (
+                  {([
+                    { id: 'left', label: '左对齐', Icon: TextAlignLeftIcon },
+                    { id: 'center', label: '居中', Icon: TextAlignCenterIcon },
+                    { id: 'right', label: '右对齐', Icon: TextAlignRightIcon },
+                  ] as const).map(({ id, label, Icon }) => (
                     <button
-                      key={align}
+                      key={id}
                       type="button"
                       className="bp-align-btn"
-                      data-on={(layer.textAlign ?? 'left') === align}
-                      onClick={() => patchLayer({ textAlign: align })}
+                      title={label}
+                      aria-label={label}
+                      data-on={(layer.textAlign ?? 'left') === id}
+                      onClick={() => patchLayer({ textAlign: id })}
                     >
-                      {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
+                      <Icon />
                     </button>
                   ))}
                 </div>
                 <div className="bp-align-box">
-                  {(['top', 'middle', 'bottom'] as const).map((align) => (
+                  {([
+                    { id: 'top', label: '顶部对齐', Icon: AlignTopIcon },
+                    { id: 'middle', label: '垂直居中', Icon: AlignMiddleIcon },
+                    { id: 'bottom', label: '底部对齐', Icon: AlignBottomIcon },
+                  ] as const).map(({ id, label, Icon }) => (
                     <button
-                      key={align}
+                      key={id}
                       type="button"
                       className="bp-align-btn"
-                      data-on={(layer.verticalAlign ?? 'top') === align}
-                      onClick={() => patchLayer({ verticalAlign: align })}
+                      title={label}
+                      aria-label={label}
+                      data-on={(layer.verticalAlign ?? 'top') === id}
+                      onClick={() => patchLayer({ verticalAlign: id })}
                     >
-                      {align === 'top' ? '上' : align === 'middle' ? '中' : '下'}
+                      <Icon />
                     </button>
                   ))}
                 </div>

@@ -127,6 +127,23 @@ function prefersDarkText(color: string, fallback: boolean): boolean {
   return fallback;
 }
 
+const SNAP_THRESHOLD_PX = 6;
+
+/** Nearest snap between any of `values` and any candidate line. */
+function snapDelta(values: number[], candidates: number[], threshold: number): { delta: number; line: number } | null {
+  let best: { delta: number; line: number; distance: number } | null = null;
+  for (const value of values) {
+    for (const candidate of candidates) {
+      const delta = candidate - value;
+      const distance = Math.abs(delta);
+      if (distance <= threshold && (best === null || distance < best.distance)) {
+        best = { delta, line: candidate, distance };
+      }
+    }
+  }
+  return best ? { delta: best.delta, line: best.line } : null;
+}
+
 let measureCanvas: HTMLCanvasElement | null = null;
 
 /** Text follows the glyphs: the box is measured from the characters, not fixed. */
@@ -268,6 +285,7 @@ export function Canvas({
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
+  const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
   live.current = viewport;
@@ -483,10 +501,31 @@ export function Canvas({
       }
 
       case 'moveFrame': {
-        current.dx = Math.round((event.clientX - current.pointerX) / zoom);
-        current.dy = Math.round((event.clientY - current.pointerY) / zoom);
-        current.element.style.left = `${current.originX + current.dx}px`;
-        current.element.style.top = `${current.originY + current.dy}px`;
+        let dx = Math.round((event.clientX - current.pointerX) / zoom);
+        let dy = Math.round((event.clientY - current.pointerY) / zoom);
+
+        const frame = doc.frames.find((item) => item.id === current.id);
+        if (frame) {
+          const xs: number[] = [];
+          const ys: number[] = [];
+          for (const other of doc.frames) {
+            if (other.id === frame.id || !other.visible) continue;
+            xs.push(other.x, other.x + other.width / 2, other.x + other.width);
+            ys.push(other.y, other.y + other.height / 2, other.y + other.height);
+          }
+          const left = current.originX + dx;
+          const top = current.originY + dy;
+          const snapX = snapDelta([left, left + frame.width / 2, left + frame.width], xs, SNAP_THRESHOLD_PX / zoom);
+          const snapY = snapDelta([top, top + frame.height / 2, top + frame.height], ys, SNAP_THRESHOLD_PX / zoom);
+          if (snapX) dx += snapX.delta;
+          if (snapY) dy += snapY.delta;
+          setGuides({ x: snapX ? [snapX.line] : [], y: snapY ? [snapY.line] : [] });
+        }
+
+        current.dx = dx;
+        current.dy = dy;
+        current.element.style.left = `${current.originX + dx}px`;
+        current.element.style.top = `${current.originY + dy}px`;
         return;
       }
 
@@ -499,10 +538,51 @@ export function Canvas({
       }
 
       case 'moveLayer': {
-        current.dx = Math.round((event.clientX - current.pointerX) / zoom);
-        current.dy = Math.round((event.clientY - current.pointerY) / zoom);
-        current.element.style.left = `${current.originX + current.dx}px`;
-        current.element.style.top = `${current.originY + current.dy}px`;
+        let dx = Math.round((event.clientX - current.pointerX) / zoom);
+        let dy = Math.round((event.clientY - current.pointerY) / zoom);
+
+        const frame = current.frameId ? doc.frames.find((item) => item.id === current.frameId) : undefined;
+        const layer = frame
+          ? frame.layers.find((item) => item.id === current.layerId)
+          : doc.layers.find((item) => item.id === current.layerId);
+        if (layer) {
+          const offsetX = frame ? frame.x : 0;
+          const offsetY = frame ? frame.y : 0;
+          const xs: number[] = [];
+          const ys: number[] = [];
+
+          if (frame) {
+            xs.push(0, frame.width / 2, frame.width);
+            ys.push(0, frame.height / 2, frame.height);
+            for (const sibling of frame.layers) {
+              if (sibling.id === layer.id || !sibling.visible) continue;
+              xs.push(sibling.x, sibling.x + sibling.width / 2, sibling.x + sibling.width);
+              ys.push(sibling.y, sibling.y + sibling.height / 2, sibling.y + sibling.height);
+            }
+          } else {
+            for (const sibling of doc.layers) {
+              if (sibling.id === layer.id || !sibling.visible) continue;
+              xs.push(sibling.x, sibling.x + sibling.width / 2, sibling.x + sibling.width);
+              ys.push(sibling.y, sibling.y + sibling.height / 2, sibling.y + sibling.height);
+            }
+          }
+
+          const left = current.originX + dx;
+          const top = current.originY + dy;
+          const snapX = snapDelta([left, left + layer.width / 2, left + layer.width], xs, SNAP_THRESHOLD_PX / zoom);
+          const snapY = snapDelta([top, top + layer.height / 2, top + layer.height], ys, SNAP_THRESHOLD_PX / zoom);
+          if (snapX) dx += snapX.delta;
+          if (snapY) dy += snapY.delta;
+          setGuides({
+            x: snapX ? [snapX.line + offsetX] : [],
+            y: snapY ? [snapY.line + offsetY] : [],
+          });
+        }
+
+        current.dx = dx;
+        current.dy = dy;
+        current.element.style.left = `${current.originX + dx}px`;
+        current.element.style.top = `${current.originY + dy}px`;
         return;
       }
 
@@ -544,6 +624,7 @@ export function Canvas({
       onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
 
+    setGuides({ x: [], y: [] });
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -616,6 +697,13 @@ export function Canvas({
             style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }}
           />
         ) : null}
+
+        {guides.x.map((line, index) => (
+          <div key={`gx-${index}`} className="bp-guide bp-guide-v" style={{ left: line }} />
+        ))}
+        {guides.y.map((line, index) => (
+          <div key={`gy-${index}`} className="bp-guide bp-guide-h" style={{ top: line }} />
+        ))}
 
         {visibleFrames.map((frame) => {
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);

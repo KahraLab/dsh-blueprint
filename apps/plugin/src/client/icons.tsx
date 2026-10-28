@@ -1,4 +1,10 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
+import AlignCenter from 'lucide-react/icons/align-center';
+import AlignCenterVertical from 'lucide-react/icons/align-center-vertical';
+import AlignEndVertical from 'lucide-react/icons/align-end-vertical';
+import AlignLeft from 'lucide-react/icons/align-left';
+import AlignRight from 'lucide-react/icons/align-right';
+import AlignStartVertical from 'lucide-react/icons/align-start-vertical';
 import ChevronDown from 'lucide-react/icons/chevron-down';
 import Eye from 'lucide-react/icons/eye';
 import EyeOff from 'lucide-react/icons/eye-off';
@@ -100,4 +106,26 @@ export function LockIcon({ locked, size = 13 }: { locked: boolean; size?: number
 /** Minimize UI — hides both side columns. */
 export function MinimizeUiIcon({ size = 15, className }: IconProps): ReactElement {
   return <PanelLeft size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Horizontal text alignment. */
+export function TextAlignLeftIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignLeft size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+export function TextAlignCenterIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignCenter size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+export function TextAlignRightIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignRight size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Vertical alignment. */
+export function AlignTopIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignStartVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+export function AlignMiddleIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignCenterVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+export function AlignBottomIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <AlignEndVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
 }

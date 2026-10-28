@@ -30,6 +30,8 @@ const ID = '@local/dsh-blueprint';
 const KIND = 'blueprint';
 const AUTO_OPEN_KEY = 'blueprint.panel.opened.v1';
 const LAYERS_MIN_WIDTH = 160;
+const INSPECTOR_MIN_WIDTH = 160;
+const INSPECTOR_MAX_WIDTH = 340;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
@@ -87,6 +89,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [uiMinimized, setUiMinimized] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
+  const [inspectorWidth, setInspectorWidth] = useState(200);
+  const [inspectorResize, setInspectorResize] = useState<{ pointerX: number; width: number } | null>(null);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
   const [selections, setSelections] = useState<readonly Selection[]>([]);
   const [editing, setEditing] = useState<EditingLayer | null>(null);
@@ -231,6 +235,25 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     if (!resizeStart) return;
     const next = resizeStart.width + (event.clientX - resizeStart.pointerX);
     setLayersWidth(Math.min(LAYERS_MAX_WIDTH, Math.max(LAYERS_MIN_WIDTH, next)));
+  };
+
+  const onInspectorResizeStart = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    setInspectorResize({ pointerX: event.clientX, width: inspectorWidth });
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onInspectorResizeMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!inspectorResize) return;
+    const next = inspectorResize.width - (event.clientX - inspectorResize.pointerX);
+    setInspectorWidth(Math.min(INSPECTOR_MAX_WIDTH, Math.max(INSPECTOR_MIN_WIDTH, next)));
+  };
+
+  const onInspectorResizeEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    setInspectorResize(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   const onPointerUpResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -417,7 +440,20 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             </div>
 
             {uiMinimized ? null : (
+            <div
+              className="bp-inspector-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整属性栏宽度"
+              onPointerDown={onInspectorResizeStart}
+              onPointerMove={onInspectorResizeMove}
+              onPointerUp={onInspectorResizeEnd}
+              onPointerCancel={onInspectorResizeEnd}
+            />
+            )}
+            {uiMinimized ? null : (
             <Inspector
+              width={inspectorWidth}
               doc={doc}
               selections={selections}
               framePresets={tool === 'frame'}
