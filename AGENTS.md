@@ -17,7 +17,8 @@ DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台。人
 | 某个词是什么意思 | `.agent-works/GLOSSARY.md` |
 | 某块已经定稿的规则 | `.agent-works/specs/` |
 | 调研过程、证据、现有脚本 | `.tmp/research/` |
-| 跑得起来的插件骨架 | `.tmp/scaffold/` |
+| 插件代码（TypeScript） | `apps/plugin/` |
+| 早期的实验脚手架 | `.tmp/scaffold/`（仅作历史参考） |
 
 ## 目录
 
@@ -44,7 +45,9 @@ dsh-blueprint/
 
 ## 现在做到哪一步
 
-还在定规格，没有写插件代码。已经收口的有：领域模型、编辑器基座、文档的样式与布局模型、设计语言格式、DSH 宿主能力验证。接下来是插件架构与存储、视觉系统、流程层、工作台信息架构、导出与版本、交接协议、里程碑。
+插件已经能在 DSH 右侧栏里打开：标签、图层侧栏、画布/流程切换都有了，画布本身还是占位。布局正在按用户的口述一步步调，调完收「侧边栏工作台的布局」这张票。
+
+规格已收口：领域模型、编辑器基座、文档的样式与布局模型、设计语言格式、DSH 宿主能力、插件架构与存储、交接协议、高保真视觉系统、导出与版本。
 
 以地图为准，不要在别处另记进度。
 
@@ -83,4 +86,4 @@ dsh-blueprint/
 
 插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 里两个入口。不要拆成两个 npm 包，平台就是这么设计的。
 
-插件脚手架在 `.tmp/scaffold/dsh-blueprint-scaffold`。它验证过能装上、能占整页、能热更新；重新启用需要在 DSH 里重新 link 一次，因为路径变了。
+插件用 `plugin_manager install_bundle` 从 `apps/plugin` 目录安装（本地 link），改完代码跑一次 `build`，DSH 的热更新会接住；不动安装信息时不需要重新 link。
