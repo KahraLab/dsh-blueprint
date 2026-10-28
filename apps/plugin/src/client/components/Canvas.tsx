@@ -1272,6 +1272,11 @@ export function Canvas({
       ref={hostRef}
       className="bp-canvas"
       data-tool={tool}
+      // The dot grid is canvas space, not screen space: it pans and scales with it.
+      style={{
+        backgroundSize: `${16 * viewport.zoom}px ${16 * viewport.zoom}px`,
+        backgroundPosition: `${viewport.x}px ${viewport.y}px`,
+      }}
       onPointerDown={startCanvasDrag}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -1280,7 +1285,10 @@ export function Canvas({
     >
       <div
         className="bp-world"
-        style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}
+        // `zoom` lays the scene out at the scaled size, so text is rasterised at
+        // the size it is finally painted at. A transform scale would leave a
+        // rasterised copy behind and soften glyphs once zoomed in.
+        style={{ zoom: viewport.zoom, transform: `translate(${viewport.x / viewport.zoom}px, ${viewport.y / viewport.zoom}px)` }}
       >
         {draftShape ? (
           <div
