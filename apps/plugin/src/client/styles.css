@@ -851,7 +851,7 @@
 .bp-fill-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 .bp-fill-field {
   display: flex;
@@ -900,15 +900,20 @@
 .bp-fill-action {
   appearance: none;
   flex: none;
-  width: 22px;
-  height: 28px;
+  width: 20px;
+  height: 24px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--dsw-alias-label-secondary, #9a9a9a);
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+}
+.bp-fill-action svg {
+  display: block;
 }
 .bp-fill-action:hover {
   background: rgba(255, 255, 255, 0.08);

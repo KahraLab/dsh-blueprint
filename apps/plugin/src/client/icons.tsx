@@ -132,6 +132,6 @@ export function AlignBottomIcon({ size = 14 }: { size?: number }): ReactElement 
 }
 
 /** Remove / reset affordance. */
-export function MinusIcon({ size = 14 }: { size?: number }): ReactElement {
+export function MinusIcon({ size = 13 }: { size?: number }): ReactElement {
   return <Minus size={size} strokeWidth={2} aria-hidden="true" />;
 }
