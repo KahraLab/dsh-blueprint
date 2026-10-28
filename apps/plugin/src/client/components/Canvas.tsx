@@ -163,6 +163,9 @@ function LayerView({
   useEffect(() => {
     if (!editing || !editorRef.current) return;
     const node = editorRef.current;
+    // Seed the editor with the layer's text; React owns no children here, so the
+    // DOM text survives re-renders while typing.
+    node.textContent = layer.text;
     const frame = requestAnimationFrame(() => {
       node.focus();
       const range = document.createRange();
@@ -173,7 +176,7 @@ function LayerView({
       selection?.addRange(range);
     });
     return () => cancelAnimationFrame(frame);
-  }, [editing]);
+  }, [editing, layer.id]);
 
   return (
     <div
