@@ -1,0 +1,3 @@
+- insert:
+    - id: blueprint
+      name: '@local/dsh-blueprint'

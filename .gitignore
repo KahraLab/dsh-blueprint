@@ -25,3 +25,6 @@ coverage/
 
 # 日志
 *.log
+
+# 插件构建产物
+apps/plugin/lib/

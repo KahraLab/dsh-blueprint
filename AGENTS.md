@@ -30,6 +30,12 @@ dsh-blueprint/
 │   ├── GLOSSARY.md        # 领域术语
 │   ├── specs/             # 已定稿的规格
 │   └── issues/            # 路线图（地图 + 决策票）
+├── apps/
+│   └── plugin/            # DSH 插件，TypeScript
+│       ├── src/host/      # host 半：跑在 Node，将来放存储、工具、路由
+│       ├── src/client/    # client 半：跑在浏览器，右侧栏面板
+│       ├── scripts/       # 构建脚本（esbuild）
+│       └── lib/           # 构建产物，不进版本库
 └── .tmp/                  # 过程资料，已 gitignore，不进版本库
     ├── research/          # 调研笔记与证据
     ├── scaffold/          # 已验证过的插件骨架
@@ -70,6 +76,11 @@ dsh-blueprint/
 | 命令 | 作用 |
 |---|---|
 | `python3 .agent-works/issues/frontier.py` | 列出当前可认领的票 |
+| `pnpm -C apps/plugin typecheck` | 类型检查（TypeScript，strict） |
+| `pnpm -C apps/plugin build` | 构建插件：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
+| `pnpm -C apps/plugin build:watch` | 开发模式，改动自动重建（DSH 客户端 HMR 会接住） |
 | `git log --oneline` | 看最近改了什么 |
+
+插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 里两个入口。不要拆成两个 npm 包，平台就是这么设计的。
 
 插件脚手架在 `.tmp/scaffold/dsh-blueprint-scaffold`。它验证过能装上、能占整页、能热更新；重新启用需要在 DSH 里重新 link 一次，因为路径变了。
