@@ -278,13 +278,17 @@ function flowItemStyle(layer: Layer, layout: StackLayout): CSSProperties {
   const mainMode = row ? layer.sizeW : layer.sizeH;
   const crossMode = row ? layer.sizeH : layer.sizeW;
 
-  if (mainMode === 'fixed') {
-    if (row) style.width = layer.width;
-    else style.height = layer.height;
-  } else if (mainMode === 'fill') {
+  if (mainMode === 'fill') {
     style.flex = '1 1 0';
     if (row) style.minWidth = 0;
     else style.minHeight = 0;
+  } else {
+    // A fixed or content-sized child keeps its size even when the stack overflows.
+    style.flex = '0 0 auto';
+    if (mainMode === 'fixed') {
+      if (row) style.width = layer.width;
+      else style.height = layer.height;
+    }
   }
 
   if (crossMode === 'fixed') {
