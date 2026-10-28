@@ -152,6 +152,20 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selections]);
 
+  const onPickPreset = (preset: { width: number; height: number }): void => {
+    const info = canvasViewport.current;
+    const center = info && info.zoom > 0
+      ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
+      : { x: 0, y: 0 };
+    onCreateFrameAt({
+      x: center.x - preset.width / 2,
+      y: center.y - preset.height / 2,
+      width: preset.width,
+      height: preset.height,
+    });
+    setTool('move');
+  };
+
   const onCreateFrameAt = (rect: { x: number; y: number; width: number; height: number }): void => {
     const result = addFrameRect(doc, rect);
     setDoc(result.doc);
@@ -369,43 +383,12 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             <Inspector
               doc={doc}
               selections={selections}
+              framePresets={tool === 'frame'}
+              onPickPreset={onPickPreset}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
             />
 
-            {tool === 'frame' ? (
-              <div className="bp-presets" role="group" aria-label="预设画板尺寸">
-                <div className="bp-presets-title">新画板</div>
-                {([
-                  { label: '手机', width: 390, height: 844 },
-                  { label: '平板', width: 768, height: 1024 },
-                  { label: '桌面', width: 1440, height: 900 },
-                  { label: '方形', width: 800, height: 800 },
-                ] as const).map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    className="bp-preset"
-                    onClick={() => {
-                      const info = canvasViewport.current;
-                      const center = info && info.zoom > 0
-                        ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
-                        : { x: 0, y: 0 };
-                      onCreateFrameAt({
-                        x: center.x - preset.width / 2,
-                        y: center.y - preset.height / 2,
-                        width: preset.width,
-                        height: preset.height,
-                      });
-                      setTool('move');
-                    }}
-                  >
-                    <span>{preset.label}</span>
-                    <span className="bp-preset-size">{preset.width} × {preset.height}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </>
         ) : (
           <div className="bp-placeholder">流程视图</div>

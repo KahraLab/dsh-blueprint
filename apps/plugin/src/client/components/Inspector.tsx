@@ -1,9 +1,24 @@
 import type { ReactElement } from 'react';
 import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection } from '../model/document';
 
+interface FramePreset {
+  label: string;
+  width: number;
+  height: number;
+}
+
+const FRAME_PRESETS: readonly FramePreset[] = [
+  { label: '手机', width: 390, height: 844 },
+  { label: '平板', width: 768, height: 1024 },
+  { label: '桌面', width: 1440, height: 900 },
+  { label: '方形', width: 800, height: 800 },
+];
+
 interface InspectorProps {
   doc: BlueprintDocument;
   selections: readonly Selection[];
+  framePresets: boolean;
+  onPickPreset(preset: { width: number; height: number }): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
 }
@@ -49,7 +64,7 @@ function NumberField({
   );
 }
 
-export function Inspector({ doc, selections, onUpdateFrame, onUpdateLayer }: InspectorProps): ReactElement {
+export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdateFrame, onUpdateLayer }: InspectorProps): ReactElement {
   const picked = singleSelection(selections);
   const frame = picked ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
   const layer: Layer | undefined =
@@ -57,9 +72,26 @@ export function Inspector({ doc, selections, onUpdateFrame, onUpdateLayer }: Ins
 
   return (
     <aside className="bp-inspector" aria-label="属性">
-      <div className="bp-inspector-head">属性</div>
+      <div className="bp-inspector-head">{framePresets ? '画板尺寸' : '属性'}</div>
 
-      {selections.length === 0 ? (
+      {framePresets ? (
+        <section className="bp-inspector-section">
+          <h5>新建画板</h5>
+          {FRAME_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              className="bp-preset"
+              onClick={() => onPickPreset({ width: preset.width, height: preset.height })}
+            >
+              <span>{preset.label}</span>
+              <span className="bp-preset-size">
+                {preset.width} × {preset.height}
+              </span>
+            </button>
+          ))}
+        </section>
+      ) : selections.length === 0 ? (
         <div className="bp-inspector-empty">未选择</div>
       ) : !picked ? (
         <div className="bp-inspector-empty">已选 {selections.length} 项</div>
