@@ -11,7 +11,7 @@
  *   node scripts/build.mjs --watch    rebuild on change (DSH client HMR picks it up)
  */
 import * as esbuild from 'esbuild';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,6 +28,24 @@ const hostOptions = {
   platform: 'node',
   target: ['node20'],
   packages: 'external',
+  logLevel: 'warning',
+};
+
+/**
+ * The command line. Same package as the plugin, so whoever installs the plugin
+ * gets the command; it reads the document file the panel and the tools share.
+ */
+const binOptions = {
+  entryPoints: [join(root, 'src/bin/bp.ts')],
+  outfile: join(root, 'lib/bin/bp.js'),
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: ['node20'],
+  // citty is bundled in, so the command works wherever the plugin was installed
+  // without depending on module resolution next to it.
+  banner: { js: '#!/usr/bin/env node' },
+  legalComments: 'none',
   logLevel: 'warning',
 };
 
@@ -85,17 +103,21 @@ if (watch) {
   });
 
   const hostContext = await esbuild.context(hostOptions);
+  const binContext = await esbuild.context(binOptions);
 
-  await Promise.all([clientContext.watch(), hostContext.watch()]);
-  console.log('[build] watching src/client and src/host …');
+  await Promise.all([clientContext.watch(), hostContext.watch(), binContext.watch()]);
+  console.log('[build] watching src/client, src/host and src/bin …');
 } else {
   const [clientResult] = await Promise.all([
     esbuild.build(clientOptions),
     esbuild.build(hostOptions),
+    esbuild.build(binOptions),
   ]);
 
   const output = clientResult.outputFiles?.[0];
   if (!output) throw new Error('client build produced no output');
   await emitClient(output.text);
   console.log('[build] host → lib/host/index.js');
+  await chmod(join(root, 'lib/bin/bp.js'), 0o755);
+  console.log('[build] command line → lib/bin/bp.js');
 }

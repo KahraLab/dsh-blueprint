@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { diffDocs } from '../model/ops';
 import type { EditingLayer, NewLayerRequest, ShapeKind, Tool } from './components/Canvas';
 import {
   addFrame,
@@ -20,7 +21,7 @@ import {
   type RectPatch,
   type Selection,
   type StackLayout,
-} from './model/document';
+} from '../model/document';
 
 export type Tab = 'canvas' | 'flow';
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -130,64 +131,164 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
 }));
 
 // ---------------------------------------------------------------- persistence
+//
+// The canvas edits locally and reports the difference. The file is the meeting
+// point: the same operations, the same revision number, and the same code path
+// the command line uses. Nothing here waits on the network while the user drags.
 
 const SAVE_DEBOUNCE_MS = 600;
+const POLL_MS = 700;
 
+interface StoredReply {
+  revision: number;
+  document: BlueprintDocument;
+}
+
+interface ChangeReply extends StoredReply {
+  ok: boolean;
+  conflict: boolean;
+  error: string | null;
+}
+
+/** What the file looks like right now, and the revision our copy came from. */
+let syncedDoc: BlueprintDocument | null = null;
+let syncedRevision = 0;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-async function save(url: string, doc: BlueprintDocument): Promise<void> {
+function sameDocument(left: BlueprintDocument, right: BlueprintDocument): boolean {
+  return left === right || JSON.stringify(left) === JSON.stringify(right);
+}
+
+async function getStored(url: string): Promise<StoredReply | null> {
+  try {
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { revision?: number; document?: BlueprintDocument };
+    if (!data?.document) return null;
+    return { revision: typeof data.revision === 'number' ? data.revision : 0, document: normalizeDocument(data.document) };
+  } catch {
+    return null;
+  }
+}
+
+async function sendOps(url: string, baseRevision: number, ops: ReturnType<typeof diffDocs>): Promise<ChangeReply | null> {
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(doc),
+      body: JSON.stringify({ baseRevision, ops, by: 'canvas' }),
     });
-    if (!response.ok) throw new Error(`save failed: ${response.status}`);
-    useBlueprint.setState({ saveState: 'saved' });
-  } catch (error) {
-    console.warn('[blueprint] 保存失败', error);
-    useBlueprint.setState({ saveState: 'error' });
+    const data = (await response.json()) as ChangeReply & { document?: BlueprintDocument };
+    if (!data || typeof data.revision !== 'number') return null;
+    return { ...data, document: data.document ? normalizeDocument(data.document) : useBlueprint.getState().doc };
+  } catch {
+    return null;
   }
+}
+
+/** Push whatever the user changed since the last agreed revision. */
+async function flush(url: string): Promise<void> {
+  const local = useBlueprint.getState().doc;
+  if (!syncedDoc || sameDocument(local, syncedDoc)) {
+    useBlueprint.setState({ saveState: 'saved' });
+    return;
+  }
+
+  const ops = diffDocs(syncedDoc, local);
+  let reply = await sendOps(url, syncedRevision, ops);
+  if (!reply) {
+    console.warn('[blueprint] 保存失败');
+    useBlueprint.setState({ saveState: 'error' });
+    return;
+  }
+
+  // Someone else wrote in between — the model, another tab. Replay the same
+  // operations on top of the newer file, so only what the user touched changes.
+  if (!reply.ok && reply.conflict) {
+    reply = await sendOps(url, reply.revision, ops);
+    if (!reply) {
+      useBlueprint.setState({ saveState: 'error' });
+      return;
+    }
+  }
+
+  if (!reply.ok) {
+    console.warn('[blueprint] 保存被拒', reply.error);
+    useBlueprint.setState({ saveState: 'error' });
+    return;
+  }
+
+  syncedRevision = reply.revision;
+  // Keep one object as "the copy we agree on": when the file holds exactly what
+  // we just wrote, that is our local document, not the parsed copy of it.
+  const agree = sameDocument(reply.document, local) ? local : reply.document;
+  syncedDoc = agree;
+  if (agree !== local) useBlueprint.setState({ doc: agree });
+  useBlueprint.setState({ saveState: 'saved' });
 }
 
 /** Pull the document for this session. A missing file is a normal first run. */
 export async function loadDocument(url: string): Promise<void> {
-  try {
-    const response = await fetch(url, { headers: { accept: 'application/json' } });
-    const data: unknown = response.ok ? await response.json() : null;
-    if (data && typeof data === 'object') {
-      const candidate = data as BlueprintDocument;
-      if (Array.isArray(candidate.frames)) useBlueprint.setState({ doc: normalizeDocument(candidate) });
-    }
-  } catch {
-    // Starting from an empty document is fine.
-  } finally {
-    useBlueprint.setState({ hydrated: true });
+  const stored = await getStored(url);
+  if (stored) {
+    syncedRevision = stored.revision;
+    syncedDoc = stored.document;
+    useBlueprint.setState({ doc: stored.document, saveState: 'saved' });
+  } else {
+    const doc = useBlueprint.getState().doc;
+    syncedDoc = doc;
+    syncedRevision = 0;
+    useBlueprint.setState({ saveState: 'saved' });
   }
+  useBlueprint.setState({ hydrated: true });
 }
 
 /**
- * Watch the document and write it back after the edits settle. Living outside
- * React keeps the save timer out of the render path.
+ * Watch for local edits, write them back after they settle, and pick up changes
+ * that arrive from elsewhere. Lives outside React so no render depends on it.
  */
 export function startSession(url: string): () => void {
   const unsubscribe = useBlueprint.subscribe((state, previous) => {
     if (state.doc === previous.doc || !state.hydrated) return;
+    if (state.doc === syncedDoc) return; // came from the file, not from the user
     useBlueprint.setState({ saveState: 'saving' });
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      void save(url, useBlueprint.getState().doc);
+      void flush(url);
     }, SAVE_DEBOUNCE_MS);
   });
 
+  // The command line and the model write the file directly; polling is enough to
+  // notice, and it keeps the browser half independent of any other transport.
+  const timer = setInterval(() => {
+    void poll(url);
+  }, POLL_MS);
+
   return () => {
     unsubscribe();
+    clearInterval(timer);
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
   };
+}
+
+/** Take a newer revision from the file, unless the user is in the middle of something. */
+async function poll(url: string): Promise<void> {
+  const before = useBlueprint.getState();
+  if (!before.hydrated || before.saveState !== 'saved' || before.doc !== syncedDoc) return;
+
+  const stored = await getStored(url);
+  if (!stored || stored.revision === syncedRevision) return;
+
+  const now = useBlueprint.getState();
+  if (now.saveState !== 'saved' || now.doc !== syncedDoc) return; // user started editing again
+
+  syncedRevision = stored.revision;
+  syncedDoc = stored.document;
+  useBlueprint.setState({ doc: stored.document });
 }
 
 /**

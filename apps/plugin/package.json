@@ -10,6 +10,9 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
+  "bin": {
+    "bp": "./lib/bin/bp.js"
+  },
   "files": [
     "lib",
     "cordis.patch.yml",
@@ -42,6 +45,7 @@
     }
   },
   "dependencies": {
+    "citty": "^0.2.2",
     "lucide-react": "^1.62.0",
     "zustand": "^5.0.16"
   },

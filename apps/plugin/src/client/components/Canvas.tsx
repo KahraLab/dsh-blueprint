@@ -16,7 +16,7 @@ import {
   type StackAlign,
   type StackJustify,
   type StackLayout,
-} from '../model/document';
+} from '../../model/document';
 import { fillBackground, topFillColor } from '../model/fill';
 
 const MIN_ZOOM = 0.1;

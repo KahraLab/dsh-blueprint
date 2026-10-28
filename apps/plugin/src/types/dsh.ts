@@ -77,6 +77,21 @@ export interface WorkingDirectoryService {
   readonly defaultDirectory: string;
 }
 
+export interface SkillRegistration {
+  name: string;
+  description: string;
+  /** Markdown body, read only when the skill is actually invoked. */
+  content: string;
+  whenToUse?: string;
+  source?: string;
+  invocation?: { modelInvocable: boolean; userInvocable: boolean };
+  path?: string;
+}
+
+export interface SkillsService {
+  register(skill: SkillRegistration): Disposable;
+}
+
 export interface PluginContext {
   effect(setup: () => Disposable | void, label?: string): Disposable;
   inject(dependencies: string[], callback: (scope: PluginContext) => Disposable | void): Disposable;
@@ -85,6 +100,7 @@ export interface PluginContext {
   sidebarRight: SidebarRightService;
   sidebarRightTabs: SidebarRightTabsService;
   connection: ConnectionService;
+  skills: SkillsService;
   fs: FsService;
   workingDirectory: WorkingDirectoryService;
 }

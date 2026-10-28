@@ -1,4 +1,4 @@
-import type { FillStyle } from './document';
+import type { FillStyle } from '../../model/document';
 
 /** Parse #rgb / #rrggbb / rgb() / rgba() into an rgba() string with the given alpha. */
 export function colorToRgba(color: string, alpha: number): string {

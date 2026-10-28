@@ -27,7 +27,7 @@ import {
   type Selection,
   type StackLayout,
   type TextAlign,
-} from '../model/document';
+} from '../../model/document';
 import { colorToRgba } from '../model/fill';
 
 const FRAME_PRESETS = [

@@ -509,12 +509,65 @@ export function addLayer(
   fill?: string,
   size?: { width: number; height: number },
 ): { doc: BlueprintDocument; layer: Layer } {
-  const names = doc.frames.reduce<string[]>((into, frame) => collectNames(frame.children, into), collectNames(doc.layers, []));
-  const base = makeLayer(kind, nextName(names, LAYER_NAMES[kind]), point.x, point.y, fill);
-  const layer: Layer = size
-    ? { ...base, width: Math.max(1, Math.round(size.width)), height: Math.max(1, Math.round(size.height)) }
-    : base;
+  const layer = createLayer(kind, {
+    name: nextLayerName(doc, kind),
+    x: point.x,
+    y: point.y,
+    fills: fill ? [makeFill(fill)] : undefined,
+    width: size ? Math.max(1, Math.round(size.width)) : undefined,
+    height: size ? Math.max(1, Math.round(size.height)) : undefined,
+  });
   return { doc: insertLayer(doc, target, layer), layer };
+}
+
+// ---------------------------------------------------------------- construction by hand
+//
+// The canvas builds layers through `addLayer`; the command line builds them from
+// flags, so it needs the same defaults without a document to name against.
+
+/** Next free name for a layer of this kind: 矩形1, 矩形2, ... */
+export function nextLayerName(doc: BlueprintDocument, kind: LayerKind): string {
+  const names = doc.frames.reduce<string[]>((into, frame) => collectNames(frame.children, into), collectNames(doc.layers, []));
+  return nextName(names, LAYER_NAMES[kind]);
+}
+
+/** Next free screen name: 画板1, 画板2, ... */
+export function nextFrameName(doc: BlueprintDocument): string {
+  return nextName(doc.frames.map((frame) => frame.name), '画板');
+}
+
+/** Build a layer with the same defaults the canvas uses, then apply the given fields. */
+export function createLayer(kind: LayerKind, seed: Partial<Omit<Layer, 'id' | 'children'>> = {}): Layer {
+  const base = makeLayer(kind, seed.name ?? LAYER_NAMES[kind], seed.x ?? 0, seed.y ?? 0);
+  return { ...base, ...defined(seed), id: nextId('layer'), children: [] };
+}
+
+/** Build a screen: phone sized unless the caller says otherwise. */
+export function createFrame(seed: Partial<Omit<Frame, 'id' | 'children'>> = {}): Frame {
+  const fields = defined(seed);
+  return {
+    id: nextId('frame'),
+    name: fields.name ?? '画板',
+    x: Math.round(fields.x ?? 0),
+    y: Math.round(fields.y ?? 0),
+    width: Math.max(40, Math.round(fields.width ?? FRAME_WIDTH)),
+    height: Math.max(40, Math.round(fields.height ?? FRAME_HEIGHT)),
+    fills: fields.fills ?? [makeFill(DEFAULT_FRAME_FILL)],
+    opacity: fields.opacity ?? 1,
+    visible: fields.visible ?? true,
+    locked: fields.locked ?? false,
+    layout: fields.layout ?? null,
+    children: [],
+  };
+}
+
+/** Drop keys whose value is `undefined` so a spread never erases a default. */
+function defined<T extends object>(seed: T): T {
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(seed)) {
+    if (value !== undefined) kept[key] = value;
+  }
+  return kept as T;
 }
 
 // ---------------------------------------------------------------- construction

@@ -9,7 +9,7 @@ import {
   type LayerRectPatch,
   type RectPatch,
   type Selection,
-} from '../model/document';
+} from '../../model/document';
 
 interface LayerTreeProps {
   doc: BlueprintDocument;

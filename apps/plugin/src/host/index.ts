@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext } from '../types/dsh.js';
+import { changeDocument, readDocument, resolveSessionId } from '../node/docfile.js';
+import { skillFor } from './skill.js';
 
 /**
  * Host half.
@@ -10,50 +11,63 @@ import type { FetchRoute, PluginContext } from '../types/dsh.js';
  *
  *   ~/.dsh/dsh-blueprints/<sessionId>/document.json
  *
- * The browser half reaches them through one exact Fetch route below `/api`
- * (the registry keys by path, so GET and POST share a registration).
+ * Three things live here:
+ *   1. one route the browser half uses to load the document and send changes;
+ *   2. the same file, through the same function and revision number, that the
+ *      `bp` command line writes to;
+ *   3. a skill that tells the model how to operate the canvas.
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
-const ROOT_DIR = `${homedir()}/.dsh/dsh-blueprints`;
-const SESSION_PATTERN = /^[A-Za-z0-9_-]+$/;
-
-/** Directory for one session; unknown callers share a fallback folder. */
-export function sessionDir(sessionId: string | null): string {
-  const key = sessionId && SESSION_PATTERN.test(sessionId) ? sessionId : '_unknown';
-  return `${ROOT_DIR}/${key}`;
-}
-
-function documentPath(sessionId: string | null): string {
-  const dir = sessionDir(sessionId);
-  mkdirSync(dir, { recursive: true });
-  return `${dir}/document.json`;
-}
 
 function createDocumentRoute(): FetchRoute {
   return {
     path: DOC_ENDPOINT,
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
+
     async fetch(request) {
-      const sessionId = new URL(request.url).searchParams.get('session');
-      const file = documentPath(sessionId);
+      const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
 
       if (request.method === 'GET') {
         try {
-          const text = readFileSync(file, 'utf8');
-          return new Response(text, { headers: { 'content-type': 'application/json' } });
-        } catch {
-          return new Response('null', { status: 404, headers: { 'content-type': 'application/json' } });
+          const stored = readDocument(sessionId);
+          return Response.json({
+            revision: stored.revision,
+            document: stored.document,
+            updatedBy: stored.updatedBy,
+            updatedAt: stored.updatedAt,
+          });
+        } catch (error) {
+          return Response.json({ error: message(error) }, { status: 500 });
         }
       }
 
-      const body = await request.text();
-      JSON.parse(body); // refuse malformed JSON before it reaches the disk
-      writeFileSync(file, body);
-      return Response.json({ ok: true, path: file });
+      let body: { baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return Response.json({ ok: false, error: '请求体不是 JSON', conflict: false, revision: 0 }, { status: 400 });
+      }
+
+      try {
+        const result = changeDocument(sessionId, {
+          baseRevision: typeof body.baseRevision === 'number' ? body.baseRevision : null,
+          ops: Array.isArray(body.ops) ? (body.ops as never[]) : undefined,
+          document: body.document && typeof body.document === 'object' ? (body.document as never) : undefined,
+          by: typeof body.by === 'string' ? body.by : 'canvas',
+        });
+        const status = result.ok ? 200 : result.conflict ? 409 : 400;
+        return Response.json(result, { status });
+      } catch (error) {
+        return Response.json({ ok: false, error: message(error), conflict: false, revision: 0 }, { status: 500 });
+      }
     },
   };
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function apply(ctx: PluginContext): void {
@@ -76,5 +90,12 @@ export function apply(ctx: PluginContext): void {
         dispose?.();
       };
     }, 'blueprint:document-route');
+  });
+
+  ctx.inject(['skills'], (scope) => {
+    // The command line is a file inside this package: the model needs its real
+    // path, because no one's PATH mentions it.
+    const command = `node "${fileURLToPath(new URL('../bin/bp.js', import.meta.url))}"`;
+    scope.effect(() => scope.skills.register(skillFor(command)), 'blueprint:skill');
   });
 }
