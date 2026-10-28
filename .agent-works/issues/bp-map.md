@@ -45,6 +45,7 @@ updated: 2026-10-28
 - [设计语言的载体与导入导出](bp-g9.md): 单个 DESIGN.md（正文 + 文末 JSON 令牌块）；数字严文字宽；导出器自写；变量只挂 `[data-bp-dl]`。
 - [验证 DSH 插件宿主的未验证项](bp-r1.md): 脚手架真实跑通（12.8 KiB，整页 + HMR）；`@Remote` 不可自动化，改用 `ctx.connection.fetch`；CLI Inspect 超时成因已定位。
 - [插件架构与存储](bp-g5.md): 后台持权威副本、单一 `apply` 写入口；`connection.fetch` 传输；一个原型一个目录；AI 改前自动快照；素材复制进 `assets/`。
+- [交接协议](bp-g6.md): 自包含交接包（设计语言 + 原型文档 + 每屏参考 HTML + Markdown 实现说明 + 验收清单 + 复述要求），整份原型一次交。
 - [领域模型定稿](bp-g1.md): 屏幕=画板；状态=基础树+差异；转移=显式对象；非界面步骤=动作节点；组件=薄实例；设计语言独立、按版本引用。
 
 ## Not yet specified
