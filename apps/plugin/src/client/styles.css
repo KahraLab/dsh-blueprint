@@ -343,3 +343,12 @@
 .bp-layer-child {
   padding-left: 20px;
 }
+
+.bp-save {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #9a9a9a);
+  white-space: nowrap;
+}
+.bp-save[data-state='error'] {
+  color: #f04438;
+}

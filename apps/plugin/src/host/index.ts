@@ -34,7 +34,8 @@ function createReadRoute(ctx: PluginContext): FetchRoute {
 function createWriteRoute(ctx: PluginContext): FetchRoute {
   return {
     path: DOC_ENDPOINT,
-    methods: ['PUT'],
+    // The exact-route registry only carries GET/HEAD/POST.
+    methods: ['POST'],
     requestBody: 'buffered',
     async fetch(request) {
       const body = await request.text();

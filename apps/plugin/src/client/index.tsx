@@ -51,6 +51,7 @@ function Panel(): ReactElement {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const activeFrameId = selection?.frameId ?? null;
 
@@ -77,11 +78,20 @@ function Panel(): ReactElement {
   useEffect(() => {
     if (!hydrated) return;
     const timer = setTimeout(() => {
+      setSaveState('saving');
       fetch(DOC_ENDPOINT, {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(doc),
-      }).catch(() => {});
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error(`save failed: ${response.status}`);
+          setSaveState('saved');
+        })
+        .catch((error: unknown) => {
+          console.warn('[blueprint] 保存失败', error);
+          setSaveState('error');
+        });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [doc, hydrated]);
@@ -158,7 +168,13 @@ function Panel(): ReactElement {
           </div>
         </div>
 
-        <div />
+        <div className="bp-head-right">
+          {saveState === 'idle' ? null : (
+            <span className="bp-save" data-state={saveState}>
+              {saveState === 'saving' ? '保存中' : saveState === 'saved' ? '已保存' : '保存失败'}
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="bp-main">
