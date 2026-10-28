@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
+import { Canvas, type EditingLayer, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
   addLayer,
+  addRootLayer,
   createDocument,
   updateFrame,
   normalizeDocument,
   removeSelection,
   updateLayer,
+  updateRootLayer,
   type BlueprintDocument,
   type LayerKind,
   type LayerRectPatch,
@@ -87,6 +89,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
   const [selections, setSelections] = useState<readonly Selection[]>([]);
+  const [editing, setEditing] = useState<EditingLayer | null>(null);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -194,11 +197,19 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setTool('move');
   };
 
-  const onCreateLayer = (frameId: string, kind: LayerKind, x: number, y: number): void => {
-    const result = addLayer(doc, frameId, kind, { x, y });
-    if (!result) return;
-    setDoc(result.doc);
-    setSelections([{ kind: 'layer', frameId, layerId: result.layer.id }]);
+  const onCreateLayer = (frameId: string | null, kind: LayerKind, x: number, y: number, fill: string): void => {
+    if (frameId) {
+      const result = addLayer(doc, frameId, kind, { x, y });
+      if (!result) return;
+      setDoc(updateLayer(result.doc, frameId, result.layer.id, { fill }));
+      setSelections([{ kind: 'layer', frameId, layerId: result.layer.id }]);
+      if (kind === 'text') setEditing({ frameId, layerId: result.layer.id });
+    } else {
+      const result = addRootLayer(doc, kind, x, y, fill);
+      setDoc(result.doc);
+      setSelections([{ kind: 'layer', frameId: null, layerId: result.layer.id }]);
+      if (kind === 'text') setEditing({ frameId: null, layerId: result.layer.id });
+    }
     setTool('move');
   };
 
@@ -206,8 +217,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setDoc((current) => updateFrame(current, frameId, patch));
   };
 
-  const onUpdateLayer = (frameId: string, layerId: string, patch: LayerRectPatch): void => {
-    setDoc((current) => updateLayer(current, frameId, layerId, patch));
+  const onUpdateLayer = (frameId: string | null, layerId: string, patch: LayerRectPatch): void => {
+    setDoc((current) => (frameId ? updateLayer(current, frameId, layerId, patch) : updateRootLayer(current, layerId, patch)));
   };
 
   const onPointerDownResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -284,6 +295,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onUpdateLayer={onUpdateLayer}
               onCreateLayer={onCreateLayer}
               onCreateFrame={onCreateFrameAt}
+              editing={editing}
+              onEditingChange={setEditing}
             />
             <div className="bp-tools" role="toolbar" aria-label="工具">
               <div className="bp-tool-group">
@@ -424,8 +437,50 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             <div className="bp-layers-head">
               <h4>图层</h4>
             </div>
-            {doc.frames.length === 0 ? (
-              <div className="bp-empty">还没有画板</div>
+            {doc.layers.map((layer) => (
+              <div
+                className="bp-layer-row"
+                key={layer.id}
+                data-hidden={String(!layer.visible)}
+                data-locked={String(layer.locked)}
+                data-active={selections.some((item) => item.kind === 'layer' && item.frameId === null && item.layerId === layer.id) || undefined}
+              >
+                <button
+                  type="button"
+                  className="bp-layer"
+                  onClick={() => setSelections([{ kind: 'layer', frameId: null, layerId: layer.id }])}
+                  onDoubleClick={() => {
+                    setSelections([{ kind: 'layer', frameId: null, layerId: layer.id }]);
+                    setEditing({ frameId: null, layerId: layer.id });
+                  }}
+                >
+                  {layer.name}
+                </button>
+                <span className="bp-layer-actions">
+                  <button
+                    type="button"
+                    className="bp-layer-action"
+                    title={layer.visible ? '隐藏' : '显示'}
+                    aria-label={layer.visible ? '隐藏图层' : '显示图层'}
+                    onClick={() => onUpdateLayer(null, layer.id, { visible: !layer.visible })}
+                  >
+                    <VisibilityIcon visible={layer.visible} />
+                  </button>
+                  <button
+                    type="button"
+                    className="bp-layer-action"
+                    title={layer.locked ? '解锁' : '锁定'}
+                    aria-label={layer.locked ? '解锁图层' : '锁定图层'}
+                    onClick={() => onUpdateLayer(null, layer.id, { locked: !layer.locked })}
+                  >
+                    <LockIcon locked={layer.locked} />
+                  </button>
+                </span>
+              </div>
+            ))}
+
+            {doc.frames.length === 0 && doc.layers.length === 0 ? (
+              <div className="bp-empty">还没有内容</div>
             ) : (
               doc.frames.map((frame) => (
                 <div key={frame.id}>

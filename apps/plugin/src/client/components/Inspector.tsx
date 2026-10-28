@@ -20,12 +20,12 @@ interface InspectorProps {
   framePresets: boolean;
   onPickPreset(preset: { width: number; height: number }): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
-  onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
+  onUpdateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
 }
 
 interface Single {
   kind: 'frame' | 'layer';
-  frameId: string;
+  frameId: string | null;
   layerId?: string;
 }
 
@@ -66,9 +66,11 @@ function NumberField({
 
 export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdateFrame, onUpdateLayer }: InspectorProps): ReactElement {
   const picked = singleSelection(selections);
-  const frame = picked ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
+  const frame = picked?.frameId ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
   const layer: Layer | undefined =
-    picked?.kind === 'layer' && picked.layerId ? frame?.layers.find((item) => item.id === picked.layerId) : undefined;
+    picked?.kind === 'layer' && picked.layerId
+      ? (frame ? frame.layers.find((item) => item.id === picked.layerId) : doc.layers.find((item) => item.id === picked.layerId))
+      : undefined;
 
   return (
     <aside className="bp-inspector" aria-label="属性">
@@ -127,10 +129,10 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
         <>
           <section className="bp-inspector-section">
             <h5>{layer.name}</h5>
-            <NumberField label="X" value={layer.x} onChange={(x) => onUpdateLayer(frame!.id, layer.id, { x })} />
-            <NumberField label="Y" value={layer.y} onChange={(y) => onUpdateLayer(frame!.id, layer.id, { y })} />
-            <NumberField label="W" value={layer.width} onChange={(width) => onUpdateLayer(frame!.id, layer.id, { width: Math.max(4, width) })} />
-            <NumberField label="H" value={layer.height} onChange={(height) => onUpdateLayer(frame!.id, layer.id, { height: Math.max(4, height) })} />
+            <NumberField label="X" value={layer.x} onChange={(x) => onUpdateLayer(picked.frameId, layer.id, { x })} />
+            <NumberField label="Y" value={layer.y} onChange={(y) => onUpdateLayer(picked.frameId, layer.id, { y })} />
+            <NumberField label="W" value={layer.width} onChange={(width) => onUpdateLayer(picked.frameId, layer.id, { width: Math.max(4, width) })} />
+            <NumberField label="H" value={layer.height} onChange={(height) => onUpdateLayer(picked.frameId, layer.id, { height: Math.max(4, height) })} />
           </section>
           <section className="bp-inspector-section">
             <h5>外观</h5>
@@ -140,16 +142,16 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
                 className="bp-field-color"
                 type="color"
                 value={layer.fill === 'transparent' ? '#000000' : layer.fill}
-                onChange={(event) => onUpdateLayer(frame!.id, layer.id, { fill: event.target.value })}
+                onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { fill: event.target.value })}
               />
             </label>
             {layer.kind !== 'text' ? (
-              <NumberField label="圆角" value={layer.radius} onChange={(radius) => onUpdateLayer(frame!.id, layer.id, { radius })} />
+              <NumberField label="圆角" value={layer.radius} onChange={(radius) => onUpdateLayer(picked.frameId, layer.id, { radius })} />
             ) : null}
             <NumberField
               label="透明"
               value={Math.round((layer.opacity ?? 1) * 100)}
-              onChange={(percent) => onUpdateLayer(frame!.id, layer.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
+              onChange={(percent) => onUpdateLayer(picked.frameId, layer.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
               suffix="%"
             />
           </section>
@@ -159,22 +161,22 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
               <textarea
                 className="bp-field-textarea"
                 value={layer.text}
-                onChange={(event) => onUpdateLayer(frame!.id, layer.id, { text: event.target.value })}
+                onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { text: event.target.value })}
               />
-              <NumberField label="字号" value={layer.fontSize} onChange={(fontSize) => onUpdateLayer(frame!.id, layer.id, { fontSize: Math.max(6, fontSize) })} />
+              <NumberField label="字号" value={layer.fontSize} onChange={(fontSize) => onUpdateLayer(picked.frameId, layer.id, { fontSize: Math.max(6, fontSize) })} />
               <label className="bp-field">
                 <span className="bp-field-label">字重</span>
                 <select
                   className="bp-field-input"
                   value={layer.fontWeight}
-                  onChange={(event) => onUpdateLayer(frame!.id, layer.id, { fontWeight: Number(event.target.value) })}
+                  onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { fontWeight: Number(event.target.value) })}
                 >
                   {[300, 400, 500, 600, 700].map((weight) => (
                     <option key={weight} value={weight}>{weight}</option>
                   ))}
                 </select>
               </label>
-              <NumberField label="行高" value={layer.lineHeight} onChange={(lineHeight) => onUpdateLayer(frame!.id, layer.id, { lineHeight: Math.max(0.8, lineHeight) })} />
+              <NumberField label="行高" value={layer.lineHeight} onChange={(lineHeight) => onUpdateLayer(picked.frameId, layer.id, { lineHeight: Math.max(0.8, lineHeight) })} />
               <div className="bp-field">
                 <span className="bp-field-label">对齐</span>
                 <div className="bp-align-group">
@@ -184,7 +186,7 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
                       type="button"
                       className="bp-align-btn"
                       data-on={(layer.textAlign ?? 'left') === align}
-                      onClick={() => onUpdateLayer(frame!.id, layer.id, { textAlign: align })}
+                      onClick={() => onUpdateLayer(picked.frameId, layer.id, { textAlign: align })}
                     >
                       {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
                     </button>

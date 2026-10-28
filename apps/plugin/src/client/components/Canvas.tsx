@@ -11,6 +11,7 @@ import {
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
+const TEXT_FONT_STACK = '"Figtree", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
 
 export interface Viewport {
   x: number;
@@ -25,19 +26,26 @@ export interface ViewportInfo extends Viewport {
 
 export type Tool = 'move' | 'hand' | 'frame' | 'shape' | 'text';
 
+export interface EditingLayer {
+  frameId: string | null;
+  layerId: string;
+}
+
 interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
   doc: BlueprintDocument;
   selections: readonly Selection[];
   tool: Tool;
   shapeKind: 'rect' | 'ellipse';
+  editing: EditingLayer | null;
   initialViewport?: Viewport;
   onViewportChange?(viewport: Viewport): void;
   onSelect(selections: Selection[]): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
-  onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
-  onCreateLayer(frameId: string, kind: 'rect' | 'ellipse' | 'text', x: number, y: number): void;
+  onUpdateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
+  onCreateLayer(frameId: string | null, kind: 'rect' | 'ellipse' | 'text', x: number, y: number, fill: string): void;
   onCreateFrame(rect: { x: number; y: number; width: number; height: number }): void;
+  onEditingChange(editing: EditingLayer | null): void;
 }
 
 interface WorldRect {
@@ -75,7 +83,7 @@ type Drag =
     }
   | {
       mode: 'moveLayer';
-      frameId: string;
+      frameId: string | null;
       layerId: string;
       pointerX: number;
       pointerY: number;
@@ -92,7 +100,7 @@ function intersects(a: WorldRect, b: WorldRect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-function isLayerSelected(selections: readonly Selection[], frameId: string, layerId: string): boolean {
+function isLayerSelected(selections: readonly Selection[], frameId: string | null, layerId: string): boolean {
   return selections.some((item) => item.kind === 'layer' && item.layerId === layerId && item.frameId === frameId);
 }
 
@@ -100,36 +108,114 @@ function isFrameSelected(selections: readonly Selection[], frameId: string): boo
   return selections.some((item) => item.kind === 'frame' && item.frameId === frameId);
 }
 
+/** Luminance test used to pick a default text colour. */
+function prefersDarkText(color: string, fallback: boolean): boolean {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (hex?.[1]) {
+    const value = Number.parseInt(hex[1], 16);
+    const r = (value >> 16) & 0xff;
+    const g = (value >> 8) & 0xff;
+    const b = value & 0xff;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55;
+  }
+  const rgb = /rgba?\(([^)]+)\)/.exec(color);
+  if (rgb?.[1]) {
+    const [r = '0', g = '0', b = '0'] = rgb[1].split(',').map((part) => part.trim());
+    return (0.299 * Number(r) + 0.587 * Number(g) + 0.114 * Number(b)) / 255 > 0.55;
+  }
+  if (color === 'transparent') return false;
+  return fallback;
+}
+
+let measureCanvas: HTMLCanvasElement | null = null;
+
+/** Text follows the glyphs: the box is measured from the characters, not fixed. */
+function measureText(layer: Pick<Layer, 'text' | 'fontSize' | 'fontWeight' | 'lineHeight'>): { width: number; height: number } {
+  if (!measureCanvas) measureCanvas = document.createElement('canvas');
+  const ctx = measureCanvas.getContext('2d');
+  const height = Math.ceil(layer.fontSize * layer.lineHeight);
+  if (!ctx) return { width: 8, height };
+  ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${TEXT_FONT_STACK}`;
+  const width = Math.ceil(ctx.measureText(layer.text.length > 0 ? layer.text : ' ').width) + 2;
+  return { width: Math.max(8, width), height };
+}
+
 function LayerView({
   layer,
   selected,
+  editing,
   onPointerDown,
+  onDoubleClick,
+  onTextInput,
+  onFinishEditing,
 }: {
   layer: Layer;
   selected: boolean;
+  editing: boolean;
   onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void;
+  onDoubleClick?(): void;
+  onTextInput?(text: string): void;
+  onFinishEditing?(): void;
 }): ReactElement {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const isText = layer.kind === 'text';
+
+  useEffect(() => {
+    if (!editing || !editorRef.current) return;
+    const node = editorRef.current;
+    node.focus();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [editing]);
+
   return (
     <div
       className={`bp-el bp-el-${layer.kind}`}
       data-selected={selected || undefined}
+      data-editing={editing || undefined}
       style={{
         left: layer.x,
         top: layer.y,
-        width: layer.width,
-        height: layer.height,
+        width: isText ? undefined : layer.width,
+        height: isText ? undefined : layer.height,
         borderRadius: layer.radius,
-        background: layer.kind === 'text' ? 'transparent' : layer.fill,
-        color: layer.kind === 'text' ? layer.fill : undefined,
+        background: isText ? 'transparent' : layer.fill,
+        color: isText ? layer.fill : undefined,
         opacity: layer.opacity,
-        fontSize: layer.kind === 'text' ? layer.fontSize : undefined,
-        fontWeight: layer.kind === 'text' ? layer.fontWeight : undefined,
-        lineHeight: layer.kind === 'text' ? layer.lineHeight : undefined,
-        textAlign: layer.kind === 'text' ? layer.textAlign : undefined,
+        fontSize: isText ? layer.fontSize : undefined,
+        fontWeight: isText ? layer.fontWeight : undefined,
+        lineHeight: isText ? layer.lineHeight : undefined,
+        textAlign: isText ? layer.textAlign : undefined,
+        whiteSpace: isText ? 'pre' : undefined,
       }}
       onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
     >
-      {layer.kind === 'text' ? layer.text : null}
+      {isText ? (
+        editing ? (
+          <div
+            ref={editorRef}
+            className="bp-text-editor"
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck={false}
+            onInput={(event) => onTextInput?.((event.currentTarget as HTMLDivElement).textContent ?? '')}
+            onBlur={() => onFinishEditing?.()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                onFinishEditing?.();
+              }
+            }}
+          />
+        ) : (
+          layer.text
+        )
+      ) : null}
     </div>
   );
 }
@@ -140,6 +226,7 @@ export function Canvas({
   selections,
   tool,
   shapeKind,
+  editing,
   initialViewport,
   onViewportChange,
   onSelect,
@@ -147,6 +234,7 @@ export function Canvas({
   onUpdateLayer,
   onCreateLayer,
   onCreateFrame,
+  onEditingChange,
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
@@ -176,6 +264,25 @@ export function Canvas({
       x: (clientX - rect.left - live.current.x) / live.current.zoom,
       y: (clientY - rect.top - live.current.y) / live.current.zoom,
     };
+  };
+
+  /** The frame under a world point, topmost first. */
+  const frameAt = (x: number, y: number): Frame | undefined => {
+    for (let index = doc.frames.length - 1; index >= 0; index -= 1) {
+      const frame = doc.frames[index];
+      if (!frame || !frame.visible || frame.locked) continue;
+      if (x >= frame.x && x <= frame.x + frame.width && y >= frame.y && y <= frame.y + frame.height) return frame;
+    }
+    return undefined;
+  };
+
+  /** Dark text on light surfaces, light text on dark ones. */
+  const textColourAt = (x: number, y: number): string => {
+    const frame = frameAt(x, y);
+    if (frame) return prefersDarkText(frame.background, true) ? '#101828' : '#F5F5F5';
+    const host = hostRef.current;
+    const background = host ? getComputedStyle(host).backgroundColor : '';
+    return prefersDarkText(background, false) ? '#101828' : '#F5F5F5';
   };
 
   // Wheel pans; ctrl/meta zooms around the pointer. Non-passive so the page does not scroll.
@@ -225,6 +332,20 @@ export function Canvas({
       return;
     }
 
+    if (tool === 'shape' || tool === 'text') {
+      const frame = frameAt(world.x, world.y);
+      const kind = tool === 'text' ? 'text' : shapeKind;
+      const fill = tool === 'text' ? textColourAt(world.x, world.y) : 'rgba(148, 154, 164, 0.35)';
+      onCreateLayer(
+        frame ? frame.id : null,
+        kind,
+        frame ? world.x - frame.x : world.x,
+        frame ? world.y - frame.y : world.y,
+        fill,
+      );
+      return;
+    }
+
     if (tool === 'move') {
       onSelect([]);
       drag.current = { mode: 'marquee', startX: world.x, startY: world.y };
@@ -236,14 +357,6 @@ export function Canvas({
   const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
     if (event.button !== 0 || tool === 'hand' || frame.locked) return;
     event.stopPropagation();
-
-    if (tool === 'shape' || tool === 'text') {
-      const world = toWorld(event.clientX, event.clientY);
-      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(world.x - frame.x), Math.round(world.y - frame.y));
-      onSelect([{ kind: 'frame', frameId: frame.id }]);
-      return;
-    }
-
     if (tool !== 'move') return;
     onSelect([{ kind: 'frame', frameId: frame.id }]);
     drag.current = {
@@ -278,21 +391,15 @@ export function Canvas({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame, layer: Layer): void => {
-    if (event.button !== 0 || frame.locked || layer.locked) return;
+  const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frameId: string | null, layer: Layer): void => {
+    if (event.button !== 0 || layer.locked) return;
     event.stopPropagation();
-
-    if (tool === 'shape' || tool === 'text') {
-      const world = toWorld(event.clientX, event.clientY);
-      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(world.x - frame.x), Math.round(world.y - frame.y));
-      return;
-    }
-
     if (tool !== 'move') return;
-    onSelect([{ kind: 'layer', frameId: frame.id, layerId: layer.id }]);
+    if (editing && editing.layerId === layer.id) return;
+    onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
     drag.current = {
       mode: 'moveLayer',
-      frameId: frame.id,
+      frameId,
       layerId: layer.id,
       pointerX: event.clientX,
       pointerY: event.clientY,
@@ -341,7 +448,6 @@ export function Canvas({
         return;
       }
 
-      // Direct DOM writes during a drag: no document update, no re-render.
       case 'moveFrame': {
         current.dx = Math.round((event.clientX - current.pointerX) / zoom);
         current.dy = Math.round((event.clientY - current.pointerY) / zoom);
@@ -385,6 +491,10 @@ export function Canvas({
           if (intersects(marquee, world)) hits.push({ kind: 'layer', frameId: frame.id, layerId: layer.id });
         }
       }
+      for (const layer of doc.layers) {
+        if (!layer.visible || layer.locked) continue;
+        if (intersects(marquee, layer)) hits.push({ kind: 'layer', frameId: null, layerId: layer.id });
+      }
       onSelect(hits);
       setMarquee(null);
     }
@@ -394,14 +504,8 @@ export function Canvas({
       setDraftFrame(null);
     }
 
-    if (current?.mode === 'moveFrame') {
-      onUpdateFrame(current.id, { x: current.originX + current.dx, y: current.originY + current.dy });
-    }
-
-    if (current?.mode === 'resizeFrame') {
-      onUpdateFrame(current.id, { width: current.width, height: current.height });
-    }
-
+    if (current?.mode === 'moveFrame') onUpdateFrame(current.id, { x: current.originX + current.dx, y: current.originY + current.dy });
+    if (current?.mode === 'resizeFrame') onUpdateFrame(current.id, { width: current.width, height: current.height });
     if (current?.mode === 'moveLayer') {
       onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
@@ -428,6 +532,28 @@ export function Canvas({
   const visibleFrames = doc.frames.filter(
     (frame) => frame.visible && (visibleWorld === null || intersects(visibleWorld, frame)),
   );
+  const visibleRootLayers = doc.layers.filter(
+    (layer) => layer.visible && (visibleWorld === null || intersects(visibleWorld, layer)),
+  );
+
+  const renderLayer = (layer: Layer, frameId: string | null): ReactElement => {
+    const isEditing = editing?.layerId === layer.id && editing.frameId === frameId;
+    return (
+      <LayerView
+        key={layer.id}
+        layer={layer}
+        selected={isLayerSelected(selections, frameId, layer.id)}
+        editing={isEditing}
+        onPointerDown={(event) => startMoveLayer(event, frameId, layer)}
+        onDoubleClick={layer.kind === 'text' ? () => onEditingChange({ frameId, layerId: layer.id }) : undefined}
+        onTextInput={(text) => {
+          const size = measureText({ ...layer, text });
+          onUpdateLayer(frameId, layer.id, { text, width: size.width, height: size.height });
+        }}
+        onFinishEditing={() => onEditingChange(null)}
+      />
+    );
+  };
 
   return (
     <div
@@ -481,20 +607,15 @@ export function Canvas({
               </span>
 
               <div className="bp-frame-body">
-                {frame.layers.filter((layer) => layer.visible).map((layer) => (
-                  <LayerView
-                    key={layer.id}
-                    layer={layer}
-                    selected={isLayerSelected(selections, frame.id, layer.id)}
-                    onPointerDown={(event) => startMoveLayer(event, frame, layer)}
-                  />
-                ))}
+                {frame.layers.filter((layer) => layer.visible).map((layer) => renderLayer(layer, frame.id))}
               </div>
 
               <div className="bp-handle" onPointerDown={(event) => startResizeFrame(event, frame)} aria-hidden="true" />
             </div>
           );
         })}
+
+        {visibleRootLayers.map((layer) => renderLayer(layer, null))}
       </div>
 
       <div className="bp-zoom">{Math.round(viewport.zoom * 100)}%</div>

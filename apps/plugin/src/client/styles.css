@@ -678,3 +678,14 @@
 .bp-canvas[data-tool='hand']:active .bp-el {
   cursor: grabbing;
 }
+
+/* ---------- inline text editing ---------- */
+.bp-text-editor {
+  outline: none;
+  min-width: 1ch;
+  white-space: pre;
+}
+.bp-el[data-editing='true'] {
+  outline: 1px solid #4fc3f7;
+  outline-offset: 2px;
+}
