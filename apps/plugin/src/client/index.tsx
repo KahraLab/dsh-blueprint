@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Poin
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { CaretIcon, FrameIcon, HandIcon, LayersIcon, LockIcon, MarkIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
+import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
@@ -83,7 +83,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
-  const [layersOpen, setLayersOpen] = useState(true);
+  const [uiMinimized, setUiMinimized] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
   const [selections, setSelections] = useState<readonly Selection[]>([]);
@@ -238,13 +238,13 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
           <button
             type="button"
             className="bp-icon"
-            data-on={layersOpen}
-            title="图层"
-            aria-label="图层"
-            aria-pressed={layersOpen}
-            onClick={() => setLayersOpen((open) => !open)}
+            data-on={uiMinimized}
+            title={uiMinimized ? '展开界面' : '收起界面'}
+            aria-label={uiMinimized ? '展开界面' : '收起界面'}
+            aria-pressed={uiMinimized}
+            onClick={() => setUiMinimized((value) => !value)}
           >
-            <LayersIcon />
+            <MinimizeUiIcon />
           </button>
         </div>
 
@@ -403,6 +403,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               </button>
             </div>
 
+            {uiMinimized ? null : (
             <Inspector
               doc={doc}
               selections={selections}
@@ -411,13 +412,14 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
             />
+            )}
 
           </>
         ) : (
           <div className="bp-placeholder">流程视图</div>
         )}
 
-        {layersOpen ? (
+        {uiMinimized ? null : (
           <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
             <div className="bp-layers-head">
               <h4>图层</h4>
@@ -466,6 +468,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                     <div
                       className="bp-layer-row bp-layer-row-child"
                       key={layer.id}
+                      style={{ paddingLeft: 18 }}
                       data-hidden={String(!layer.visible)}
                       data-locked={String(layer.locked)}
                       data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
@@ -513,7 +516,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onPointerCancel={onPointerUpResize}
             />
           </aside>
-        ) : null}
+        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import Lock from 'lucide-react/icons/lock';
 import LockOpen from 'lucide-react/icons/lock-open';
 import Hand from 'lucide-react/icons/hand';
 import MoreHorizontal from 'lucide-react/icons/ellipsis';
+import PanelsLeftRight from 'lucide-react/icons/panels-left-right';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
 import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
@@ -94,4 +95,9 @@ export function LockIcon({ locked, size = 13 }: { locked: boolean; size?: number
   return locked
     ? <Lock size={size} strokeWidth={1.8} aria-hidden="true" />
     : <LockOpen size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Minimize UI — hides both side columns. */
+export function MinimizeUiIcon({ size = 15, className }: IconProps): ReactElement {
+  return <PanelsLeftRight size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }

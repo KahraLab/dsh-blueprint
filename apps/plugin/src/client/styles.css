@@ -135,7 +135,7 @@
   position: absolute;
   top: -20px;
   left: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dsw-alias-label-secondary, #6b7078);
   white-space: nowrap;
   pointer-events: none;
@@ -147,7 +147,7 @@
   position: absolute;
   top: -20px;
   right: 0;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--dsw-alias-label-secondary, #8a9098);
   white-space: nowrap;
   pointer-events: none;
@@ -214,6 +214,9 @@
   align-items: center;
   justify-content: space-between;
   margin: 2px 6px 8px;
+}
+.bp-layers {
+  padding: 10px 6px;
 }
 .bp-layers h4 {
   margin: 0;
@@ -338,9 +341,7 @@
   padding: 2px 0;
   white-space: pre-wrap;
 }
-.bp-layer-child {
-  padding-left: 20px;
-}
+
 
 .bp-save {
   font-size: 11px;
@@ -476,9 +477,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 4px;
   min-height: 26px;
-  padding-right: 4px;
+  padding: 0 4px;
   border-radius: 6px;
 }
 .bp-layer-row:hover {
