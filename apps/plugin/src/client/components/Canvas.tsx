@@ -362,8 +362,10 @@ export function Canvas({
 
   const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
     if (event.button !== 0 || tool === 'hand' || frame.locked) return;
-    event.stopPropagation();
+    // Drawing tools must reach the canvas handler, which owns creation.
+    if (tool === 'shape' || tool === 'text') return;
     if (tool !== 'move') return;
+    event.stopPropagation();
     onSelect([{ kind: 'frame', frameId: frame.id }]);
     drag.current = {
       mode: 'moveFrame',
@@ -399,8 +401,10 @@ export function Canvas({
 
   const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frameId: string | null, layer: Layer): void => {
     if (event.button !== 0 || layer.locked) return;
-    event.stopPropagation();
+    // Drawing tools bubble to the canvas so insertion works on top of layers too.
+    if (tool === 'shape' || tool === 'text') return;
     if (tool !== 'move') return;
+    event.stopPropagation();
     if (editing && editing.layerId === layer.id) return;
     onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
     drag.current = {
