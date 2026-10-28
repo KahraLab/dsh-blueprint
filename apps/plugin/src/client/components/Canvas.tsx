@@ -166,16 +166,17 @@ function LayerView({
     // Seed the editor with the layer's text; React owns no children here, so the
     // DOM text survives re-renders while typing.
     node.textContent = layer.text;
-    const frame = requestAnimationFrame(() => {
+    // Wait for the native double-click word selection to finish, then take over
+    // and select the whole run: entering edit always starts with everything selected.
+    const timer = setTimeout(() => {
       node.focus();
       const range = document.createRange();
       range.selectNodeContents(node);
-      range.collapse(false);
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-    });
-    return () => cancelAnimationFrame(frame);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [editing, layer.id]);
 
   return (
@@ -199,7 +200,11 @@ function LayerView({
         whiteSpace: isText ? 'pre' : undefined,
       }}
       onPointerDown={onPointerDown}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onDoubleClick?.();
+      }}
     >
       {isText ? (
         editing ? (
