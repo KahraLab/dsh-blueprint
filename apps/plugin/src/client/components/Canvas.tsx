@@ -149,6 +149,9 @@ type Drag =
       mode: 'moveInStack';
       frameId: string | null;
       layerId: string;
+      pointerX: number;
+      pointerY: number;
+      element: HTMLDivElement;
       drop: Drop | null;
     };
 
@@ -611,7 +614,16 @@ export function Canvas({
 
     if (parentLayout) {
       // Inside a stack every move is a reorder, so no free coordinates are touched.
-      drag.current = { mode: 'moveInStack', frameId, layerId: layer.id, drop: null };
+      // The box follows the pointer as a ghost so the gesture still reads as a drag.
+      drag.current = {
+        mode: 'moveInStack',
+        frameId,
+        layerId: layer.id,
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        element: event.currentTarget,
+        drop: null,
+      };
     } else {
       drag.current = {
         mode: 'moveLayer',
@@ -877,6 +889,9 @@ export function Canvas({
       case 'moveInStack': {
         const drop = resolveDrop(event.clientX, event.clientY, current.layerId, current.frameId);
         current.drop = drop;
+        current.element.style.transform = `translate(${event.clientX - current.pointerX}px, ${event.clientY - current.pointerY}px)`;
+        current.element.style.opacity = '0.55';
+        current.element.style.zIndex = '3';
         setDropIndicator(drop?.indicator ?? null);
         return;
       }
@@ -933,9 +948,14 @@ export function Canvas({
     if (current?.mode === 'moveLayer') {
       onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
-    if (current?.mode === 'moveInStack' && current.drop) {
-      const { frameId, parentId, beforeId, point } = current.drop;
-      onMoveLayer(frameId, current.layerId, { frameId, parentId, beforeId }, point);
+    if (current?.mode === 'moveInStack') {
+      current.element.style.transform = '';
+      current.element.style.opacity = '';
+      current.element.style.zIndex = '';
+      if (current.drop) {
+        const { frameId, parentId, beforeId, point } = current.drop;
+        onMoveLayer(frameId, current.layerId, { frameId, parentId, beforeId }, point);
+      }
     }
 
     setDropIndicator(null);
@@ -989,6 +1009,7 @@ export function Canvas({
         data-direction={layer.layout?.direction ?? ''}
         data-selected={isLayerSelected(selections, frameId, layer.id) || undefined}
         data-editing={isEditing || undefined}
+        data-locked={layer.locked || undefined}
         style={style}
         onPointerDown={(event) => startLayerDrag(event, frameId, layer, container)}
         onDoubleClick={

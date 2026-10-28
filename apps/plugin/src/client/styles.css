@@ -350,6 +350,11 @@
   cursor: default;
   min-width: 0;
 }
+/* A locked element ignores drags; say so with the cursor instead of doing nothing. */
+.bp-el[data-locked='true'],
+.bp-el[data-locked='true'] * {
+  cursor: not-allowed;
+}
 .bp-el[data-selected='true'] {
   outline: 1.5px solid #4fc3f7;
   outline-offset: 0;
