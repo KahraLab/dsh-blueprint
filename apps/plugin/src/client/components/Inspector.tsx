@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import {
+  AddFrameIcon,
   AlignBottomIcon,
   AlignMiddleIcon,
   AlignTopIcon,
@@ -9,7 +10,17 @@ import {
   TextAlignRightIcon,
   VisibilityIcon,
 } from '../icons';
-import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection, TextAlign } from '../model/document';
+import {
+  makeFill,
+  type BlueprintDocument,
+  type FillStyle,
+  type Layer,
+  type LayerRectPatch,
+  type RectPatch,
+  type Selection,
+  type TextAlign,
+} from '../model/document';
+import { colorToRgba } from '../model/fill';
 
 const FRAME_PRESETS = [
   { label: '手机', width: 390, height: 844 },
@@ -191,67 +202,94 @@ export function Inspector({
       </section>
 
       <section className="bp-inspector-section">
-        <h5>{isFrame ? '画板' : '外观'}</h5>
-
-        <div className="bp-fill-row">
-          <div className="bp-fill-field">
-            <span
-              className="bp-swatch"
-              style={{ background: isFrame ? frame!.background : layer!.fill }}
-            >
-              <input
-                type="color"
-                value={
-                  /^#([0-9a-f]{6})$/i.test(isFrame ? frame!.background : layer!.fill)
-                    ? (isFrame ? frame!.background : layer!.fill)
-                    : '#000000'
-                }
-                onChange={(event) => (isFrame ? patchFrame({ background: event.target.value }) : patchLayer({ fill: event.target.value }))}
-              />
-            </span>
-            <input
-              className="bp-input-field"
-              type="text"
-              value={isFrame ? frame!.background : layer!.fill}
-              onChange={(event) => (isFrame ? patchFrame({ background: event.target.value }) : patchLayer({ fill: event.target.value }))}
-            />
-            <span className="bp-fill-divider" />
-            <input
-              className="bp-input-field bp-fill-opacity"
-              type="number"
-              value={Math.round(target.opacity * 100)}
-              onChange={(event) => {
-                const opacity = Math.min(100, Math.max(0, Number(event.target.value))) / 100;
-                if (isFrame) patchFrame({ opacity });
-                else patchLayer({ opacity });
-              }}
-            />
-            <span className="bp-input-suffix">%</span>
-          </div>
-
+        <div className="bp-section-head">
+          <h5>填充</h5>
           <button
             type="button"
-            className="bp-fill-action"
-            title={target.visible ? '隐藏' : '显示'}
-            aria-label={target.visible ? '隐藏' : '显示'}
-            onClick={() => (isFrame ? patchFrame({ visible: !target.visible }) : patchLayer({ visible: !target.visible }))}
+            className="bp-section-add"
+            title="添加填充"
+            aria-label="添加填充"
+            onClick={() => {
+              const color = layer?.kind === 'text' ? '#101828' : '#FFFFFF';
+              const next = [...(isFrame ? frame!.fills : layer!.fills), makeFill(color)];
+              if (isFrame) patchFrame({ fills: next });
+              else patchLayer({ fills: next });
+            }}
           >
-            <VisibilityIcon visible={target.visible} />
-          </button>
-          <button
-            type="button"
-            className="bp-fill-action"
-            title="移除填充"
-            aria-label="移除填充"
-            onClick={() =>
-              isFrame
-                ? patchFrame({ background: 'transparent' })
-                : patchLayer({ fill: layer!.kind === 'text' ? '#101828' : 'transparent' })
-            }
-          >
-            <MinusIcon />
+            <AddFrameIcon size={12} />
           </button>
         </div>
+
+        {(isFrame ? frame!.fills : layer!.fills).map((fill, index) => (
+          <div className="bp-fill-row" key={fill.id}>
+            <div className="bp-fill-field">
+              <span className="bp-swatch" style={{ background: colorToRgba(fill.color, fill.opacity) }}>
+                <input
+                  type="color"
+                  value={/^#([0-9a-f]{6})$/i.test(fill.color) ? fill.color : '#000000'}
+                  onChange={(event) => {
+                    const next = [...(isFrame ? frame!.fills : layer!.fills)];
+                    next[index] = { ...fill, color: event.target.value };
+                    if (isFrame) patchFrame({ fills: next });
+                    else patchLayer({ fills: next });
+                  }}
+                />
+              </span>
+              <input
+                className="bp-input-field"
+                type="text"
+                value={fill.color}
+                onChange={(event) => {
+                  const next = [...(isFrame ? frame!.fills : layer!.fills)];
+                  next[index] = { ...fill, color: event.target.value };
+                  if (isFrame) patchFrame({ fills: next });
+                  else patchLayer({ fills: next });
+                }}
+              />
+              <span className="bp-fill-divider" />
+              <input
+                className="bp-input-field bp-fill-opacity"
+                type="number"
+                value={Math.round(fill.opacity * 100)}
+                onChange={(event) => {
+                  const next = [...(isFrame ? frame!.fills : layer!.fills)];
+                  next[index] = { ...fill, opacity: Math.min(100, Math.max(0, Number(event.target.value))) / 100 };
+                  if (isFrame) patchFrame({ fills: next });
+                  else patchLayer({ fills: next });
+                }}
+              />
+              <span className="bp-input-suffix">%</span>
+            </div>
+
+            <button
+              type="button"
+              className="bp-fill-action"
+              title={fill.opacity > 0 ? '隐藏填充' : '显示填充'}
+              aria-label={fill.opacity > 0 ? '隐藏填充' : '显示填充'}
+              onClick={() => {
+                const next = [...(isFrame ? frame!.fills : layer!.fills)];
+                next[index] = { ...fill, opacity: fill.opacity > 0 ? 0 : 1 };
+                if (isFrame) patchFrame({ fills: next });
+                else patchLayer({ fills: next });
+              }}
+            >
+              <VisibilityIcon visible={fill.opacity > 0} />
+            </button>
+            <button
+              type="button"
+              className="bp-fill-action"
+              title="移除填充"
+              aria-label="移除填充"
+              onClick={() => {
+                const next = (isFrame ? frame!.fills : layer!.fills).filter((item) => item.id !== fill.id);
+                if (isFrame) patchFrame({ fills: next });
+                else patchLayer({ fills: next });
+              }}
+            >
+              <MinusIcon />
+            </button>
+          </div>
+        ))}
 
         {!isFrame && layer?.kind !== 'text' ? (
           <div className="bp-grid2">

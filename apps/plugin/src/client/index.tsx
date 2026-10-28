@@ -203,9 +203,9 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
 
   const onCreateLayer = (frameId: string | null, kind: LayerKind, x: number, y: number, fill: string): void => {
     if (frameId) {
-      const result = addLayer(doc, frameId, kind, { x, y });
+      const result = addLayer(doc, frameId, kind, { x, y }, fill);
       if (!result) return;
-      setDoc(updateLayer(result.doc, frameId, result.layer.id, { fill }));
+      setDoc(result.doc);
       setSelections([{ kind: 'layer', frameId, layerId: result.layer.id }]);
       if (kind === 'text') setEditing({ frameId, layerId: result.layer.id });
     } else {

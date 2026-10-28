@@ -8,6 +8,7 @@ import {
   type RectPatch,
   type Selection,
 } from '../model/document';
+import { fillBackground, topFillColor } from '../model/fill';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
@@ -212,8 +213,8 @@ function LayerView({
         width: isText ? undefined : layer.width,
         height: isText ? layer.height : layer.height,
         borderRadius: layer.radius,
-        background: isText ? 'transparent' : layer.fill,
-        color: isText ? layer.fill : undefined,
+        background: isText ? 'transparent' : fillBackground(layer.fills),
+        color: isText ? topFillColor(layer.fills) : undefined,
         opacity: layer.opacity,
         fontSize: isText ? layer.fontSize : undefined,
         fontFamily: isText ? `"${layer.fontFamily}", ${TEXT_FONT_STACK}` : undefined,
@@ -325,7 +326,7 @@ export function Canvas({
   /** Dark text on light surfaces, light text on dark ones. */
   const textColourAt = (x: number, y: number): string => {
     const frame = frameAt(x, y);
-    if (frame) return prefersDarkText(frame.background, true) ? '#101828' : '#F5F5F5';
+    if (frame) return prefersDarkText(topFillColor(frame.fills), true) ? '#101828' : '#F5F5F5';
     const host = hostRef.current;
     const background = host ? getComputedStyle(host).backgroundColor : '';
     return prefersDarkText(background, false) ? '#101828' : '#F5F5F5';
@@ -718,7 +719,7 @@ export function Canvas({
                 top: frame.y,
                 width: frame.width,
                 height: frame.height,
-                background: frame.background,
+                background: fillBackground(frame.fills),
                 opacity: frame.opacity,
               }}
               onPointerDown={(event) => startMoveFrame(event, frame)}

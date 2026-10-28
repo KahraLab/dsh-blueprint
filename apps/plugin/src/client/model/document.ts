@@ -11,6 +11,13 @@ export type LayerKind = 'rect' | 'ellipse' | 'text';
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
+/** One paint on a shape. Several stack, bottom to top, each with its own alpha. */
+export interface FillStyle {
+  id: string;
+  color: string;
+  opacity: number;
+}
+
 export interface Layer {
   id: string;
   kind: LayerKind;
@@ -19,7 +26,7 @@ export interface Layer {
   y: number;
   width: number;
   height: number;
-  fill: string;
+  fills: readonly FillStyle[];
   radius: number;
   opacity: number;
   text: string;
@@ -41,7 +48,7 @@ export interface Frame {
   y: number;
   width: number;
   height: number;
-  background: string;
+  fills: readonly FillStyle[];
   opacity: number;
   visible: boolean;
   locked: boolean;
@@ -59,7 +66,7 @@ export type Selection =
   | { kind: 'layer'; frameId: string | null; layerId: string };
 
 export type RectPatch = Partial<
-  Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background' | 'opacity' | 'visible' | 'locked'>
+  Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'fills' | 'opacity' | 'visible' | 'locked'>
 >;
 export type LayerRectPatch = Partial<
   Pick<
@@ -68,7 +75,7 @@ export type LayerRectPatch = Partial<
     | 'y'
     | 'width'
     | 'height'
-    | 'fill'
+    | 'fills'
     | 'radius'
     | 'opacity'
     | 'text'
@@ -87,34 +94,57 @@ export type LayerRectPatch = Partial<
 export const FRAME_MIN_SIZE = 120;
 export const LAYER_MIN_SIZE = 8;
 
-const RECT_DEFAULTS = { width: 200, height: 120, fill: 'rgba(148, 154, 164, 0.35)', radius: 8 } as const;
-const TEXT_DEFAULTS = { width: 200, height: 32, fill: '#101828', radius: 0 } as const;
+export function makeFill(color: string, opacity = 1): FillStyle {
+  return { id: nextId('fill'), color, opacity };
+}
+
+const RECT_DEFAULTS = { width: 200, height: 120, radius: 8 } as const;
+const TEXT_DEFAULTS = { width: 200, height: 32, radius: 0 } as const;
+
+const DEFAULT_SHAPE_FILL = 'rgba(148, 154, 164, 0.35)';
+const DEFAULT_TEXT_FILL = '#101828';
+const DEFAULT_FRAME_FILL = '#FFFFFF';
 
 /** Fill in fields that older documents may not have. */
 export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
-  const normalizeLayer = (layer: Layer): Layer => ({
-    ...layer,
-    opacity: layer.opacity ?? 1,
-    fontFamily: layer.fontFamily ?? 'Figtree',
-    fontSize: layer.fontSize ?? 14,
-    fontWeight: layer.fontWeight ?? 400,
-    lineHeight: layer.lineHeight ?? 1.5,
-    letterSpacing: layer.letterSpacing ?? 0,
-    textAlign: layer.textAlign ?? 'left',
-    verticalAlign: layer.verticalAlign ?? 'top',
-    visible: layer.visible ?? true,
-    locked: layer.locked ?? false,
-  });
+  const normalizeFills = (fills: readonly FillStyle[] | undefined, legacy: unknown, fallback: string): FillStyle[] => {
+    if (Array.isArray(fills) && fills.length > 0) return fills.map((fill) => ({ ...fill, id: fill.id ?? nextId('fill') }));
+    if (typeof legacy === 'string' && legacy.length > 0 && legacy !== 'transparent') return [makeFill(legacy)];
+    return [makeFill(fallback)];
+  };
+
+  const normalizeLayer = (layer: Layer): Layer => {
+    const raw = layer as Layer & { fill?: unknown };
+    return {
+      ...layer,
+      fills: normalizeFills(layer.fills, raw.fill, layer.kind === 'text' ? DEFAULT_TEXT_FILL : DEFAULT_SHAPE_FILL),
+      opacity: layer.opacity ?? 1,
+      fontFamily: layer.fontFamily ?? 'Figtree',
+      fontSize: layer.fontSize ?? 14,
+      fontWeight: layer.fontWeight ?? 400,
+      lineHeight: layer.lineHeight ?? 1.5,
+      letterSpacing: layer.letterSpacing ?? 0,
+      textAlign: layer.textAlign ?? 'left',
+      verticalAlign: layer.verticalAlign ?? 'top',
+      visible: layer.visible ?? true,
+      locked: layer.locked ?? false,
+    };
+  };
+
   return {
     ...doc,
     layers: (doc.layers ?? []).map(normalizeLayer),
-    frames: (doc.frames ?? []).map((frame) => ({
-      ...frame,
-      opacity: frame.opacity ?? 1,
-      visible: frame.visible ?? true,
-      locked: frame.locked ?? false,
-      layers: (frame.layers ?? []).map(normalizeLayer),
-    })),
+    frames: (doc.frames ?? []).map((frame) => {
+      const raw = frame as Frame & { background?: unknown };
+      return {
+        ...frame,
+        fills: normalizeFills(frame.fills, raw.background, DEFAULT_FRAME_FILL),
+        opacity: frame.opacity ?? 1,
+        visible: frame.visible ?? true,
+        locked: frame.locked ?? false,
+        layers: (frame.layers ?? []).map(normalizeLayer),
+      };
+    }),
   };
 }
 
@@ -132,8 +162,7 @@ function overlaps(a: Frame, x: number, y: number): boolean {
 
 /**
  * Append a phone-sized frame centred on the given world point. When that spot is
- * already taken, the new frame slides right past the frames in the way, which is
- * what Figma does for successive inserts from the same viewpoint.
+ * already taken, the new frame slides right past the frames in the way.
  */
 export function addFrame(
   doc: BlueprintDocument,
@@ -147,14 +176,21 @@ export function addFrame(
     x += FRAME_WIDTH + FRAME_GAP;
   }
 
+  return addFrameRect(doc, { x, y, width: FRAME_WIDTH, height: FRAME_HEIGHT, name: `画板 ${index + 1}` });
+}
+
+export function addFrameRect(
+  doc: BlueprintDocument,
+  rect: { x: number; y: number; width: number; height: number; name?: string },
+): { doc: BlueprintDocument; frame: Frame } {
   const frame: Frame = {
     id: nextId('frame'),
-    name: `画板 ${index + 1}`,
-    x,
-    y,
-    width: FRAME_WIDTH,
-    height: FRAME_HEIGHT,
-    background: '#FFFFFF',
+    name: rect.name ?? `画板 ${doc.frames.length + 1}`,
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.max(40, Math.round(rect.width)),
+    height: Math.max(40, Math.round(rect.height)),
+    fills: [makeFill(DEFAULT_FRAME_FILL)],
     opacity: 1,
     visible: true,
     locked: false,
@@ -165,7 +201,7 @@ export function addFrame(
 
 const LAYER_NAMES: Record<LayerKind, string> = { rect: '矩形', ellipse: '椭圆', text: '文本' };
 
-function makeLayer(kind: LayerKind, x: number, y: number, options: { fill?: string; text?: string } = {}): Layer {
+function makeLayer(kind: LayerKind, x: number, y: number, fill?: string): Layer {
   const defaults = kind === 'text' ? TEXT_DEFAULTS : RECT_DEFAULTS;
   return {
     id: nextId('layer'),
@@ -175,10 +211,10 @@ function makeLayer(kind: LayerKind, x: number, y: number, options: { fill?: stri
     y: Math.round(y),
     width: defaults.width,
     height: defaults.height,
-    fill: options.fill ?? defaults.fill,
+    fills: [makeFill(fill ?? (kind === 'text' ? DEFAULT_TEXT_FILL : DEFAULT_SHAPE_FILL))],
     radius: kind === 'ellipse' ? 999 : defaults.radius,
     opacity: 1,
-    text: options.text ?? (kind === 'text' ? '' : ''),
+    text: '',
     fontFamily: 'Figtree',
     fontSize: 14,
     fontWeight: 400,
@@ -191,9 +227,15 @@ function makeLayer(kind: LayerKind, x: number, y: number, options: { fill?: stri
   };
 }
 
-/** Add a text layer on the canvas root. */
-export function addRootLayer(doc: BlueprintDocument, kind: LayerKind, x: number, y: number, fill?: string): { doc: BlueprintDocument; layer: Layer } {
-  const layer = makeLayer(kind, x, y, { fill });
+/** Add a layer on the canvas root. */
+export function addRootLayer(
+  doc: BlueprintDocument,
+  kind: LayerKind,
+  x: number,
+  y: number,
+  fill?: string,
+): { doc: BlueprintDocument; layer: Layer } {
+  const layer = makeLayer(kind, x, y, fill);
   return { doc: { ...doc, layers: [...doc.layers, layer] }, layer };
 }
 
@@ -208,38 +250,17 @@ export function addLayer(
   frameId: string,
   kind: LayerKind,
   at?: { x: number; y: number },
+  fill?: string,
 ): { doc: BlueprintDocument; layer: Layer } | null {
   const frame = doc.frames.find((item) => item.id === frameId);
   if (!frame) return null;
 
-  const layer = makeLayer(kind, at?.x ?? 24, at?.y ?? 24 + frame.layers.length * 16);
-
+  const layer = makeLayer(kind, at?.x ?? 24, at?.y ?? 24 + frame.layers.length * 16, fill);
   const next: Frame = { ...frame, layers: [...frame.layers, layer] };
   return {
     doc: { ...doc, frames: doc.frames.map((item) => (item.id === frameId ? next : item)) },
     layer,
   };
-}
-
-/** Append a frame with explicit geometry (drag-drawn or preset). */
-export function addFrameRect(
-  doc: BlueprintDocument,
-  rect: { x: number; y: number; width: number; height: number },
-): { doc: BlueprintDocument; frame: Frame } {
-  const frame: Frame = {
-    id: nextId('frame'),
-    name: `画板 ${doc.frames.length + 1}`,
-    x: Math.round(rect.x),
-    y: Math.round(rect.y),
-    width: Math.max(40, Math.round(rect.width)),
-    height: Math.max(40, Math.round(rect.height)),
-    background: '#FFFFFF',
-    opacity: 1,
-    visible: true,
-    locked: false,
-    layers: [],
-  };
-  return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
 }
 
 /** Remove every selected frame and layer in one pass. */

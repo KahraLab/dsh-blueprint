@@ -915,3 +915,30 @@
   background: rgba(255, 255, 255, 0.08);
   color: var(--dsw-alias-label-primary, #eee);
 }
+
+/* ---------- section header with an action ---------- */
+.bp-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bp-section-head h5 {
+  margin: 0;
+}
+.bp-section-add {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #9a9a9a);
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.bp-section-add:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--dsw-alias-label-primary, #eee);
+}
