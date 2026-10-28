@@ -177,3 +177,26 @@ export function startSession(url: string): () => void {
     }
   };
 }
+
+/**
+ * Delete / Backspace removes the selected frames and layers, unless the caret is
+ * in a field. Kept out of the component so the listener has no render deps.
+ */
+export function handleDeleteKey(event: Pick<KeyboardEvent, 'key' | 'target' | 'preventDefault'>): boolean {
+  if (event.key !== 'Backspace' && event.key !== 'Delete') return false;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return false;
+  const { selections, deleteSelection } = useBlueprint.getState();
+  if (selections.length === 0) return false;
+  event.preventDefault();
+  deleteSelection();
+  return true;
+}
+
+export function installDeleteKey(): () => void {
+  const onKeyDown = (event: KeyboardEvent): void => {
+    handleDeleteKey(event);
+  };
+  window.addEventListener('keydown', onKeyDown);
+  return () => window.removeEventListener('keydown', onKeyDown);
+}

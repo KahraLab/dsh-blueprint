@@ -4,7 +4,7 @@ import { Canvas, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
 import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
-import { loadDocument, startSession, useBlueprint, type Tab } from './store';
+import { installDeleteKey, loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
@@ -104,8 +104,25 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   // back. The debounce and the fetch live in the store, away from the render path.
   useEffect(() => {
     void loadDocument(docUrl);
-    return startSession(docUrl);
+    const stopSession = startSession(docUrl);
+    const stopKeys = installDeleteKey();
+    return () => {
+      stopSession();
+      stopKeys();
+    };
   }, [docUrl]);
+
+  // Any pointerdown outside a menu (and outside its trigger) closes every menu.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.bp-menu, .bp-caret, .bp-layer-action')) return;
+      setMoveMenuOpen(false);
+      setShapeMenuOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+  }, []);
 
   const onPickPreset = (preset: { width: number; height: number }): void => {
     const centre = canvasCentre(canvasViewport.current);
