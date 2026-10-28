@@ -403,11 +403,15 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             ) : (
               doc.frames.map((frame) => (
                 <div key={frame.id}>
-                  <div className="bp-layer-row" data-hidden={String(!frame.visible)} data-locked={String(frame.locked)}>
+                  <div
+                    className="bp-layer-row"
+                    data-hidden={String(!frame.visible)}
+                    data-locked={String(frame.locked)}
+                    data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
+                  >
                     <button
                       type="button"
                       className="bp-layer"
-                      data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
                       onClick={() => setSelections([{ kind: 'frame', frameId: frame.id }])}
                     >
                       {frame.name}
@@ -440,11 +444,11 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                       key={layer.id}
                       data-hidden={String(!layer.visible)}
                       data-locked={String(layer.locked)}
+                      data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
                     >
                       <button
                         type="button"
                         className="bp-layer bp-layer-child"
-                        data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
                         onClick={() => setSelections([{ kind: 'layer', frameId: frame.id, layerId: layer.id }])}
                       >
                         {layer.name}

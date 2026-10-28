@@ -476,6 +476,18 @@
   position: relative;
   display: flex;
   align-items: center;
+  gap: 1px;
+  padding-right: 3px;
+  border-radius: 6px;
+}
+.bp-layer-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.bp-layer-row[data-active='true'] {
+  background: rgba(255, 255, 255, 0.1);
+}
+.bp-layer-row[data-active='true'] .bp-layer {
+  color: var(--dsw-alias-label-primary, #fff);
 }
 .bp-layer-row .bp-layer {
   flex: 1;
