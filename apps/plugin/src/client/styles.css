@@ -795,6 +795,11 @@
   user-select: text;
   -webkit-user-select: text;
 }
+/* Selection reads as a wash of the accent colour, not the browser's deep blue. */
+.bp-root ::selection {
+  background-color: rgba(13, 153, 255, 0.3);
+  color: inherit;
+}
 .bp-text-editor:empty::before {
   content: '';
   display: inline-block;
