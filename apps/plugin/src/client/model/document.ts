@@ -47,7 +47,7 @@ export type LayerRectPatch = Partial<Pick<Layer, 'x' | 'y' | 'width' | 'height'>
 export const FRAME_MIN_SIZE = 120;
 export const LAYER_MIN_SIZE = 8;
 
-const RECT_DEFAULTS = { width: 200, height: 120, fill: '#E4E7EC', radius: 8 } as const;
+const RECT_DEFAULTS = { width: 200, height: 120, fill: 'rgba(148, 154, 164, 0.35)', radius: 8 } as const;
 const TEXT_DEFAULTS = { width: 200, height: 32, fill: 'transparent', radius: 0 } as const;
 
 export function createDocument(): BlueprintDocument {
