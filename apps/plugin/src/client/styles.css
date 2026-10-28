@@ -655,3 +655,26 @@
   border-color: rgba(79, 195, 247, 0.5);
   color: #4fc3f7;
 }
+
+/* The tool cursor must win over the frame/layer default inside the canvas. */
+.bp-canvas[data-tool='frame'],
+.bp-canvas[data-tool='frame'] .bp-frame,
+.bp-canvas[data-tool='frame'] .bp-el,
+.bp-canvas[data-tool='shape'],
+.bp-canvas[data-tool='shape'] .bp-frame,
+.bp-canvas[data-tool='shape'] .bp-el,
+.bp-canvas[data-tool='text'],
+.bp-canvas[data-tool='text'] .bp-frame,
+.bp-canvas[data-tool='text'] .bp-el {
+  cursor: crosshair;
+}
+.bp-canvas[data-tool='hand'],
+.bp-canvas[data-tool='hand'] .bp-frame,
+.bp-canvas[data-tool='hand'] .bp-el {
+  cursor: grab;
+}
+.bp-canvas[data-tool='hand']:active,
+.bp-canvas[data-tool='hand']:active .bp-frame,
+.bp-canvas[data-tool='hand']:active .bp-el {
+  cursor: grabbing;
+}
