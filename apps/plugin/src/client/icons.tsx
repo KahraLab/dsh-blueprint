@@ -2,6 +2,7 @@ import DraftingCompass from 'lucide-react/icons/drafting-compass';
 import ChevronDown from 'lucide-react/icons/chevron-down';
 import Frame from 'lucide-react/icons/frame';
 import Hand from 'lucide-react/icons/hand';
+import MoreHorizontal from 'lucide-react/icons/ellipsis';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
 import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
@@ -63,9 +64,16 @@ export function PointerIcon({ size = 15, className }: IconProps): ReactElement {
   return <MousePointer2 size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-export { ChevronDown };
+export function CaretIcon({ size = 10, className }: IconProps): ReactElement {
+  return <ChevronDown size={size} className={className} strokeWidth={2.2} aria-hidden="true" />;
+}
 
 /** Hand tool — pans the canvas. */
 export function HandIcon({ size = 15, className }: IconProps): ReactElement {
   return <Hand size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Row overflow menu trigger. */
+export function MoreIcon({ size = 14, className }: IconProps): ReactElement {
+  return <MoreHorizontal size={size} className={className} strokeWidth={2} aria-hidden="true" />;
 }

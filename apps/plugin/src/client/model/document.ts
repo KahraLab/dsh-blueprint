@@ -41,8 +41,8 @@ export type Selection =
   | { kind: 'frame'; frameId: string }
   | { kind: 'layer'; frameId: string; layerId: string };
 
-export type RectPatch = Partial<Pick<Frame, 'x' | 'y' | 'width' | 'height'>>;
-export type LayerRectPatch = Partial<Pick<Layer, 'x' | 'y' | 'width' | 'height'>>;
+export type RectPatch = Partial<Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background'>>;
+export type LayerRectPatch = Partial<Pick<Layer, 'x' | 'y' | 'width' | 'height' | 'fill' | 'radius' | 'text'>>;
 
 export const FRAME_MIN_SIZE = 120;
 export const LAYER_MIN_SIZE = 8;
@@ -141,6 +141,22 @@ export function addFrameRect(
     layers: [],
   };
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
+}
+
+/** Remove every selected frame and layer in one pass. */
+export function removeSelection(doc: BlueprintDocument, selections: readonly Selection[]): BlueprintDocument {
+  const frameIds = new Set<string>();
+  const layerIds = new Set<string>();
+  for (const item of selections) {
+    if (item.kind === 'frame') frameIds.add(item.frameId);
+    else layerIds.add(item.layerId);
+  }
+  return {
+    ...doc,
+    frames: doc.frames
+      .filter((frame) => !frameIds.has(frame.id))
+      .map((frame) => (layerIds.size === 0 ? frame : { ...frame, layers: frame.layers.filter((layer) => !layerIds.has(layer.id)) })),
+  };
 }
 
 export function updateFrame(doc: BlueprintDocument, frameId: string, patch: RectPatch): BlueprintDocument {

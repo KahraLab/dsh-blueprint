@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
-import { AddFrameIcon, ChevronDown, FrameIcon, HandIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
+import { Inspector } from './components/Inspector';
+import { AddFrameIcon, CaretIcon, FrameIcon, HandIcon, LayersIcon, MarkIcon, MoreIcon, PointerIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
   addLayer,
   createDocument,
   updateFrame,
+  removeSelection,
   updateLayer,
   type BlueprintDocument,
   type LayerKind,
@@ -58,6 +60,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
+  const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
@@ -120,6 +123,21 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setSelections([{ kind: 'frame', frameId: result.frame.id }]);
     setTab('canvas');
   };
+
+  // Delete removes whatever is selected, unless focus is inside a text field.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (selections.length === 0) return;
+      event.preventDefault();
+      setDoc((current) => removeSelection(current, selections));
+      setSelections([]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selections]);
 
   const onCreateFrameAt = (rect: { x: number; y: number; width: number; height: number }): void => {
     const result = addFrameRect(doc, rect);
@@ -237,7 +255,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   aria-expanded={moveMenuOpen}
                   onClick={() => setMoveMenuOpen((open) => !open)}
                 >
-                  <ChevronDown />
+                  <CaretIcon />
                 </button>
                 {moveMenuOpen ? (
                   <div className="bp-menu" role="menu">
@@ -295,7 +313,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   aria-expanded={shapeMenuOpen}
                   onClick={() => setShapeMenuOpen((open) => !open)}
                 >
-                  <ChevronDown />
+                  <CaretIcon />
                 </button>
                 {shapeMenuOpen ? (
                   <div className="bp-menu" role="menu">
@@ -334,6 +352,13 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                 <TextIcon />
               </button>
             </div>
+
+            <Inspector
+              doc={doc}
+              selections={selections}
+              onUpdateFrame={onUpdateFrame}
+              onUpdateLayer={onUpdateLayer}
+            />
 
             {tool === 'frame' ? (
               <div className="bp-presets" role="group" aria-label="预设画板尺寸">
@@ -386,24 +411,76 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             ) : (
               doc.frames.map((frame) => (
                 <div key={frame.id}>
-                  <button
-                    type="button"
-                    className="bp-layer"
-                    data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
-                    onClick={() => setSelections([{ kind: 'frame', frameId: frame.id }])}
-                  >
-                    {frame.name}
-                  </button>
-                  {frame.layers.map((layer) => (
+                  <div className="bp-layer-row">
                     <button
-                      key={layer.id}
                       type="button"
-                      className="bp-layer bp-layer-child"
-                      data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
-                      onClick={() => setSelections([{ kind: 'layer', frameId: frame.id, layerId: layer.id }])}
+                      className="bp-layer"
+                      data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
+                      onClick={() => setSelections([{ kind: 'frame', frameId: frame.id }])}
                     >
-                      {layer.name}
+                      {frame.name}
                     </button>
+                    <button
+                      type="button"
+                      className="bp-layer-more"
+                      aria-label="更多操作"
+                      onClick={() => setRowMenu(rowMenu === frame.id ? null : frame.id)}
+                    >
+                      <MoreIcon />
+                    </button>
+                    {rowMenu === frame.id ? (
+                      <div className="bp-row-menu">
+                        <button
+                          type="button"
+                          className="bp-row-menu-item"
+                          onClick={() => {
+                            setDoc((current) => removeSelection(current, [{ kind: 'frame', frameId: frame.id }]));
+                            setSelections([]);
+                            setRowMenu(null);
+                          }}
+                        >
+                          删除画板
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {frame.layers.map((layer) => (
+                    <div className="bp-layer-row bp-layer-row-child" key={layer.id}>
+                      <button
+                        type="button"
+                        className="bp-layer bp-layer-child"
+                        data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
+                        onClick={() => setSelections([{ kind: 'layer', frameId: frame.id, layerId: layer.id }])}
+                      >
+                        {layer.name}
+                      </button>
+                      <button
+                        type="button"
+                        className="bp-layer-more"
+                        aria-label="更多操作"
+                        onClick={() => setRowMenu(rowMenu === layer.id ? null : layer.id)}
+                      >
+                        <MoreIcon />
+                      </button>
+                      {rowMenu === layer.id ? (
+                        <div className="bp-row-menu">
+                          <button
+                            type="button"
+                            className="bp-row-menu-item"
+                            onClick={() => {
+                              setDoc((current) =>
+                                removeSelection(current, [{ kind: 'layer', frameId: frame.id, layerId: layer.id }]),
+                              );
+                              setSelections([]);
+                              setRowMenu(null);
+                            }}
+                          >
+                            删除图层
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               ))
