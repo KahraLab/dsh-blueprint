@@ -2,8 +2,8 @@
 id: bp-g8
 title: 交付物、导出与版本历史
 labels: [wayfinder:grilling]
-status: open
-assignee:
+status: closed
+assignee: lead
 blocked_by: [bp-g1]
 ---
 
@@ -17,3 +17,17 @@ v1 的「做完之后」怎么落地？
 - **和 DSH 机制的关系**：要不要挂到 `present` 工具 / deliverables 槽位，让原型能像产物一样被交付。
 
 产出：导出格式清单（含优先级）+ 版本历史的数据结构与交互 + 与 DSH deliverables 的对接方式。
+
+## Resolution
+
+
+2026-10-28 定稿。详见 `.agent-works/specs/export-and-versions.md`。
+
+- **导出物**：`export/<原型名>-<时间戳>/`，内含可点击走查的 `index.html`、`assets/`、每屏每状态一张 PNG、一份 README。
+- **走查页**：所有屏幕装在同一个 HTML 里，靠 hash 切换；热区可点，动作节点显示为提示卡；完全离线，不加载外部资源。
+- **图片**：复制到 `assets/` 相对引用，不做 base64 内联（体积会失控）。
+- **PNG**：每屏每状态一张，2 倍分辨率，由界面渲染截取，不走无头浏览器。
+- **版本历史界面**：侧边时间线，缩略图 + 时间 + 原因；点击进只读预览；恢复到某版前先给当前拍一张。
+- **入口**：工具栏「导出」，完成后通过产物卡片交给用户。
+- **和交接包分开**：`handoff/` 给 AI 照着做，`export/` 给人看。
+- **不做**：PDF、分享链接、版本 diff、录屏。
