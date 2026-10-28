@@ -369,6 +369,37 @@ function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): Rea
   );
 }
 
+/**
+ * The containers above the selected layer. Selection chrome lives inside the
+ * element, so a clipping ancestor would cut the handles off; these are opened up
+ * while that element is selected.
+ */
+function unclippedFor(doc: BlueprintDocument, selections: readonly Selection[]): { frameId: string | null; layerIds: Set<string> } {
+  const empty = { frameId: null as string | null, layerIds: new Set<string>() };
+  if (selections.length !== 1) return empty;
+  const only = selections[0];
+  if (!only || only.kind !== 'layer') return empty;
+
+  const chain: string[] = [];
+  const walk = (layers: readonly Layer[], path: string[]): boolean => {
+    for (const layer of layers) {
+      if (layer.id === only.layerId) {
+        chain.push(...path);
+        return true;
+      }
+      if (walk(layer.children, [...path, layer.id])) return true;
+    }
+    return false;
+  };
+
+  if (only.frameId === null) walk(doc.layers, []);
+  else {
+    const frame = findFrame(doc, only.frameId);
+    if (frame) walk(frame.children, []);
+  }
+  return { frameId: only.frameId, layerIds: new Set(chain) };
+}
+
 /** Equal sides while shift is held: the dominant direction wins, the corner anchors. */
 function constrainSquare(startX: number, startY: number, x: number, y: number): WorldRect {
   const dx = x - startX;
@@ -1260,6 +1291,8 @@ export function Canvas({
         }
       : null;
 
+  const unclip = unclippedFor(doc, selections);
+
   const visibleFrames = doc.frames.filter(
     (frame) => frame.visible && (visibleWorld === null || intersects(visibleWorld, frame)),
   );
@@ -1274,9 +1307,10 @@ export function Canvas({
     const style: CSSProperties = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
     if (layer.layout) {
       Object.assign(style, containerStyle(layer.layout));
-      // Handles sit half outside the box, so a selected container stops clipping.
-      if (showHandles) style.overflow = 'visible';
+      // Handles sit half outside the box, so an involved container stops clipping.
+      if (showHandles || unclip.layerIds.has(layer.id)) style.overflow = 'visible';
     }
+    if (showHandles) style.zIndex = 3;
 
     return (
       <div
@@ -1382,6 +1416,7 @@ export function Canvas({
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
           const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
           const bodyStyle: CSSProperties = frame.layout ? containerStyle(frame.layout) : {};
+          if (unclip.frameId === frame.id) bodyStyle.overflow = 'visible';
           return (
             <div
               key={frame.id}
