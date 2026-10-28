@@ -1,3 +1,10 @@
+.bp-root,
+.bp-root *,
+.bp-root *::before,
+.bp-root *::after {
+  box-sizing: border-box;
+}
+
 .bp-root {
   display: flex;
   flex-direction: column;
@@ -185,6 +192,7 @@
 /* ---------- layers sidebar ---------- */
 .bp-layers {
   position: absolute;
+  overflow-x: hidden;
   top: 0;
   bottom: 0;
   left: 0;
@@ -193,7 +201,8 @@
   flex-direction: column;
   gap: 2px;
   padding: 10px 8px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #121212;
   border-right: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 4px 0 12px rgba(0, 0, 0, 0.28);
