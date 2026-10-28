@@ -230,23 +230,21 @@
   border: 0;
   background: transparent;
   text-align: left;
-  width: 100%;
   font: inherit;
   font-size: 12px;
-  padding: 5px 8px;
-  border-radius: 6px;
+  padding: 0;
+  line-height: 26px;
   color: var(--dsw-alias-label-primary, #c9c9c9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
+  outline: none;
 }
-.bp-layer:hover {
-  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.07));
-}
-.bp-layer[data-active='true'] {
-  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.1));
-  color: var(--dsw-alias-label-primary, #fff);
+.bp-layer:focus-visible {
+  outline: 1.5px solid #4fc3f7;
+  outline-offset: -1px;
+  border-radius: 4px;
 }
 
 .bp-empty {
