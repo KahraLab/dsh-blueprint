@@ -487,10 +487,10 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
           <div className="bp-placeholder">流程视图</div>
         )}
 
-        {uiMinimized ? null : (
-          <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
+        {uiMinimized || tab !== 'canvas' ? null : (
+          <aside className="bp-layers" aria-label="层级" style={{ width: layersWidth }}>
             <div className="bp-layers-head">
-              <h4>图层</h4>
+              <h4>层级</h4>
             </div>
             <LayerTree
               doc={doc}

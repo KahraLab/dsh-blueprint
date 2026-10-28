@@ -65,11 +65,30 @@ interface CanvasProps {
   onEditingChange(editing: EditingLayer | null): void;
 }
 
+type Corner = 'nw' | 'ne' | 'sw' | 'se';
+
+export interface ResizeTarget {
+  kind: 'frame' | 'layer';
+  frameId: string | null;
+  id: string;
+  corner: Corner;
+}
+
+const CORNERS: readonly Corner[] = ['nw', 'ne', 'sw', 'se'];
+
 interface WorldRect {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+interface MeasureItem {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
 }
 
 interface LocalRect {
@@ -104,15 +123,15 @@ type Drag =
       dy: number;
     }
   | {
-      mode: 'resizeFrame';
-      id: string;
+      mode: 'resize';
+      target: ResizeTarget;
       pointerX: number;
       pointerY: number;
-      originWidth: number;
-      originHeight: number;
+      origin: { x: number; y: number; width: number; height: number };
       element: HTMLDivElement;
-      width: number;
-      height: number;
+      /** Free layers move their top-left when a north or west handle is used. */
+      free: boolean;
+      next: { x: number; y: number; width: number; height: number };
     }
   | {
       mode: 'moveLayer';
@@ -313,6 +332,7 @@ export function Canvas({
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const [dropIndicator, setDropIndicator] = useState<LocalRect | null>(null);
+  const [measure, setMeasure] = useState<MeasureItem[] | null>(null);
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
   live.current = viewport;
@@ -348,6 +368,15 @@ export function Canvas({
     const background = host ? getComputedStyle(host).backgroundColor : '';
     return prefersDarkText(background, false) ? '#101828' : '#F5F5F5';
   };
+
+  // Releasing ctrl / cmd puts the measuring overlay away without another mouse move.
+  useEffect(() => {
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.key === 'Control' || event.key === 'Meta') setMeasure(null);
+    };
+    window.addEventListener('keyup', onKeyUp);
+    return () => window.removeEventListener('keyup', onKeyUp);
+  }, []);
 
   // Wheel pans; ctrl/meta zooms around the pointer. Non-passive so the page does not scroll.
   useEffect(() => {
@@ -402,8 +431,65 @@ export function Canvas({
     return findLayer(doc, frameId, parentId)?.layout ?? null;
   }
 
+  /**
+   * Distances to the nearest neighbour on each side of the element under the
+   * pointer, drawn the way Figma does it while ctrl / cmd is held down.
+   */
+  const measureAt = (clientX: number, clientY: number): MeasureItem[] => {
+    const host = hostRef.current;
+    if (!host) return [];
+    const hit = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+    if (!hit) return [];
+    const element = hit.closest<HTMLElement>('[data-layer-id]') ?? hit.closest<HTMLElement>('.bp-frame');
+    const parent = element?.parentElement;
+    if (!element || !parent || element.classList.contains('bp-world')) return [];
+
+    const hostRect = host.getBoundingClientRect();
+    const zoom = live.current.zoom;
+    const box = element.getBoundingClientRect();
+    const parentBox = parent.getBoundingClientRect();
+    const siblings = Array.from(parent.children).filter(
+      (child): child is HTMLElement => child !== element && (child as HTMLElement).matches('[data-layer-id], .bp-frame'),
+    );
+
+    const overlapsY = (other: DOMRect): boolean => other.bottom > box.top && other.top < box.bottom;
+    const overlapsX = (other: DOMRect): boolean => other.right > box.left && other.left < box.right;
+    const boxes = siblings.map((child) => child.getBoundingClientRect());
+
+    const nearest = (list: DOMRect[], pick: (a: DOMRect, b: DOMRect) => DOMRect): DOMRect | undefined =>
+      list.length === 0 ? undefined : list.reduce(pick);
+
+    const left = nearest(boxes.filter((other) => overlapsY(other) && other.right <= box.left + 1), (a, b) => (b.right > a.right ? b : a));
+    const right = nearest(boxes.filter((other) => overlapsY(other) && other.left >= box.right - 1), (a, b) => (b.left < a.left ? b : a));
+    const top = nearest(boxes.filter((other) => overlapsX(other) && other.bottom <= box.top + 1), (a, b) => (b.bottom > a.bottom ? b : a));
+    const bottom = nearest(boxes.filter((other) => overlapsX(other) && other.top >= box.bottom - 1), (a, b) => (b.top < a.top ? b : a));
+
+    const leftEdge = left ? left.right : parentBox.left;
+    const rightEdge = right ? right.left : parentBox.right;
+    const topEdge = top ? top.bottom : parentBox.top;
+    const bottomEdge = bottom ? bottom.top : parentBox.bottom;
+
+    const midY = (box.top + box.bottom) / 2 - hostRect.top;
+    const midX = (box.left + box.right) / 2 - hostRect.left;
+    const toDesign = (value: number): string => `${Math.round(value / zoom)}`;
+    const items: MeasureItem[] = [];
+
+    const gapLeft = box.left - leftEdge;
+    const gapRight = rightEdge - box.right;
+    const gapTop = box.top - topEdge;
+    const gapBottom = bottomEdge - box.bottom;
+
+    if (gapLeft > 0.5) items.push({ x: leftEdge - hostRect.left, y: midY, width: gapLeft, height: 1, label: toDesign(gapLeft) });
+    if (gapRight > 0.5) items.push({ x: box.right - hostRect.left, y: midY, width: gapRight, height: 1, label: toDesign(gapRight) });
+    if (gapTop > 0.5) items.push({ x: midX, y: topEdge - hostRect.top, width: 1, height: gapTop, label: toDesign(gapTop) });
+    if (gapBottom > 0.5) items.push({ x: midX, y: box.bottom - hostRect.top, width: 1, height: gapBottom, label: toDesign(gapBottom) });
+
+    return items;
+  };
+
   const startCanvasDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
+    setMeasure(null);
     const world = toWorld(event.clientX, event.clientY);
 
     if (tool === 'hand') {
@@ -473,20 +559,35 @@ export function Canvas({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const startResizeFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
-    if (event.button !== 0 || frame.locked) return;
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>, target: ResizeTarget): void => {
+    if (event.button !== 0) return;
+    event.preventDefault();
     event.stopPropagation();
-    onSelect([{ kind: 'frame', frameId: frame.id }]);
+    const element = event.currentTarget.parentElement as HTMLDivElement | null;
+    if (!element) return;
+
+    const box = target.kind === 'frame' ? findFrame(doc, target.id) : findLayer(doc, target.frameId, target.id);
+    if (!box || box.locked) return;
+    if (target.kind === 'frame') onSelect([{ kind: 'frame', frameId: target.id }]);
+    else onSelect([{ kind: 'layer', frameId: target.frameId, layerId: target.id }]);
+
+    const zoom = live.current.zoom;
+    const rect = element.getBoundingClientRect();
+    const origin =
+      target.kind === 'frame'
+        ? { x: box.x, y: box.y, width: box.width, height: box.height }
+        : { x: box.x, y: box.y, width: Math.round(rect.width / zoom), height: Math.round(rect.height / zoom) };
+    const flow = target.kind === 'layer' ? (findParent(doc, target.frameId, target.id)?.layout ?? null) : null;
+
     drag.current = {
-      mode: 'resizeFrame',
-      id: frame.id,
+      mode: 'resize',
+      target,
       pointerX: event.clientX,
       pointerY: event.clientY,
-      originWidth: frame.width,
-      originHeight: frame.height,
-      element: (event.currentTarget.parentElement ?? event.currentTarget) as HTMLDivElement,
-      width: frame.width,
-      height: frame.height,
+      origin,
+      element,
+      free: flow === null,
+      next: { ...origin },
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -600,7 +701,10 @@ export function Canvas({
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
-    if (!current) return;
+    if (!current) {
+      setMeasure(event.metaKey || event.ctrlKey ? measureAt(event.clientX, event.clientY) : null);
+      return;
+    }
     const zoom = live.current.zoom;
 
     switch (current.mode) {
@@ -663,11 +767,50 @@ export function Canvas({
         return;
       }
 
-      case 'resizeFrame': {
-        current.width = Math.max(FRAME_MIN_SIZE, Math.round(current.originWidth + (event.clientX - current.pointerX) / zoom));
-        current.height = Math.max(FRAME_MIN_SIZE, Math.round(current.originHeight + (event.clientY - current.pointerY) / zoom));
-        current.element.style.width = `${current.width}px`;
-        current.element.style.height = `${current.height}px`;
+      case 'resize': {
+        const { target, origin } = current;
+        const dx = (event.clientX - current.pointerX) / zoom;
+        const dy = (event.clientY - current.pointerY) / zoom;
+        const min = target.kind === 'frame' ? FRAME_MIN_SIZE : 4;
+        let x = origin.x;
+        let y = origin.y;
+        let width = origin.width;
+        let height = origin.height;
+
+        if (target.corner.includes('e')) width = origin.width + dx;
+        if (target.corner.includes('w')) {
+          width = origin.width - dx;
+          x = origin.x + dx;
+        }
+        if (target.corner.includes('s')) height = origin.height + dy;
+        if (target.corner.includes('n')) {
+          height = origin.height - dy;
+          y = origin.y + dy;
+        }
+
+        if (width < min) {
+          width = min;
+          if (target.corner.includes('w')) x = origin.x + origin.width - min;
+        }
+        if (height < min) {
+          height = min;
+          if (target.corner.includes('n')) y = origin.y + origin.height - min;
+        }
+
+        width = Math.round(width);
+        height = Math.round(height);
+        if (!current.free) {
+          x = origin.x;
+          y = origin.y;
+        }
+
+        current.next = { x: Math.round(x), y: Math.round(y), width, height };
+        if (current.free) {
+          current.element.style.left = `${current.next.x}px`;
+          current.element.style.top = `${current.next.y}px`;
+        }
+        current.element.style.width = `${width}px`;
+        current.element.style.height = `${height}px`;
         return;
       }
 
@@ -778,7 +921,12 @@ export function Canvas({
     }
 
     if (current?.mode === 'moveFrame') onUpdateFrame(current.id, { x: current.originX + current.dx, y: current.originY + current.dy });
-    if (current?.mode === 'resizeFrame') onUpdateFrame(current.id, { width: current.width, height: current.height });
+    if (current?.mode === 'resize') {
+      const { target, next, free } = current;
+      if (target.kind === 'frame') onUpdateFrame(target.id, next);
+      else if (free) onUpdateLayer(target.frameId, target.id, { ...next, sizeW: 'fixed', sizeH: 'fixed' });
+      else onUpdateLayer(target.frameId, target.id, { width: next.width, height: next.height, sizeW: 'fixed', sizeH: 'fixed' });
+    }
     if (current?.mode === 'moveLayer') {
       onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
@@ -819,8 +967,13 @@ export function Canvas({
   const renderLayer = (layer: Layer, frameId: string | null, container: StackLayout | null): ReactElement | null => {
     if (!layer.visible) return null;
     const isEditing = editing?.layerId === layer.id && editing.frameId === frameId;
+    const showHandles = selections.length === 1 && isLayerSelected(selections, frameId, layer.id);
     const style: CSSProperties = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
-    if (layer.layout) Object.assign(style, containerStyle(layer.layout));
+    if (layer.layout) {
+      Object.assign(style, containerStyle(layer.layout));
+      // Handles sit half outside the box, so a selected container stops clipping.
+      if (showHandles) style.overflow = 'visible';
+    }
 
     return (
       <div
@@ -845,6 +998,17 @@ export function Canvas({
             : undefined
         }
       >
+        {showHandles
+          ? CORNERS.map((corner) => (
+              <div
+                key={corner}
+                className="bp-handle"
+                data-corner={corner}
+                aria-hidden="true"
+                onPointerDown={(event) => startResize(event, { kind: 'layer', frameId, id: layer.id, corner })}
+              />
+            ))
+          : null}
         {layer.kind === 'text' ? (
           isEditing ? (
             <TextEditor layer={layer} onFinishEditing={() => onEditingChange(null)} onTextInput={(text) => {
@@ -870,6 +1034,7 @@ export function Canvas({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onPointerLeave={() => setMeasure(null)}
     >
       <div
         className="bp-world"
@@ -932,13 +1097,27 @@ export function Canvas({
                 {frame.children.map((layer) => renderLayer(layer, frame.id, frame.layout))}
               </div>
 
-              <div className="bp-handle" onPointerDown={(event) => startResizeFrame(event, frame)} aria-hidden="true" />
+              {CORNERS.map((corner) => (
+                <div
+                  key={corner}
+                  className="bp-handle"
+                  data-corner={corner}
+                  aria-hidden="true"
+                  onPointerDown={(event) => startResize(event, { kind: 'frame', frameId: frame.id, id: frame.id, corner })}
+                />
+              ))}
             </div>
           );
         })}
 
         {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
       </div>
+
+      {measure?.map((item, index) => (
+        <div key={`m-${index}`} className="bp-measure" style={{ left: item.x, top: item.y, width: item.width, height: item.height }}>
+          <span className="bp-measure-label">{item.label}</span>
+        </div>
+      ))}
 
       {dropIndicator ? (
         <div

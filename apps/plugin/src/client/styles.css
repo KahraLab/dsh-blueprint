@@ -158,19 +158,39 @@
 }
 .bp-handle {
   position: absolute;
-  right: -5px;
-  bottom: -5px;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: #4fc3f7;
-  border: 1px solid var(--dsw-alias-bg-base, #ffffff);
-  cursor: nwse-resize;
-  display: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: #ffffff;
+  border: 1px solid #4fc3f7;
   touch-action: none;
+  z-index: 6;
 }
-.bp-frame[data-selected='true'] .bp-handle {
-  display: block;
+.bp-handle[data-corner='nw'] { left: -3px; top: -3px; cursor: nwse-resize; }
+.bp-handle[data-corner='ne'] { right: -3px; top: -3px; cursor: nesw-resize; }
+.bp-handle[data-corner='sw'] { left: -3px; bottom: -3px; cursor: nesw-resize; }
+.bp-handle[data-corner='se'] { right: -3px; bottom: -3px; cursor: nwse-resize; }
+
+/* ---------- measuring (hold ctrl / cmd over the canvas) ---------- */
+.bp-measure {
+  position: absolute;
+  background: #f24822;
+  pointer-events: none;
+  z-index: 5;
+}
+.bp-measure-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #f24822;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bp-canvas-empty {
   position: absolute;
@@ -213,7 +233,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 2px 6px 8px;
+  min-height: 24px;
+  margin: 0 4px 6px 8px;
 }
 .bp-layers {
   padding: 10px 6px;
@@ -698,10 +719,12 @@
 }
 
 /* Canvas chrome is not document text: dragging must never select labels. */
+/* Nothing in the canvas is document text: dragging must never start a selection.
+   The text editor opts back in, because that is where characters get edited. */
 .bp-canvas,
-.bp-frame,
-.bp-frame-name,
-.bp-frame-size,
+.bp-canvas *,
+.bp-canvas *::before,
+.bp-canvas *::after,
 .bp-layer,
 .bp-layer-row,
 .bp-tools,
@@ -709,8 +732,8 @@
   user-select: none;
   -webkit-user-select: none;
 }
-.bp-el-text,
-.bp-text-editor {
+.bp-canvas .bp-text-editor,
+.bp-canvas .bp-text-editor * {
   user-select: text;
   -webkit-user-select: text;
 }

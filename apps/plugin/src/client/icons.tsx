@@ -5,6 +5,8 @@ import AlignEndVertical from 'lucide-react/icons/align-end-vertical';
 import AlignLeft from 'lucide-react/icons/align-left';
 import AlignRight from 'lucide-react/icons/align-right';
 import AlignStartVertical from 'lucide-react/icons/align-start-vertical';
+import ArrowUpToLine from 'lucide-react/icons/arrow-up-to-line';
+import ArrowDownToLine from 'lucide-react/icons/arrow-down-to-line';
 import Move from 'lucide-react/icons/move';
 import ArrowDown from 'lucide-react/icons/arrow-down';
 import ArrowRight from 'lucide-react/icons/arrow-right';
@@ -130,15 +132,35 @@ export function TextAlignRightIcon({ size = 14 }: { size?: number }): ReactEleme
   return <AlignRight size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-/** Vertical alignment. */
+/** Vertical alignment of text inside its box: an arrow pointing at the edge. */
 export function AlignTopIcon({ size = 14 }: { size?: number }): ReactElement {
-  return <AlignStartVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
-}
-export function AlignMiddleIcon({ size = 14 }: { size?: number }): ReactElement {
-  return <AlignCenterVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+  return <ArrowUpToLine size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 export function AlignBottomIcon({ size = 14 }: { size?: number }): ReactElement {
-  return <AlignEndVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+  return <ArrowDownToLine size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+/**
+ * Middle: one arrow converging on a centre line from each side. Drawn here on
+ * Lucide's 24px grid because Lucide ships the two edge variants but not this one.
+ */
+export function AlignMiddleIcon({ size = 14 }: { size?: number }): ReactElement {
+  const stroke = { strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M3 12h18" {...stroke} />
+      <path d="M12 4v4" {...stroke} />
+      <path d="M9 5l3 3 3-3" {...stroke} />
+      <path d="M12 20v-4" {...stroke} />
+      <path d="M9 19l3-3 3 3" {...stroke} />
+    </svg>
+  );
 }
 
 /** Remove / reset affordance. */
