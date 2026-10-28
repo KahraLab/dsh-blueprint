@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
 import {
   FRAME_MIN_SIZE,
   findFrame,
@@ -160,8 +160,6 @@ type Drag =
       originX: number;
       originY: number;
       element: HTMLDivElement;
-      /** Frame body that would clip the drag; it stops clipping until the drop. */
-      clip: HTMLDivElement | null;
       drop: Drop | null;
       dx: number;
       dy: number;
@@ -369,37 +367,6 @@ function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): Rea
   );
 }
 
-/**
- * The containers above the selected layer. Selection chrome lives inside the
- * element, so a clipping ancestor would cut the handles off; these are opened up
- * while that element is selected.
- */
-function unclippedFor(doc: BlueprintDocument, selections: readonly Selection[]): { frameId: string | null; layerIds: Set<string> } {
-  const empty = { frameId: null as string | null, layerIds: new Set<string>() };
-  if (selections.length !== 1) return empty;
-  const only = selections[0];
-  if (!only || only.kind !== 'layer') return empty;
-
-  const chain: string[] = [];
-  const walk = (layers: readonly Layer[], path: string[]): boolean => {
-    for (const layer of layers) {
-      if (layer.id === only.layerId) {
-        chain.push(...path);
-        return true;
-      }
-      if (walk(layer.children, [...path, layer.id])) return true;
-    }
-    return false;
-  };
-
-  if (only.frameId === null) walk(doc.layers, []);
-  else {
-    const frame = findFrame(doc, only.frameId);
-    if (frame) walk(frame.children, []);
-  }
-  return { frameId: only.frameId, layerIds: new Set(chain) };
-}
-
 /** Equal sides while shift is held: the dominant direction wins, the corner anchors. */
 function constrainSquare(startX: number, startY: number, x: number, y: number): WorldRect {
   const dx = x - startX;
@@ -472,6 +439,9 @@ export function Canvas({
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const sizeChipRef = useRef<HTMLDivElement>(null);
+  const selectionRef = useRef<HTMLDivElement>(null);
+  /** What the overlay currently points at, refreshed every render. */
+  const selectionTarget = useRef<{ kind: 'frame' | 'layer'; frameId: string | null; id: string } | null>(null);
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
@@ -483,6 +453,17 @@ export function Canvas({
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
   live.current = viewport;
+
+  const single = selections.length === 1 ? selections[0] : null;
+  selectionTarget.current = single
+    ? single.kind === 'frame'
+      ? { kind: 'frame', frameId: single.frameId, id: single.frameId }
+      : { kind: 'layer', frameId: single.frameId, id: single.layerId }
+    : null;
+
+  useLayoutEffect(() => {
+    applySelectionOverlay();
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => onViewportChange?.(viewport), 400);
@@ -727,7 +708,11 @@ export function Canvas({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const element = event.currentTarget.parentElement as HTMLDivElement | null;
+    const host = hostRef.current;
+    const element =
+      target.kind === 'frame'
+        ? host?.querySelector<HTMLDivElement>(`[data-frame-id="${target.id}"]`) ?? null
+        : host?.querySelector<HTMLDivElement>(`[data-layer-id="${target.id}"]`) ?? null;
     if (!element) return;
 
     const box = target.kind === 'frame' ? findFrame(doc, target.id) : findLayer(doc, target.frameId, target.id);
@@ -783,10 +768,8 @@ export function Canvas({
         drop: null,
       };
     } else {
-      // A frame clips its content, so a free layer would vanish the moment it is
-      // dragged past the edge. Unclipping during the drag keeps it visible.
-      const clip = event.currentTarget.closest<HTMLDivElement>('.bp-frame-body');
-      if (clip) clip.style.overflow = 'visible';
+      // The frame body stops clipping on its own: once this layer is selected it
+      // is in the unclip chain, so dragging past the edge keeps it visible.
       drag.current = {
         mode: 'moveLayer',
         frameId,
@@ -796,13 +779,44 @@ export function Canvas({
         originX: layer.x,
         originY: layer.y,
         element: event.currentTarget,
-        clip,
         drop: null,
         dx: 0,
         dy: 0,
       };
     }
     event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  /**
+   * Selection chrome has to survive a clipping frame, so the outline and handles
+   * are drawn in the canvas layer instead of inside the element. The box comes
+   * from the DOM, which also keeps it right for content-sized children.
+   */
+  const applySelectionOverlay = (): void => {
+    const overlay = selectionRef.current;
+    const host = hostRef.current;
+    const target = selectionTarget.current;
+    if (!overlay || !host) return;
+    if (!target) {
+      overlay.style.display = 'none';
+      return;
+    }
+    const element =
+      target.kind === 'frame'
+        ? host.querySelector<HTMLElement>(`[data-frame-id="${target.id}"]`)
+        : host.querySelector<HTMLElement>(`[data-layer-id="${target.id}"]`);
+    if (!element) {
+      overlay.style.display = 'none';
+      return;
+    }
+    const box = element.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    const zoom = live.current.zoom;
+    overlay.style.display = 'block';
+    overlay.style.left = `${(box.left - hostRect.left - live.current.x) / zoom}px`;
+    overlay.style.top = `${(box.top - hostRect.top - live.current.y) / zoom}px`;
+    overlay.style.width = `${box.width / zoom}px`;
+    overlay.style.height = `${box.height / zoom}px`;
   };
 
   /** Blue readout under the box being resized or drawn, written straight to the DOM. */
@@ -1030,6 +1044,7 @@ export function Canvas({
         current.dy = dy;
         current.element.style.left = `${current.originX + dx}px`;
         current.element.style.top = `${current.originY + dy}px`;
+        applySelectionOverlay();
         return;
       }
 
@@ -1086,6 +1101,7 @@ export function Canvas({
         current.element.style.width = `${width}px`;
         current.element.style.height = `${height}px`;
         showSizeChip(current.element.getBoundingClientRect(), width, height);
+        applySelectionOverlay();
         return;
       }
 
@@ -1143,6 +1159,7 @@ export function Canvas({
         current.dy = dy;
         current.element.style.left = `${current.originX + dx}px`;
         current.element.style.top = `${current.originY + dy}px`;
+        applySelectionOverlay();
         current.drop = resolveDrop(event.clientX, event.clientY, current.layerId);
         setDropIndicator(current.drop?.indicator ?? null);
         setDropFrameId(current.drop && current.drop.frameId !== current.frameId ? current.drop.frameId : null);
@@ -1155,6 +1172,11 @@ export function Canvas({
         current.element.style.transform = `translate(${event.clientX - current.pointerX}px, ${event.clientY - current.pointerY}px)`;
         current.element.style.opacity = '0.55';
         current.element.style.zIndex = '3';
+        if (selectionRef.current) {
+          const offsetX = event.clientX - current.pointerX;
+          const offsetY = event.clientY - current.pointerY;
+          selectionRef.current.style.transform = `translate(${offsetX / zoom}px, ${offsetY / zoom}px)`;
+        }
         setDropIndicator(drop?.indicator ?? null);
         setDropFrameId(drop && drop.frameId !== current.frameId ? drop.frameId : null);
         return;
@@ -1239,7 +1261,6 @@ export function Canvas({
       else onUpdateLayer(target.frameId, target.id, { width: next.width, height: next.height, sizeW: 'fixed', sizeH: 'fixed' });
     }
     if (current?.mode === 'moveLayer') {
-      if (current.clip) current.clip.style.overflow = '';
       const { drop } = current;
       const sourceParent = findParent(doc, current.frameId, current.layerId)?.parentId ?? null;
       // Leaving the frame or entering a stacking container changes the parent;
@@ -1260,6 +1281,7 @@ export function Canvas({
       current.element.style.transform = '';
       current.element.style.opacity = '';
       current.element.style.zIndex = '';
+      if (selectionRef.current) selectionRef.current.style.transform = '';
       if (current.drop) {
         // Source frame is where the layer lives now; the drop carries the target.
         const { frameId: targetFrameId, parentId, beforeId, point } = current.drop;
@@ -1268,6 +1290,7 @@ export function Canvas({
     }
 
     hideSizeChip();
+    applySelectionOverlay();
     setDropIndicator(null);
     setDropFrameId(null);
     setGuides({ x: [], y: [] });
@@ -1291,8 +1314,6 @@ export function Canvas({
         }
       : null;
 
-  const unclip = unclippedFor(doc, selections);
-
   const visibleFrames = doc.frames.filter(
     (frame) => frame.visible && (visibleWorld === null || intersects(visibleWorld, frame)),
   );
@@ -1303,14 +1324,8 @@ export function Canvas({
   const renderLayer = (layer: Layer, frameId: string | null, container: StackLayout | null): ReactElement | null => {
     if (!layer.visible) return null;
     const isEditing = editing?.layerId === layer.id && editing.frameId === frameId;
-    const showHandles = selections.length === 1 && isLayerSelected(selections, frameId, layer.id);
     const style: CSSProperties = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
-    if (layer.layout) {
-      Object.assign(style, containerStyle(layer.layout));
-      // Handles sit half outside the box, so an involved container stops clipping.
-      if (showHandles || unclip.layerIds.has(layer.id)) style.overflow = 'visible';
-    }
-    if (showHandles) style.zIndex = 3;
+    if (layer.layout) Object.assign(style, containerStyle(layer.layout));
 
     return (
       <div
@@ -1336,17 +1351,6 @@ export function Canvas({
             : undefined
         }
       >
-        {showHandles
-          ? CORNERS.map((corner) => (
-              <div
-                key={corner}
-                className="bp-handle"
-                data-corner={corner}
-                aria-hidden="true"
-                onPointerDown={(event) => startResize(event, { kind: 'layer', frameId, id: layer.id, corner })}
-              />
-            ))
-          : null}
         {layer.kind === 'text' ? (
           isEditing ? (
             <TextEditor layer={layer} onFinishEditing={() => onEditingChange(null)} onTextInput={(text) => {
@@ -1416,7 +1420,6 @@ export function Canvas({
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
           const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
           const bodyStyle: CSSProperties = frame.layout ? containerStyle(frame.layout) : {};
-          if (unclip.frameId === frame.id) bodyStyle.overflow = 'visible';
           return (
             <div
               key={frame.id}
@@ -1450,22 +1453,26 @@ export function Canvas({
                 {frame.children.map((layer) => renderLayer(layer, frame.id, frame.layout))}
               </div>
 
-              {frameSelected
-                ? CORNERS.map((corner) => (
-                    <div
-                      key={corner}
-                      className="bp-handle"
-                      data-corner={corner}
-                      aria-hidden="true"
-                      onPointerDown={(event) => startResize(event, { kind: 'frame', frameId: frame.id, id: frame.id, corner })}
-                    />
-                  ))
-                : null}
             </div>
           );
         })}
 
         {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
+
+        {/* Selection chrome floats above the frames so a clipping container cannot cut it. */}
+        <div ref={selectionRef} className="bp-selection" aria-hidden="true">
+          {CORNERS.map((corner) => (
+            <div
+              key={corner}
+              className="bp-handle"
+              data-corner={corner}
+              onPointerDown={(event) => {
+                const target = selectionTarget.current;
+                if (target) startResize(event, { kind: target.kind, frameId: target.frameId, id: target.id, corner });
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       <div ref={sizeChipRef} className="bp-size-chip" aria-hidden="true" />

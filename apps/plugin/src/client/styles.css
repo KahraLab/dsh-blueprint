@@ -130,8 +130,6 @@
   outline-offset: 2px;
 }
 .bp-frame[data-selected='true'] {
-  outline: 1.5px solid #4fc3f7;
-  outline-offset: 0;
   border-color: transparent;
 }
 .bp-frame-name {
@@ -159,6 +157,18 @@
 .bp-frame[data-selected='true'] .bp-frame-size {
   display: block;
 }
+.bp-selection {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  outline: 1.5px solid #4fc3f7;
+  outline-offset: 0;
+  z-index: 12;
+}
+.bp-selection .bp-handle {
+  pointer-events: auto;
+}
+
 .bp-handle {
   position: absolute;
   width: 6px;
@@ -383,10 +393,7 @@
 .bp-el[data-locked='true'] * {
   cursor: not-allowed;
 }
-.bp-el[data-selected='true'] {
-  outline: 1.5px solid #4fc3f7;
-  outline-offset: 0;
-}
+
 .bp-el-text {
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   color: var(--dsw-alias-label-primary, #101828);
