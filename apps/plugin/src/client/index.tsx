@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactElement } from 'react';
+import { useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { LayersIcon, MarkIcon } from './icons';
 import css from './styles.css';
@@ -10,33 +10,49 @@ export const NS = 'blueprint';
 const ID = '@local/dsh-blueprint';
 const KIND = 'blueprint';
 const AUTO_OPEN_KEY = 'blueprint.panel.opened.v1';
-
-const LAYERS: ReadonlyArray<{ name: string; depth: number }> = [
-  { name: '工单列表', depth: 0 },
-  { name: '页面标题', depth: 1 },
-  { name: '搜索框', depth: 1 },
-  { name: '筛选条', depth: 1 },
-  { name: '工单列表', depth: 1 },
-  { name: '卡片 · 退款申请', depth: 2 },
-  { name: '卡片 · 发票抬头', depth: 2 },
-  { name: '卡片 · 登录白屏', depth: 2 },
-];
+const LAYERS_MIN_WIDTH = 160;
+const LAYERS_MAX_WIDTH = 360;
+const LAYERS_DEFAULT_WIDTH = 200;
 
 type Tab = 'canvas' | 'flow';
 
 /** The chip inside the right-sidebar tab strip. */
-function TabTitle(): ReactElement {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <MarkIcon size={14} />
-      <span>Blueprint</span>
-    </span>
-  );
+function createTabTitle(t: (key: string) => string) {
+  return function TabTitle(): ReactElement {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <MarkIcon size={14} />
+        <span>{t('panel')}</span>
+      </span>
+    );
+  };
 }
 
 function Panel(): ReactElement {
   const [tab, setTab] = useState<Tab>('canvas');
   const [layersOpen, setLayersOpen] = useState(false);
+  const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
+  const resizeStart = useRef<{ pointerX: number; width: number } | null>(null);
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    resizeStart.current = { pointerX: event.clientX, width: layersWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const resize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = resizeStart.current;
+    if (!start) return;
+    const next = start.width + (event.clientX - start.pointerX);
+    setLayersWidth(Math.min(LAYERS_MAX_WIDTH, Math.max(LAYERS_MIN_WIDTH, next)));
+  };
+
+  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    resizeStart.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   return (
     <div className="bp-root">
@@ -75,18 +91,19 @@ function Panel(): ReactElement {
         <div className="bp-body">{tab === 'canvas' ? '画布区域' : '流程区域'}</div>
 
         {layersOpen ? (
-          <aside className="bp-layers" aria-label="图层">
+          <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
             <h4>图层</h4>
-            {LAYERS.map((layer, index) => (
-              <div
-                key={`${layer.name}-${index}`}
-                className="bp-layer"
-                data-active={index === 0 || undefined}
-                style={{ paddingLeft: 8 + layer.depth * 12 }}
-              >
-                {layer.name}
-              </div>
-            ))}
+            <div className="bp-empty">还没有图层</div>
+            <div
+              className="bp-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整图层栏宽度"
+              onPointerDown={startResize}
+              onPointerMove={resize}
+              onPointerUp={endResize}
+              onPointerCancel={endResize}
+            />
           </aside>
         ) : null}
       </div>
@@ -104,7 +121,10 @@ export function apply(ctx: PluginContext): void {
   const t = ctx.locale.bind(NS);
 
   ctx.effect(
-    () => ctx.locale.register(NS, { zh: { panel: 'Blueprint' }, en: { panel: 'Blueprint' } }),
+    () => ctx.locale.register(NS, {
+      zh: { panel: '蓝图', description: '与 AI 协作完成产品原型设计' },
+      en: { panel: 'Blueprint', description: 'Design product prototypes with AI' },
+    }),
     'blueprint:locale',
   );
 
@@ -120,7 +140,7 @@ export function apply(ctx: PluginContext): void {
             id: 'open',
             order: 20,
             title: () => t('panel'),
-            description: () => '在右侧边栏里画产品原型',
+            description: () => t('description'),
             icon: MarkIcon,
           },
         ],
@@ -139,7 +159,7 @@ export function apply(ctx: PluginContext): void {
   ctx.effect(
     () =>
       ctx.slots.inject('sidebar.right.pane.tab.title', () =>
-        ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: ID }, TabTitle),
+        ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: ID }, createTabTitle(t)),
       ),
     'blueprint:tab-title',
   );

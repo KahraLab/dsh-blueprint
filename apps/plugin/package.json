@@ -10,7 +10,12 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "files": ["lib", "cordis.patch.yml", "locale", "icon.svg"],
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:watch": "node scripts/build.mjs --watch",
@@ -22,7 +27,9 @@
     "typescript": "^5.7.2"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
@@ -32,5 +39,8 @@
         "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
+  },
+  "dependencies": {
+    "lucide-react": "^1.62.0"
   }
 }
