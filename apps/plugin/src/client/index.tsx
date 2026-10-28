@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
+import { Canvas, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { CaretIcon, FrameIcon, HandIcon, LayersIcon, LockIcon, MarkIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
@@ -32,6 +32,19 @@ const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
 const SAVE_DEBOUNCE_MS = 600;
+const VIEWPORT_KEY = 'blueprint.viewport';
+
+function readViewport(key: string): Viewport | undefined {
+  try {
+    const raw = globalThis.localStorage?.getItem(key);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as Partial<Viewport>;
+    if (typeof parsed.x !== 'number' || typeof parsed.y !== 'number' || typeof parsed.zoom !== 'number') return undefined;
+    return { x: parsed.x, y: parsed.y, zoom: Math.min(3, Math.max(0.1, parsed.zoom)) };
+  } catch {
+    return undefined;
+  }
+}
 
 type Tab = 'canvas' | 'flow';
 
@@ -55,6 +68,15 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const tabInfo = typeof useTabInfo === 'function' ? useTabInfo() : undefined;
   const sessionId = tabInfo?.tab?.sessionId ?? tabInfo?.sessionId ?? null;
   const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
+  const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
+  const [initialViewport] = useState<Viewport | undefined>(() => readViewport(viewportKey));
+  const saveViewport = useCallback((next: Viewport): void => {
+    try {
+      globalThis.localStorage?.setItem(viewportKey, JSON.stringify(next));
+    } catch {
+      // Private-mode storage failures must not break the canvas.
+    }
+  }, [viewportKey]);
 
   const [tab, setTab] = useState<Tab>('canvas');
   const [tool, setTool] = useState<Tool>('move');
@@ -255,6 +277,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               selections={selections}
               tool={tool}
               shapeKind={shapeKind}
+              initialViewport={initialViewport}
+              onViewportChange={saveViewport}
               onSelect={setSelections}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}

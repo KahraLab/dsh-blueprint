@@ -12,7 +12,7 @@ import {
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
 
-interface Viewport {
+export interface Viewport {
   x: number;
   y: number;
   zoom: number;
@@ -34,6 +34,8 @@ interface CanvasProps {
   selections: readonly Selection[];
   tool: Tool;
   shapeKind: 'rect' | 'ellipse';
+  initialViewport?: Viewport;
+  onViewportChange?(viewport: Viewport): void;
   onSelect(selections: Selection[]): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
@@ -110,6 +112,8 @@ export function Canvas({
   selections,
   tool,
   shapeKind,
+  initialViewport,
+  onViewportChange,
   onSelect,
   onUpdateFrame,
   onUpdateLayer,
@@ -117,12 +121,18 @@ export function Canvas({
   onCreateFrame,
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
+  const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
   live.current = viewport;
+
+  // Remember where the user left the canvas, debounced so panning is cheap.
+  useEffect(() => {
+    const timer = setTimeout(() => onViewportChange?.(viewport), 400);
+    return () => clearTimeout(timer);
+  }, [viewport, onViewportChange]);
 
   const hostSize = hostRef.current;
   viewportRef.current = { ...viewport, width: hostSize?.clientWidth ?? 0, height: hostSize?.clientHeight ?? 0 };
