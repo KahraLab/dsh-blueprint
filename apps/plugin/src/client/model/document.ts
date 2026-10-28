@@ -585,7 +585,7 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
     children: [],
     layout: null,
     fills: [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : DEFAULT_SHAPE_FILL))],
-    radius: kind === 'ellipse' ? 999 : defaults.radius,
+    radius: defaults.radius,
     opacity: 1,
     text: '',
     fontFamily: 'Figtree',

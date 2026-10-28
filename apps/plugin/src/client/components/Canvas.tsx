@@ -378,7 +378,9 @@ function visualStyle(layer: Layer): CSSProperties {
   if (!isText) {
     const boxed = layer.kind === 'rect' || layer.kind === 'ellipse';
     return {
-      borderRadius: boxed ? layer.radius : undefined,
+      // 50% follows the box in both axes; a large px radius would only round the
+      // corners of a rectangle and leave straight runs on the long side.
+      borderRadius: layer.kind === 'ellipse' ? '50%' : boxed ? layer.radius : undefined,
       background: boxed ? fillBackground(layer.fills) : 'transparent',
       opacity: layer.opacity,
     };
