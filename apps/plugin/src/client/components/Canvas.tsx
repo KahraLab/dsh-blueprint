@@ -8,6 +8,7 @@ import {
   type Frame,
   type InsertTarget,
   type Layer,
+  type FillStyle,
   type LayerKind,
   type LayerRectPatch,
   type RectPatch,
@@ -308,31 +309,67 @@ const STAR_PATH =
   'M 50 0 L 61.17 34.63 L 97.55 34.55 L 68.07 55.87 L 79.39 90.45 L 50 69 L 20.61 90.45 L 31.93 55.87 L 2.45 34.55 L 38.83 34.63 Z';
 
 /** Line, arrow, polygon and star are drawn as SVG inside their box. */
-function ShapeGraphic({ layer }: { layer: Layer }): ReactElement | null {
-  const color = topFillColor(layer.fills);
-  const width = Math.max(1, layer.width);
-  const height = Math.max(1, layer.height);
+function ShapeGraphic({ kind, fills, width, height }: { kind: LayerKind; fills: readonly FillStyle[]; width: number; height: number }): ReactElement | null {
+  const color = topFillColor(fills as readonly FillStyle[]);
+  const boxWidth = Math.max(1, width);
+  const boxHeight = Math.max(1, height);
 
-  if (layer.kind === 'line' || layer.kind === 'arrow') {
-    const y = height / 2;
-    const head = layer.kind === 'arrow' ? Math.min(12, width / 3) : 0;
+  if (kind === 'line' || kind === 'arrow') {
+    const y = boxHeight / 2;
+    const head = kind === 'arrow' ? Math.min(12, boxWidth / 3) : 0;
     return (
-      <svg className="bp-shape-graphic" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-        <line x1={0} y1={y} x2={width - head} y2={y} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        {head > 0 ? <path d={`M ${width} ${y} L ${width - head} ${y - 5} L ${width - head} ${y + 5} Z`} fill={color} /> : null}
+      <svg className="bp-shape-graphic" viewBox={`0 0 ${boxWidth} ${boxHeight}`} preserveAspectRatio="none" aria-hidden="true">
+        <line x1={0} y1={y} x2={boxWidth - head} y2={y} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        {head > 0 ? <path d={`M ${boxWidth} ${y} L ${boxWidth - head} ${y - 5} L ${boxWidth - head} ${y + 5} Z`} fill={color} /> : null}
       </svg>
     );
   }
 
-  if (layer.kind === 'polygon' || layer.kind === 'star') {
+  if (kind === 'polygon' || kind === 'star') {
     return (
       <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <path d={layer.kind === 'polygon' ? POLYGON_PATH : STAR_PATH} fill={color} />
+        <path d={kind === 'polygon' ? POLYGON_PATH : STAR_PATH} fill={color} />
       </svg>
     );
   }
 
   return null;
+}
+
+/** The shape as it will look while the pointer is still dragging it out. */
+function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): ReactElement {
+  const fills: FillStyle[] = [{ id: 'preview', color: '#D9D9D9', opacity: 1 }];
+  const boxed = kind === 'rect' || kind === 'ellipse';
+  return (
+    <div
+      className="bp-shape-preview"
+      style={{
+        left: rect.x,
+        top: rect.y,
+        width: Math.max(1, rect.width),
+        height: Math.max(1, rect.height),
+        background: boxed ? '#D9D9D9' : 'transparent',
+        borderRadius: kind === 'ellipse' ? '50%' : kind === 'rect' ? 8 : undefined,
+      }}
+    >
+      <ShapeGraphic kind={kind} fills={fills} width={rect.width} height={rect.height} />
+    </div>
+  );
+}
+
+/** Equal sides while shift is held: the dominant direction wins, the corner anchors. */
+function constrainSquare(startX: number, startY: number, x: number, y: number): WorldRect {
+  const dx = x - startX;
+  const dy = y - startY;
+  const size = Math.max(Math.abs(dx), Math.abs(dy));
+  const width = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) * size : Math.sign(dx || 1) * size;
+  const height = Math.abs(dy) > Math.abs(dx) ? Math.sign(dy) * size : Math.sign(dy || 1) * size;
+  return {
+    x: Math.min(startX, startX + width),
+    y: Math.min(startY, startY + height),
+    width: size,
+    height: size,
+  };
 }
 
 /** Paint, corner radius and type. */
@@ -866,12 +903,14 @@ export function Canvas({
 
       case 'drawShape': {
         const world = toWorld(event.clientX, event.clientY);
-        const draft = {
-          x: Math.min(current.startX, world.x),
-          y: Math.min(current.startY, world.y),
-          width: Math.abs(world.x - current.startX),
-          height: Math.abs(world.y - current.startY),
-        };
+        const draft = event.shiftKey
+          ? constrainSquare(current.startX, current.startY, world.x, world.y)
+          : {
+              x: Math.min(current.startX, world.x),
+              y: Math.min(current.startY, world.y),
+              width: Math.abs(world.x - current.startX),
+              height: Math.abs(world.y - current.startY),
+            };
         setDraftShape(draft);
         const host = hostRef.current;
         if (host) {
@@ -893,12 +932,14 @@ export function Canvas({
 
       case 'drawFrame': {
         const world = toWorld(event.clientX, event.clientY);
-        const draft = {
-          x: Math.min(current.startX, world.x),
-          y: Math.min(current.startY, world.y),
-          width: Math.abs(world.x - current.startX),
-          height: Math.abs(world.y - current.startY),
-        };
+        const draft = event.shiftKey
+          ? constrainSquare(current.startX, current.startY, world.x, world.y)
+          : {
+              x: Math.min(current.startX, world.x),
+              y: Math.min(current.startY, world.y),
+              width: Math.abs(world.x - current.startX),
+              height: Math.abs(world.y - current.startY),
+            };
         setDraftFrame(draft);
         const host = hostRef.current;
         if (host) {
@@ -966,6 +1007,14 @@ export function Canvas({
         if (target.corner.includes('n')) {
           height = origin.height - dy;
           y = origin.y + dy;
+        }
+
+        if (event.shiftKey) {
+          const ratio = origin.width / Math.max(1, origin.height);
+          if (Math.abs(width - origin.width) >= Math.abs(height - origin.height)) height = width / ratio;
+          else width = height * ratio;
+          if (target.corner.includes('w')) x = origin.x + origin.width - width;
+          if (target.corner.includes('n')) y = origin.y + origin.height - height;
         }
 
         if (width < min) {
@@ -1114,12 +1163,14 @@ export function Canvas({
 
     if (current?.mode === 'drawShape') {
       const world = toWorld(event.clientX, event.clientY);
-      const drawn = {
-        x: Math.min(current.startX, world.x),
-        y: Math.min(current.startY, world.y),
-        width: Math.abs(world.x - current.startX),
-        height: Math.abs(world.y - current.startY),
-      };
+      const drawn = event.shiftKey
+        ? constrainSquare(current.startX, current.startY, world.x, world.y)
+        : {
+            x: Math.min(current.startX, world.x),
+            y: Math.min(current.startY, world.y),
+            width: Math.abs(world.x - current.startX),
+            height: Math.abs(world.y - current.startY),
+          };
       const sized = drawn.width >= 6 && drawn.height >= 6;
       const corner = sized ? { x: drawn.x, y: drawn.y } : { x: current.startX, y: current.startY };
       const point = current.flow
@@ -1259,7 +1310,7 @@ export function Canvas({
           )
         ) : (
           <>
-            <ShapeGraphic layer={layer} />
+            <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />
             {layer.children.map((child) => renderLayer(child, frameId, layer.layout))}
           </>
         )}
@@ -1290,12 +1341,7 @@ export function Canvas({
         // rasterised copy behind and soften glyphs once zoomed in.
         style={{ zoom: viewport.zoom, transform: `translate(${viewport.x / viewport.zoom}px, ${viewport.y / viewport.zoom}px)` }}
       >
-        {draftShape ? (
-          <div
-            className="bp-draw-frame"
-            style={{ left: draftShape.x, top: draftShape.y, width: draftShape.width, height: draftShape.height }}
-          />
-        ) : null}
+        {draftShape ? <ShapePreview kind={shapeKind} rect={draftShape} /> : null}
 
         {draftFrame ? (
           <div

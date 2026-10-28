@@ -174,6 +174,14 @@
 .bp-handle[data-corner='sw'] { left: -3px; bottom: -3px; cursor: nesw-resize; }
 .bp-handle[data-corner='se'] { right: -3px; bottom: -3px; cursor: nwse-resize; }
 
+.bp-shape-preview {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  outline: 1px solid rgba(79, 195, 247, 0.9);
+  outline-offset: 0;
+}
+
 /* ---------- size readout while resizing or drawing ---------- */
 .bp-size-chip {
   position: absolute;
