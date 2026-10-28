@@ -123,11 +123,7 @@ function Panel(): ReactElement {
           </div>
         </div>
 
-        <div className="bp-head-right">
-          <button type="button" className="bp-icon" title="新建画板" aria-label="新建画板" onClick={onCreateFrame}>
-            <AddFrameIcon />
-          </button>
-        </div>
+        <div />
       </header>
 
       <div className="bp-main">
@@ -169,7 +165,12 @@ function Panel(): ReactElement {
 
         {layersOpen ? (
           <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
-            <h4>图层</h4>
+            <div className="bp-layers-head">
+              <h4>图层</h4>
+              <button type="button" className="bp-layer-add" title="新建画板" aria-label="新建画板" onClick={onCreateFrame}>
+                <AddFrameIcon />
+              </button>
+            </div>
             {doc.frames.length === 0 ? (
               <div className="bp-empty">还没有画板</div>
             ) : (

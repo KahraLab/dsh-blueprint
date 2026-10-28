@@ -64,7 +64,7 @@ export function addFrame(doc: BlueprintDocument): { doc: BlueprintDocument; fram
     y: 120 + index * 60,
     width: 390,
     height: 844,
-    background: '#FFFFFF',
+    background: 'transparent',
     layers: [],
   };
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
