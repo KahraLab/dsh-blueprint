@@ -77,13 +77,109 @@
   min-height: 0;
   display: flex;
 }
-.bp-body {
+.bp-head-right {
+  display: flex;
+  justify-content: flex-end;
+}
+.bp-placeholder {
   flex: 1;
   min-width: 0;
   display: grid;
   place-items: center;
   color: var(--dsw-alias-label-secondary, #777);
   font-size: 12px;
+}
+
+/* ---------- infinite canvas ---------- */
+.bp-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  background-color: #0f0f0f;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.07) 1px, transparent 0);
+  background-size: 16px 16px;
+}
+.bp-canvas:active {
+  cursor: grabbing;
+}
+.bp-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.bp-frame {
+  position: absolute;
+  background: #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  cursor: default;
+}
+.bp-frame[data-selected='true'] {
+  outline: 1.5px solid #4fc3f7;
+  outline-offset: 0;
+}
+.bp-frame-name {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-size: 11px;
+  color: #9aa0a8;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.bp-frame[data-selected='true'] .bp-frame-name {
+  color: #4fc3f7;
+}
+.bp-frame-size {
+  position: absolute;
+  top: -20px;
+  right: 0;
+  font-size: 10px;
+  color: #6b7078;
+  white-space: nowrap;
+  pointer-events: none;
+  display: none;
+}
+.bp-frame[data-selected='true'] .bp-frame-size {
+  display: block;
+}
+.bp-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #4fc3f7;
+  border: 1px solid #0f0f0f;
+  cursor: nwse-resize;
+  display: none;
+  touch-action: none;
+}
+.bp-frame[data-selected='true'] .bp-handle {
+  display: block;
+}
+.bp-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #6b7078;
+  font-size: 12px;
+  pointer-events: none;
+}
+.bp-zoom {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: #6b7078;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- layers sidebar ---------- */
@@ -110,6 +206,12 @@
   color: var(--dsw-alias-label-secondary, #888);
 }
 .bp-layer {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  font: inherit;
   font-size: 12px;
   padding: 5px 8px;
   border-radius: 6px;
@@ -117,6 +219,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 .bp-layer:hover {
   background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.07));

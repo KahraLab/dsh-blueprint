@@ -1,6 +1,8 @@
-import { useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { LayersIcon, MarkIcon } from './icons';
+import { Canvas } from './components/Canvas';
+import { AddFrameIcon, LayersIcon, MarkIcon } from './icons';
+import { createFrame, type Frame } from './model/frame';
 import css from './styles.css';
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
@@ -30,25 +32,37 @@ function createTabTitle(t: (key: string) => string) {
 
 function Panel(): ReactElement {
   const [tab, setTab] = useState<Tab>('canvas');
-  const [layersOpen, setLayersOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
-  const resizeStart = useRef<{ pointerX: number; width: number } | null>(null);
+  const [frames, setFrames] = useState<readonly Frame[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
 
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const addFrame = (): void => {
+    const frame = createFrame(frames);
+    setFrames((current) => [...current, frame]);
+    setSelectedId(frame.id);
+    setTab('canvas');
+  };
+
+  const changeFrame = (id: string, patch: Partial<Pick<Frame, 'x' | 'y' | 'width' | 'height'>>): void => {
+    setFrames((current) => current.map((frame) => (frame.id === id ? { ...frame, ...patch } : frame)));
+  };
+
+  const onPointerDownResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
     event.preventDefault();
-    resizeStart.current = { pointerX: event.clientX, width: layersWidth };
+    setResizeStart({ pointerX: event.clientX, width: layersWidth });
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const resize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const start = resizeStart.current;
-    if (!start) return;
-    const next = start.width + (event.clientX - start.pointerX);
+  const onPointerMoveResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!resizeStart) return;
+    const next = resizeStart.width + (event.clientX - resizeStart.pointerX);
     setLayersWidth(Math.min(LAYERS_MAX_WIDTH, Math.max(LAYERS_MIN_WIDTH, next)));
   };
 
-  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    resizeStart.current = null;
+  const onPointerUpResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    setResizeStart(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -84,25 +98,52 @@ function Panel(): ReactElement {
           </div>
         </div>
 
-        <div />
+        <div className="bp-head-right">
+          <button type="button" className="bp-icon" title="新建画板" aria-label="新建画板" onClick={addFrame}>
+            <AddFrameIcon />
+          </button>
+        </div>
       </header>
 
       <div className="bp-main">
-        <div className="bp-body">{tab === 'canvas' ? '画布区域' : '流程区域'}</div>
+        {tab === 'canvas' ? (
+          <Canvas
+            frames={frames}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onChangeFrame={changeFrame}
+          />
+        ) : (
+          <div className="bp-placeholder">流程视图</div>
+        )}
 
         {layersOpen ? (
           <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
             <h4>图层</h4>
-            <div className="bp-empty">还没有图层</div>
+            {frames.length === 0 ? (
+              <div className="bp-empty">还没有画板</div>
+            ) : (
+              frames.map((frame) => (
+                <button
+                  key={frame.id}
+                  type="button"
+                  className="bp-layer"
+                  data-active={frame.id === selectedId || undefined}
+                  onClick={() => setSelectedId(frame.id)}
+                >
+                  {frame.name}
+                </button>
+              ))
+            )}
             <div
               className="bp-resizer"
               role="separator"
               aria-orientation="vertical"
               aria-label="调整图层栏宽度"
-              onPointerDown={startResize}
-              onPointerMove={resize}
-              onPointerUp={endResize}
-              onPointerCancel={endResize}
+              onPointerDown={onPointerDownResize}
+              onPointerMove={onPointerMoveResize}
+              onPointerUp={onPointerUpResize}
+              onPointerCancel={onPointerUpResize}
             />
           </aside>
         ) : null}
