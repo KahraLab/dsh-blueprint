@@ -15,6 +15,7 @@ import Hand from 'lucide-react/icons/hand';
 import MoreHorizontal from 'lucide-react/icons/ellipsis';
 import PanelLeft from 'lucide-react/icons/panel-left';
 import ListTree from 'lucide-react/icons/list-tree';
+import Minus from 'lucide-react/icons/minus';
 import Square from 'lucide-react/icons/square';
 import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
 import Plus from 'lucide-react/icons/plus';
@@ -128,4 +129,9 @@ export function AlignMiddleIcon({ size = 14 }: { size?: number }): ReactElement 
 }
 export function AlignBottomIcon({ size = 14 }: { size?: number }): ReactElement {
   return <AlignEndVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Remove / reset affordance. */
+export function MinusIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <Minus size={size} strokeWidth={2} aria-hidden="true" />;
 }

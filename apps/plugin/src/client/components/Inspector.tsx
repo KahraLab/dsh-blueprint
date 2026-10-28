@@ -3,9 +3,11 @@ import {
   AlignBottomIcon,
   AlignMiddleIcon,
   AlignTopIcon,
+  MinusIcon,
   TextAlignCenterIcon,
   TextAlignLeftIcon,
   TextAlignRightIcon,
+  VisibilityIcon,
 } from '../icons';
 import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection, TextAlign } from '../model/document';
 
@@ -63,30 +65,6 @@ function NumberBox({
         }}
       />
       {suffix ? <span className="bp-input-suffix">{suffix}</span> : null}
-    </label>
-  );
-}
-
-function ColorBox({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange(value: string): void;
-}): ReactElement {
-  const safe = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : '#000000';
-  return (
-    <label className="bp-input-box bp-color-box">
-      <span className="bp-input-label">{label}</span>
-      <input className="bp-color-swatch" type="color" value={safe} onChange={(event) => onChange(event.target.value)} />
-      <input
-        className="bp-input-field"
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
     </label>
   );
 }
@@ -214,26 +192,72 @@ export function Inspector({
 
       <section className="bp-inspector-section">
         <h5>{isFrame ? '画板' : '外观'}</h5>
-        <ColorBox
-          label="填充"
-          value={isFrame ? frame!.background : layer!.kind === 'text' ? layer!.fill : layer!.fill}
-          onChange={(value) => (isFrame ? patchFrame({ background: value }) : patchLayer({ fill: value }))}
-        />
-        <div className="bp-grid2">
-          <NumberBox
-            label="透明"
-            value={Math.round(target.opacity * 100)}
-            suffix="%"
-            onChange={(percent) => {
-              const opacity = Math.min(100, Math.max(0, percent)) / 100;
-              if (isFrame) patchFrame({ opacity });
-              else patchLayer({ opacity });
-            }}
-          />
-          {!isFrame && layer?.kind !== 'text' ? (
-            <NumberBox label="圆角" value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
-          ) : null}
+
+        <div className="bp-fill-row">
+          <div className="bp-fill-field">
+            <span
+              className="bp-swatch"
+              style={{ background: isFrame ? frame!.background : layer!.fill }}
+            >
+              <input
+                type="color"
+                value={
+                  /^#([0-9a-f]{6})$/i.test(isFrame ? frame!.background : layer!.fill)
+                    ? (isFrame ? frame!.background : layer!.fill)
+                    : '#000000'
+                }
+                onChange={(event) => (isFrame ? patchFrame({ background: event.target.value }) : patchLayer({ fill: event.target.value }))}
+              />
+            </span>
+            <input
+              className="bp-input-field"
+              type="text"
+              value={isFrame ? frame!.background : layer!.fill}
+              onChange={(event) => (isFrame ? patchFrame({ background: event.target.value }) : patchLayer({ fill: event.target.value }))}
+            />
+            <span className="bp-fill-divider" />
+            <input
+              className="bp-input-field bp-fill-opacity"
+              type="number"
+              value={Math.round(target.opacity * 100)}
+              onChange={(event) => {
+                const opacity = Math.min(100, Math.max(0, Number(event.target.value))) / 100;
+                if (isFrame) patchFrame({ opacity });
+                else patchLayer({ opacity });
+              }}
+            />
+            <span className="bp-input-suffix">%</span>
+          </div>
+
+          <button
+            type="button"
+            className="bp-fill-action"
+            title={target.visible ? '隐藏' : '显示'}
+            aria-label={target.visible ? '隐藏' : '显示'}
+            onClick={() => (isFrame ? patchFrame({ visible: !target.visible }) : patchLayer({ visible: !target.visible }))}
+          >
+            <VisibilityIcon visible={target.visible} />
+          </button>
+          <button
+            type="button"
+            className="bp-fill-action"
+            title="移除填充"
+            aria-label="移除填充"
+            onClick={() =>
+              isFrame
+                ? patchFrame({ background: 'transparent' })
+                : patchLayer({ fill: layer!.kind === 'text' ? '#101828' : 'transparent' })
+            }
+          >
+            <MinusIcon />
+          </button>
         </div>
+
+        {!isFrame && layer?.kind !== 'text' ? (
+          <div className="bp-grid2">
+            <NumberBox label="圆角" value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
+          </div>
+        ) : null}
       </section>
 
       {!isFrame && layer?.kind === 'text' ? (
