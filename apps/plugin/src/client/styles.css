@@ -798,8 +798,15 @@
   border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
   background: var(--dsw-alias-bg-base, #161616);
   height: 28px;
+  padding: 0;
   border-radius: 6px;
   font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bp-align-box .bp-align-btn svg {
+  display: block;
 }
 .bp-align-box .bp-align-btn[data-on='true'] {
   background: rgba(79, 195, 247, 0.18);
