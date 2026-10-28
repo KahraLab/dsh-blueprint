@@ -1,6 +1,6 @@
-import { useEffect, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas } from './components/Canvas';
+import { Canvas, type ViewportInfo } from './components/Canvas';
 import { AddFrameIcon, LayersIcon, MarkIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
@@ -52,6 +52,7 @@ function Panel(): ReactElement {
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const canvasViewport = useRef<ViewportInfo | null>(null);
 
   const activeFrameId = selection?.frameId ?? null;
 
@@ -97,7 +98,11 @@ function Panel(): ReactElement {
   }, [doc, hydrated]);
 
   const onCreateFrame = (): void => {
-    const result = addFrame(doc);
+    const info = canvasViewport.current;
+    const center = info && info.zoom > 0
+      ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
+      : { x: 0, y: 0 };
+    const result = addFrame(doc, center);
     setDoc(result.doc);
     setSelection({ kind: 'frame', frameId: result.frame.id });
     setTab('canvas');
@@ -181,6 +186,7 @@ function Panel(): ReactElement {
         {tab === 'canvas' ? (
           <>
             <Canvas
+              viewportRef={canvasViewport}
               doc={doc}
               selection={selection}
               onSelect={setSelection}

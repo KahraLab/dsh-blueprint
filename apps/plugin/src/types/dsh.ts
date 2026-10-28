@@ -79,6 +79,7 @@ export interface WorkingDirectoryService {
 
 export interface PluginContext {
   effect(setup: () => Disposable | void, label?: string): Disposable;
+  inject(dependencies: string[], callback: (scope: PluginContext) => Disposable | void): Disposable;
   locale: LocaleService;
   slots: SlotsService;
   sidebarRight: SidebarRightService;

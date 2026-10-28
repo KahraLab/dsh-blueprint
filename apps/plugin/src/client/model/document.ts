@@ -54,17 +54,39 @@ export function createDocument(): BlueprintDocument {
   return { frames: [] };
 }
 
-/** Append a phone-sized frame, cascaded so new frames do not stack on each other. */
-export function addFrame(doc: BlueprintDocument): { doc: BlueprintDocument; frame: Frame } {
+const FRAME_WIDTH = 390;
+const FRAME_HEIGHT = 844;
+const FRAME_GAP = 80;
+
+function overlaps(a: Frame, x: number, y: number): boolean {
+  return x < a.x + a.width + FRAME_GAP && x + FRAME_WIDTH + FRAME_GAP > a.x && y < a.y + a.height + FRAME_GAP && y + FRAME_HEIGHT + FRAME_GAP > a.y;
+}
+
+/**
+ * Append a phone-sized frame centred on the given world point. When that spot is
+ * already taken, the new frame slides right past the frames in the way, which is
+ * what Figma does for successive inserts from the same viewpoint.
+ */
+export function addFrame(
+  doc: BlueprintDocument,
+  center: { x: number; y: number },
+): { doc: BlueprintDocument; frame: Frame } {
   const index = doc.frames.length;
+  let x = Math.round(center.x - FRAME_WIDTH / 2);
+  const y = Math.round(center.y - FRAME_HEIGHT / 2);
+
+  while (doc.frames.some((frame) => overlaps(frame, x, y))) {
+    x += FRAME_WIDTH + FRAME_GAP;
+  }
+
   const frame: Frame = {
     id: nextId('frame'),
     name: `画板 ${index + 1}`,
-    x: 120 + index * 80,
-    y: 120 + index * 60,
-    width: 390,
-    height: 844,
-    background: 'transparent',
+    x,
+    y,
+    width: FRAME_WIDTH,
+    height: FRAME_HEIGHT,
+    background: '#FFFFFF',
     layers: [],
   };
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };

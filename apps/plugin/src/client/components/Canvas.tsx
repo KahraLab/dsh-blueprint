@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
 import {
   FRAME_MIN_SIZE,
   LAYER_MIN_SIZE,
@@ -19,7 +19,16 @@ interface Viewport {
   zoom: number;
 }
 
+export interface ViewportInfo {
+  x: number;
+  y: number;
+  zoom: number;
+  width: number;
+  height: number;
+}
+
 interface CanvasProps {
+  viewportRef: MutableRefObject<ViewportInfo | null>;
   doc: BlueprintDocument;
   selection: Selection | null;
   onSelect(selection: Selection | null): void;
@@ -67,12 +76,20 @@ function LayerView({
   );
 }
 
-export function Canvas({ doc, selection, onSelect, onUpdateFrame, onUpdateLayer }: CanvasProps): ReactElement {
+export function Canvas({ viewportRef, doc, selection, onSelect, onUpdateFrame, onUpdateLayer }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
   const drag = useRef<Drag | null>(null);
-  const viewportRef = useRef(viewport);
-  viewportRef.current = viewport;
+  const currentViewport = useRef(viewport);
+  currentViewport.current = viewport;
+
+  // Publish the live viewport so the panel can place new frames at its centre.
+  const hostSize = hostRef.current;
+  viewportRef.current = {
+    ...viewport,
+    width: hostSize?.clientWidth ?? 0,
+    height: hostSize?.clientHeight ?? 0,
+  };
 
   // Wheel must be non-passive: it pans the canvas and zooms it instead of scrolling the page.
   useEffect(() => {
@@ -84,7 +101,7 @@ export function Canvas({ doc, selection, onSelect, onUpdateFrame, onUpdateLayer 
       const rect = host.getBoundingClientRect();
       const pointerX = event.clientX - rect.left;
       const pointerY = event.clientY - rect.top;
-      const current = viewportRef.current;
+      const current = currentViewport.current;
 
       if (event.ctrlKey || event.metaKey) {
         const factor = Math.exp(-event.deltaY * 0.002);
@@ -164,14 +181,14 @@ export function Canvas({ doc, selection, onSelect, onUpdateFrame, onUpdateLayer 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
     if (!current) return;
-    const zoom = viewportRef.current.zoom;
+    const zoom = currentViewport.current.zoom;
     const deltaX = (event.clientX - current.pointerX) / zoom;
     const deltaY = (event.clientY - current.pointerY) / zoom;
 
     switch (current.mode) {
       case 'pan':
         setViewport({
-          ...viewportRef.current,
+          ...currentViewport.current,
           x: current.originX + (event.clientX - current.pointerX),
           y: current.originY + (event.clientY - current.pointerY),
         });

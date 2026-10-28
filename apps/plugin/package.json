@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "@types/react": "^18.3.12",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.2"
@@ -42,5 +43,6 @@
   },
   "dependencies": {
     "lucide-react": "^1.62.0"
-  }
+  },
+  "main": "lib/host/index.js"
 }
