@@ -165,8 +165,12 @@ type Drag =
       size: { width: number; height: number };
       element: HTMLDivElement;
       drop: Drop | null;
+      /** Snapped delta that was written to the DOM. */
       dx: number;
       dy: number;
+      /** Raw pointer delta behind it, so a release can be resolved consistently. */
+      rawDX: number;
+      rawDY: number;
     }
   | {
       mode: 'moveInStack';
@@ -826,6 +830,8 @@ export function Canvas({
         drop: null,
         dx: 0,
         dy: 0,
+        rawDX: 0,
+        rawDY: 0,
       };
     }
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1217,6 +1223,8 @@ export function Canvas({
             current.originY = point.y;
             current.dx = 0;
             current.dy = 0;
+            current.rawDX = 0;
+            current.rawDY = 0;
             current.pointerX = event.clientX;
             current.pointerY = event.clientY;
             setDropFrameId(null);
@@ -1233,6 +1241,10 @@ export function Canvas({
           });
         }
 
+        current.rawDX = Math.round((event.clientX - current.pointerX) / zoom);
+        current.rawDY = Math.round((event.clientY - current.pointerY) / zoom);
+        current.rawDX = Math.round((event.clientX - current.pointerX) / zoom);
+        current.rawDY = Math.round((event.clientY - current.pointerY) / zoom);
         current.dx = dx;
         current.dy = dy;
         current.element.style.left = `${current.originX + dx}px`;
@@ -1338,8 +1350,10 @@ export function Canvas({
     }
     if (current?.mode === 'moveLayer') {
       const zoom = live.current.zoom;
-      const dx = Math.round((event.clientX - current.pointerX) / zoom);
-      const dy = Math.round((event.clientY - current.pointerY) / zoom);
+      // The element on screen already carries the snap; only the pointer's move
+      // since the last frame is new, so add it to the snapped delta.
+      const dx = current.dx + (Math.round((event.clientX - current.pointerX) / zoom) - current.rawDX);
+      const dy = current.dy + (Math.round((event.clientY - current.pointerY) / zoom) - current.rawDY);
       // A quick drag can release before the last move was evaluated.
       const owner = ownerOfRect(doc, {
         x: current.parentOrigin.x + current.originX + dx,
