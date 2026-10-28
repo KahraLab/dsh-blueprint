@@ -489,7 +489,7 @@ export function Canvas({
 
   /** Dark text on light surfaces, light text on dark ones. */
   const textColourAt = (x: number, y: number): string => {
-    const hit = containerAtElement(document.elementFromPoint(x, y) as HTMLElement | null);
+    const hit = containerAtPoint(x, y);
     const frame = hit?.frameId ? findFrame(doc, hit.frameId) : undefined;
     if (frame) return prefersDarkText(topFillColor(frame.fills), true) ? '#101828' : '#F5F5F5';
     const host = hostRef.current;
@@ -547,6 +547,16 @@ export function Canvas({
         return { frameId, parentId, layout, element: node };
       }
       node = node.parentElement;
+    }
+    return null;
+  }
+
+  /** The container under a point, ignoring the selection overlay drawn above it. */
+  function containerAtPoint(clientX: number, clientY: number): ReturnType<typeof containerAtElement> {
+    const under = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+    for (const element of under) {
+      const hit = containerAtElement(element);
+      if (hit) return hit;
     }
     return null;
   }
@@ -642,7 +652,7 @@ export function Canvas({
     if (tool === 'shape') {
       // Drag to size it; a click without movement falls back to the default size.
       event.preventDefault();
-      const hit = containerAtElement(event.target as HTMLElement | null);
+      const hit = containerAtPoint(event.clientX, event.clientY);
       const box = hit?.element.getBoundingClientRect();
       drag.current = {
         mode: 'drawShape',
@@ -660,7 +670,7 @@ export function Canvas({
     if (tool === 'text') {
       // Keep the pointer from stealing focus away from the freshly created editor.
       event.preventDefault();
-      const hit = containerAtElement(event.target as HTMLElement | null);
+      const hit = containerAtPoint(event.clientX, event.clientY);
       const fill = textColourAt(event.clientX, event.clientY);
 
       if (!hit) {
@@ -683,7 +693,7 @@ export function Canvas({
     }
   };
 
-  const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
+  const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame, element: HTMLDivElement): void => {
     if (event.button !== 0 || tool === 'hand' || frame.locked) return;
     // Drawing tools must reach the canvas handler, which owns creation.
     if (tool === 'shape' || tool === 'text') return;
@@ -697,7 +707,7 @@ export function Canvas({
       pointerY: event.clientY,
       originX: frame.x,
       originY: frame.y,
-      element: event.currentTarget,
+      element,
       dx: 0,
       dy: 0,
     };
@@ -746,6 +756,7 @@ export function Canvas({
     frameId: string | null,
     layer: Layer,
     parentLayout: StackLayout | null,
+    element: HTMLDivElement,
   ): void => {
     if (event.button !== 0 || layer.locked) return;
     // Drawing tools bubble to the canvas so insertion works on top of layers too.
@@ -778,7 +789,7 @@ export function Canvas({
         pointerY: event.clientY,
         originX: layer.x,
         originY: layer.y,
-        element: event.currentTarget,
+        element,
         drop: null,
         dx: 0,
         dy: 0,
@@ -1340,7 +1351,7 @@ export function Canvas({
         data-editing={isEditing || undefined}
         data-locked={layer.locked || undefined}
         style={style}
-        onPointerDown={(event) => startLayerDrag(event, frameId, layer, container)}
+        onPointerDown={(event) => startLayerDrag(event, frameId, layer, container, event.currentTarget)}
         onDoubleClick={
           layer.kind === 'text'
             ? (event) => {
@@ -1435,7 +1446,7 @@ export function Canvas({
                 background: fillBackground(frame.fills),
                 opacity: frame.opacity,
               }}
-              onPointerDown={(event) => startMoveFrame(event, frame)}
+              onPointerDown={(event) => startMoveFrame(event, frame, event.currentTarget)}
             >
               <span className="bp-frame-name">{frame.name}</span>
               <span className="bp-frame-size">
@@ -1460,7 +1471,26 @@ export function Canvas({
         {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
 
         {/* Selection chrome floats above the frames so a clipping container cannot cut it. */}
-        <div ref={selectionRef} className="bp-selection" aria-hidden="true">
+        <div
+          ref={selectionRef}
+          className="bp-selection"
+          onPointerDown={(event) => {
+            const target = selectionTarget.current;
+            const host = hostRef.current;
+            if (!target || !host || event.button !== 0) return;
+            if (target.kind === 'frame') {
+              const frame = findFrame(doc, target.id);
+              const element = host.querySelector<HTMLDivElement>(`[data-frame-id="${target.id}"]`);
+              if (frame && element) startMoveFrame(event, frame, element);
+              return;
+            }
+            const layer = findLayer(doc, target.frameId, target.id);
+            const element = host.querySelector<HTMLDivElement>(`[data-layer-id="${target.id}"]`);
+            if (!layer || !element) return;
+            const parent = findParent(doc, target.frameId, target.id);
+            startLayerDrag(event, target.frameId, layer, parent?.layout ?? null, element);
+          }}
+        >
           {CORNERS.map((corner) => (
             <div
               key={corner}

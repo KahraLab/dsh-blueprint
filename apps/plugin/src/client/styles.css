@@ -160,7 +160,10 @@
 .bp-selection {
   position: absolute;
   display: none;
-  pointer-events: none;
+  /* The box is a handle too: a layer clipped by its frame can still be grabbed
+     anywhere the selection chrome says it is. */
+  pointer-events: auto;
+  cursor: move;
   outline: 1.5px solid #4fc3f7;
   outline-offset: 0;
   z-index: 12;
