@@ -477,7 +477,8 @@
   display: flex;
   align-items: center;
   gap: 1px;
-  padding-right: 3px;
+  min-height: 26px;
+  padding-right: 4px;
   border-radius: 6px;
 }
 .bp-layer-row:hover {
@@ -586,9 +587,10 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-right: 3px;
+  padding-right: 2px;
   opacity: 0;
   flex: none;
+  line-height: 0;
 }
 .bp-layer-row:hover .bp-layer-actions,
 .bp-layer-actions:focus-within {
@@ -601,11 +603,16 @@
   color: var(--dsw-alias-label-secondary, #9a9a9a);
   width: 20px;
   height: 20px;
+  padding: 0;
   border-radius: 4px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.bp-layer-action svg {
+  display: block;
 }
 .bp-layer-action:hover {
   background: rgba(255, 255, 255, 0.1);
