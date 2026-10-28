@@ -31,7 +31,7 @@ Blueprint 交给编码 Agent 时，交的到底是什么？
 
 2026-10-28 定稿。详见 `.agent-works/specs/handoff.md`。
 
-- **交接包是自包含目录**：`prototype/<原型 id>/` 下放 `README.md`、`DESIGN.md`、`blueprint.json`、`screens/*.html`、`IMPLEMENT.md`。设计语言和原型文档复制进包，不引用外部路径。
+- **交接包是自包含目录**：`handoff/<原型 id>/` 下放 `README.md`、`DESIGN.md`、`blueprint.json`、`screens/*.html`、`IMPLEMENT.md`。设计语言和原型文档复制进包，不引用外部路径。
 - **放参考实现**：每屏一个单文件 HTML，能单独打开，CSS 内联、值已展开；文件顶部标明「参考实现，不是生产代码」。
 - **整份原型一次交**：不做按流程或按屏幕拆分，保证 AI 看得到全貌。
 - **说明书只用 Markdown**：结构信息（屏幕、状态、跳转）不重复抄写，直接指向 `blueprint.json`；不另生成 JSON。
