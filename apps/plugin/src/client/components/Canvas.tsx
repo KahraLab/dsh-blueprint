@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
 import {
   FRAME_MIN_SIZE,
-  LAYER_MIN_SIZE,
   type BlueprintDocument,
   type Frame,
   type Layer,
@@ -27,23 +26,31 @@ export interface ViewportInfo {
   height: number;
 }
 
-export type Tool = 'select' | 'frame' | 'shape' | 'text';
+export type Tool = 'move' | 'hand' | 'frame' | 'shape' | 'text';
 
 interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
   doc: BlueprintDocument;
-  selection: Selection | null;
+  selections: readonly Selection[];
   tool: Tool;
   shapeKind: 'rect' | 'ellipse';
-  onSelect(selection: Selection | null): void;
+  onSelect(selections: Selection[]): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
   onCreateLayer(frameId: string, kind: 'rect' | 'ellipse' | 'text', x: number, y: number): void;
   onCreateFrame(rect: { x: number; y: number; width: number; height: number }): void;
 }
 
+interface WorldRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 type Drag =
   | { mode: 'pan'; pointerX: number; pointerY: number; originX: number; originY: number }
+  | { mode: 'marquee'; startX: number; startY: number }
   | { mode: 'drawFrame'; startX: number; startY: number }
   | { mode: 'moveFrame'; id: string; pointerX: number; pointerY: number; originX: number; originY: number }
   | { mode: 'resizeFrame'; id: string; pointerX: number; pointerY: number; originWidth: number; originHeight: number }
@@ -51,32 +58,40 @@ type Drag =
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
+function intersects(a: WorldRect, b: WorldRect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function isLayerSelected(selections: readonly Selection[], frameId: string, layerId: string): boolean {
+  return selections.some((item) => item.kind === 'layer' && item.layerId === layerId && item.frameId === frameId);
+}
+
+function isFrameSelected(selections: readonly Selection[], frameId: string): boolean {
+  return selections.some((item) => item.kind === 'frame' && item.frameId === frameId);
+}
+
 function LayerView({
-  frame,
   layer,
   selected,
   onPointerDown,
 }: {
-  frame: Frame;
   layer: Layer;
   selected: boolean;
   onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void;
 }): ReactElement {
-  const style = {
-    left: layer.x,
-    top: layer.y,
-    width: layer.width,
-    height: layer.height,
-    borderRadius: layer.radius,
-    background: layer.kind === 'rect' ? layer.fill : 'transparent',
-    color: layer.kind === 'text' ? layer.fill : undefined,
-  } as const;
-
   return (
     <div
       className={`bp-el bp-el-${layer.kind}`}
       data-selected={selected || undefined}
-      style={style}
+      style={{
+        left: layer.x,
+        top: layer.y,
+        width: layer.width,
+        height: layer.height,
+        borderRadius: layer.radius,
+        background: layer.kind === 'text' ? 'transparent' : layer.fill,
+        color: layer.kind === 'text' ? layer.fill : undefined,
+      }}
       onPointerDown={onPointerDown}
     >
       {layer.kind === 'text' ? layer.text : null}
@@ -84,34 +99,49 @@ function LayerView({
   );
 }
 
-export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer, onCreateFrame }: CanvasProps): ReactElement {
+export function Canvas({
+  viewportRef,
+  doc,
+  selections,
+  tool,
+  shapeKind,
+  onSelect,
+  onUpdateFrame,
+  onUpdateLayer,
+  onCreateLayer,
+  onCreateFrame,
+}: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
-  const [drawRect, setDrawRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [marquee, setMarquee] = useState<WorldRect | null>(null);
+  const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const drag = useRef<Drag | null>(null);
-  const currentViewport = useRef(viewport);
-  currentViewport.current = viewport;
+  const live = useRef(viewport);
+  live.current = viewport;
 
-  // Publish the live viewport so the panel can place new frames at its centre.
   const hostSize = hostRef.current;
-  viewportRef.current = {
-    ...viewport,
-    width: hostSize?.clientWidth ?? 0,
-    height: hostSize?.clientHeight ?? 0,
+  viewportRef.current = { ...viewport, width: hostSize?.clientWidth ?? 0, height: hostSize?.clientHeight ?? 0 };
+
+  const toWorld = (clientX: number, clientY: number): { x: number; y: number } => {
+    const host = hostRef.current;
+    if (!host) return { x: 0, y: 0 };
+    const rect = host.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - live.current.x) / live.current.zoom,
+      y: (clientY - rect.top - live.current.y) / live.current.zoom,
+    };
   };
 
-  // Wheel must be non-passive: it pans the canvas and zooms it instead of scrolling the page.
+  // Wheel: pan by default, zoom with ctrl/meta. Non-passive so the page does not scroll.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
       const rect = host.getBoundingClientRect();
       const pointerX = event.clientX - rect.left;
       const pointerY = event.clientY - rect.top;
-      const current = currentViewport.current;
-
+      const current = live.current;
       if (event.ctrlKey || event.metaKey) {
         const factor = Math.exp(-event.deltaY * 0.002);
         const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
@@ -120,56 +150,56 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
         setViewport({ zoom, x: pointerX - worldX * zoom, y: pointerY - worldY * zoom });
         return;
       }
-
       setViewport({ ...current, x: current.x - event.deltaX, y: current.y - event.deltaY });
     };
-
     host.addEventListener('wheel', onWheel, { passive: false });
     return () => host.removeEventListener('wheel', onWheel);
   }, []);
 
-  const startPan = (event: ReactPointerEvent<HTMLDivElement>): void => {
+  const startCanvasDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
+    const world = toWorld(event.clientX, event.clientY);
 
-    if (tool === 'frame') {
-      const host = hostRef.current;
-      if (!host) return;
-      const rect = host.getBoundingClientRect();
-      const worldX = (event.clientX - rect.left - currentViewport.current.x) / currentViewport.current.zoom;
-      const worldY = (event.clientY - rect.top - currentViewport.current.y) / currentViewport.current.zoom;
-      drag.current = { mode: 'drawFrame', startX: worldX, startY: worldY };
-      setDrawRect({ x: worldX, y: worldY, width: 0, height: 0 });
+    if (tool === 'hand') {
+      drag.current = {
+        mode: 'pan',
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        originX: viewport.x,
+        originY: viewport.y,
+      };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
-    if (tool !== 'select') return; // shape/text draw inside a frame, not on bare canvas
-    onSelect(null);
-    drag.current = {
-      mode: 'pan',
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      originX: viewport.x,
-      originY: viewport.y,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
-    if (event.button !== 0) return;
-    event.stopPropagation();
-    onSelect({ kind: 'frame', frameId: frame.id });
-
-    if (tool !== 'select') {
-      const host = hostRef.current;
-      if (!host) return;
-      const rect = host.getBoundingClientRect();
-      const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
-      const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
-      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(worldX - frame.x), Math.round(worldY - frame.y));
+    if (tool === 'frame') {
+      drag.current = { mode: 'drawFrame', startX: world.x, startY: world.y };
+      setDraftFrame({ x: world.x, y: world.y, width: 0, height: 0 });
+      event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
+    if (tool === 'move') {
+      onSelect([]);
+      drag.current = { mode: 'marquee', startX: world.x, startY: world.y };
+      setMarquee({ x: world.x, y: world.y, width: 0, height: 0 });
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  };
+
+  const startMoveFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
+    if (event.button !== 0 || tool === 'hand') return;
+    event.stopPropagation();
+
+    if (tool === 'shape' || tool === 'text') {
+      const world = toWorld(event.clientX, event.clientY);
+      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(world.x - frame.x), Math.round(world.y - frame.y));
+      onSelect([{ kind: 'frame', frameId: frame.id }]);
+      return;
+    }
+
+    if (tool !== 'move') return;
+    onSelect([{ kind: 'frame', frameId: frame.id }]);
     drag.current = {
       mode: 'moveFrame',
       id: frame.id,
@@ -184,7 +214,7 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
   const startResizeFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
     if (event.button !== 0) return;
     event.stopPropagation();
-    onSelect({ kind: 'frame', frameId: frame.id });
+    onSelect([{ kind: 'frame', frameId: frame.id }]);
     drag.current = {
       mode: 'resizeFrame',
       id: frame.id,
@@ -199,7 +229,15 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
   const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame, layer: Layer): void => {
     if (event.button !== 0) return;
     event.stopPropagation();
-    onSelect({ kind: 'layer', frameId: frame.id, layerId: layer.id });
+
+    if (tool === 'shape' || tool === 'text') {
+      const world = toWorld(event.clientX, event.clientY);
+      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(world.x - frame.x), Math.round(world.y - frame.y));
+      return;
+    }
+
+    if (tool !== 'move') return;
+    onSelect([{ kind: 'layer', frameId: frame.id, layerId: layer.id }]);
     drag.current = {
       mode: 'moveLayer',
       frameId: frame.id,
@@ -215,51 +253,60 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
     if (!current) return;
-    const zoom = currentViewport.current.zoom;
-    const deltaX = current.mode === 'drawFrame' ? 0 : (event.clientX - current.pointerX) / zoom;
-    const deltaY = current.mode === 'drawFrame' ? 0 : (event.clientY - current.pointerY) / zoom;
+    const zoom = live.current.zoom;
 
     switch (current.mode) {
-      case 'drawFrame': {
-        const zoomNow = currentViewport.current.zoom;
-        const host = hostRef.current;
-        if (!host) return;
-        const rect = host.getBoundingClientRect();
-        const worldX = (event.clientX - rect.left - currentViewport.current.x) / zoomNow;
-        const worldY = (event.clientY - rect.top - currentViewport.current.y) / zoomNow;
-        setDrawRect({
-          x: Math.min(current.startX, worldX),
-          y: Math.min(current.startY, worldY),
-          width: Math.abs(worldX - current.startX),
-          height: Math.abs(worldY - current.startY),
-        });
-        return;
-      }
       case 'pan':
         setViewport({
-          ...currentViewport.current,
+          ...live.current,
           x: current.originX + (event.clientX - current.pointerX),
           y: current.originY + (event.clientY - current.pointerY),
         });
         return;
+
+      case 'marquee': {
+        const world = toWorld(event.clientX, event.clientY);
+        setMarquee({
+          x: Math.min(current.startX, world.x),
+          y: Math.min(current.startY, world.y),
+          width: Math.abs(world.x - current.startX),
+          height: Math.abs(world.y - current.startY),
+        });
+        return;
+      }
+
+      case 'drawFrame': {
+        const world = toWorld(event.clientX, event.clientY);
+        setDraftFrame({
+          x: Math.min(current.startX, world.x),
+          y: Math.min(current.startY, world.y),
+          width: Math.abs(world.x - current.startX),
+          height: Math.abs(world.y - current.startY),
+        });
+        return;
+      }
+
       case 'moveFrame':
         onUpdateFrame(current.id, {
-          x: Math.round(current.originX + deltaX),
-          y: Math.round(current.originY + deltaY),
+          x: Math.round(current.originX + (event.clientX - current.pointerX) / zoom),
+          y: Math.round(current.originY + (event.clientY - current.pointerY) / zoom),
         });
         return;
+
       case 'resizeFrame':
         onUpdateFrame(current.id, {
-          width: Math.max(FRAME_MIN_SIZE, Math.round(current.originWidth + deltaX)),
-          height: Math.max(FRAME_MIN_SIZE, Math.round(current.originHeight + deltaY)),
+          width: Math.max(FRAME_MIN_SIZE, Math.round(current.originWidth + (event.clientX - current.pointerX) / zoom)),
+          height: Math.max(FRAME_MIN_SIZE, Math.round(current.originHeight + (event.clientY - current.pointerY) / zoom)),
         });
         return;
+
       case 'moveLayer':
         onUpdateLayer(current.frameId, current.layerId, {
-          x: Math.round(current.originX + deltaX),
-          y: Math.round(current.originY + deltaY),
+          x: Math.round(current.originX + (event.clientX - current.pointerX) / zoom),
+          y: Math.round(current.originY + (event.clientY - current.pointerY) / zoom),
         });
         return;
+
       default:
         return;
     }
@@ -267,12 +314,27 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
-    if (current?.mode === 'drawFrame' && drawRect && drawRect.width >= 20 && drawRect.height >= 20) {
-      onCreateFrame(drawRect);
-      setDrawRect(null);
-    } else if (current?.mode === 'drawFrame') {
-      setDrawRect(null);
+
+    if (current?.mode === 'marquee' && marquee) {
+      const hits: Selection[] = [];
+      for (const frame of doc.frames) {
+        if (intersects(marquee, frame)) hits.push({ kind: 'frame', frameId: frame.id });
+        for (const layer of frame.layers) {
+          const world: WorldRect = { x: frame.x + layer.x, y: frame.y + layer.y, width: layer.width, height: layer.height };
+          if (intersects(marquee, world)) hits.push({ kind: 'layer', frameId: frame.id, layerId: layer.id });
+        }
+      }
+      onSelect(hits);
+      setMarquee(null);
     }
+
+    if (current?.mode === 'drawFrame' && draftFrame && draftFrame.width >= 20 && draftFrame.height >= 20) {
+      onCreateFrame(draftFrame);
+      setDraftFrame(null);
+    } else if (current?.mode === 'drawFrame') {
+      setDraftFrame(null);
+    }
+
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -284,7 +346,7 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
       ref={hostRef}
       className="bp-canvas"
       data-tool={tool}
-      onPointerDown={startPan}
+      onPointerDown={startCanvasDrag}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -293,27 +355,29 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
         className="bp-world"
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}
       >
-        {drawRect ? (
+        {draftFrame ? (
           <div
             className="bp-draw-frame"
-            style={{ left: drawRect.x, top: drawRect.y, width: drawRect.width, height: drawRect.height }}
+            style={{ left: draftFrame.x, top: draftFrame.y, width: draftFrame.width, height: draftFrame.height }}
+          />
+        ) : null}
+
+        {marquee ? (
+          <div
+            className="bp-marquee"
+            style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }}
           />
         ) : null}
 
         {doc.frames.map((frame) => {
-          const frameSelected = selection?.kind === 'frame' && selection.frameId === frame.id;
+          const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
+          const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
           return (
             <div
               key={frame.id}
               className="bp-frame"
               data-selected={frameSelected || undefined}
-              style={{
-                left: frame.x,
-                top: frame.y,
-                width: frame.width,
-                height: frame.height,
-                background: frame.background,
-              }}
+              style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height, background: frame.background }}
               onPointerDown={(event) => startMoveFrame(event, frame)}
             >
               <span className="bp-frame-name">{frame.name}</span>
@@ -325,9 +389,8 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
                 {frame.layers.map((layer) => (
                   <LayerView
                     key={layer.id}
-                    frame={frame}
                     layer={layer}
-                    selected={selection?.kind === 'layer' && selection.layerId === layer.id}
+                    selected={isLayerSelected(selections, frame.id, layer.id)}
                     onPointerDown={(event) => startMoveLayer(event, frame, layer)}
                   />
                 ))}
@@ -339,7 +402,7 @@ export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect,
         })}
       </div>
 
-      {doc.frames.length === 0 ? <div className="bp-canvas-empty">还没有画板</div> : null}
+      {doc.frames.length === 0 ? <div className="bp-canvas-empty">还没有画板，用 Frame 工具拖一个</div> : null}
 
       <div className="bp-zoom">{Math.round(viewport.zoom * 100)}%</div>
     </div>

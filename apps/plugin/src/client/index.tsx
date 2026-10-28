@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
-import { AddFrameIcon, ChevronDown, FrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
+import { AddFrameIcon, ChevronDown, FrameIcon, HandIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
@@ -54,19 +54,20 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
 
   const [tab, setTab] = useState<Tab>('canvas');
-  const [tool, setTool] = useState<Tool>('select');
+  const [tool, setTool] = useState<Tool>('move');
   const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
-  const [selection, setSelection] = useState<Selection | null>(null);
+  const [selections, setSelections] = useState<readonly Selection[]>([]);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const canvasViewport = useRef<ViewportInfo | null>(null);
 
-  const activeFrameId = selection?.frameId ?? null;
+  const activeFrameId = selections[0]?.frameId ?? null;
 
   // Pull the document once on mount. A missing file is a normal first run.
   useEffect(() => {
@@ -116,23 +117,23 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
       : { x: 0, y: 0 };
     const result = addFrame(doc, center);
     setDoc(result.doc);
-    setSelection({ kind: 'frame', frameId: result.frame.id });
+    setSelections([{ kind: 'frame', frameId: result.frame.id }]);
     setTab('canvas');
   };
 
   const onCreateFrameAt = (rect: { x: number; y: number; width: number; height: number }): void => {
     const result = addFrameRect(doc, rect);
     setDoc(result.doc);
-    setSelection({ kind: 'frame', frameId: result.frame.id });
-    setTool('select');
+    setSelections([{ kind: 'frame', frameId: result.frame.id }]);
+    setTool('move');
   };
 
   const onCreateLayer = (frameId: string, kind: LayerKind, x: number, y: number): void => {
     const result = addLayer(doc, frameId, kind, { x, y });
     if (!result) return;
     setDoc(result.doc);
-    setSelection({ kind: 'layer', frameId, layerId: result.layer.id });
-    setTool('select');
+    setSelections([{ kind: 'layer', frameId, layerId: result.layer.id }]);
+    setTool('move');
   };
 
   const onUpdateFrame = (frameId: string, patch: RectPatch): void => {
@@ -207,27 +208,61 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             <Canvas
               viewportRef={canvasViewport}
               doc={doc}
-              selection={selection}
+              selections={selections}
               tool={tool}
               shapeKind={shapeKind}
-              onSelect={setSelection}
+              onSelect={setSelections}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
               onCreateLayer={onCreateLayer}
               onCreateFrame={onCreateFrameAt}
             />
             <div className="bp-tools" role="toolbar" aria-label="工具">
-              <button
-                type="button"
-                className="bp-tool"
-                data-on={tool === 'select'}
-                title="选择"
-                aria-label="选择"
-                aria-pressed={tool === 'select'}
-                onClick={() => setTool('select')}
-              >
-                <PointerIcon />
-              </button>
+              <div className="bp-tool-group">
+                <button
+                  type="button"
+                  className="bp-tool"
+                  data-on={tool === 'move' || tool === 'hand'}
+                  title={tool === 'hand' ? '手' : '移动'}
+                  aria-label="移动或手"
+                  aria-pressed={tool === 'move' || tool === 'hand'}
+                  onClick={() => setTool(tool === 'hand' ? 'hand' : 'move')}
+                >
+                  {tool === 'hand' ? <HandIcon /> : <PointerIcon />}
+                </button>
+                <button
+                  type="button"
+                  className="bp-caret"
+                  aria-label="移动工具选项"
+                  aria-expanded={moveMenuOpen}
+                  onClick={() => setMoveMenuOpen((open) => !open)}
+                >
+                  <ChevronDown />
+                </button>
+                {moveMenuOpen ? (
+                  <div className="bp-menu" role="menu">
+                    {([
+                      { id: 'move', label: '移动', Icon: PointerIcon },
+                      { id: 'hand', label: '手', Icon: HandIcon },
+                    ] as const).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="menuitem"
+                        className="bp-menu-item bp-menu-item-icon"
+                        data-on={tool === item.id}
+                        onClick={() => {
+                          setTool(item.id);
+                          setMoveMenuOpen(false);
+                        }}
+                      >
+                        <item.Icon size={13} />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
               <button
                 type="button"
@@ -324,7 +359,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                         width: preset.width,
                         height: preset.height,
                       });
-                      setTool('select');
+                      setTool('move');
                     }}
                   >
                     <span>{preset.label}</span>
@@ -354,8 +389,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                   <button
                     type="button"
                     className="bp-layer"
-                    data-active={(selection?.kind === 'frame' && selection.frameId === frame.id) || undefined}
-                    onClick={() => setSelection({ kind: 'frame', frameId: frame.id })}
+                    data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
+                    onClick={() => setSelections([{ kind: 'frame', frameId: frame.id }])}
                   >
                     {frame.name}
                   </button>
@@ -364,8 +399,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                       key={layer.id}
                       type="button"
                       className="bp-layer bp-layer-child"
-                      data-active={(selection?.kind === 'layer' && selection.layerId === layer.id) || undefined}
-                      onClick={() => setSelection({ kind: 'layer', frameId: frame.id, layerId: layer.id })}
+                      data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
+                      onClick={() => setSelections([{ kind: 'layer', frameId: frame.id, layerId: layer.id }])}
                     >
                       {layer.name}
                     </button>

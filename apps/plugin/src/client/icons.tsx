@@ -1,6 +1,7 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
 import ChevronDown from 'lucide-react/icons/chevron-down';
 import Frame from 'lucide-react/icons/frame';
+import Hand from 'lucide-react/icons/hand';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
 import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
@@ -63,3 +64,8 @@ export function PointerIcon({ size = 15, className }: IconProps): ReactElement {
 }
 
 export { ChevronDown };
+
+/** Hand tool — pans the canvas. */
+export function HandIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Hand size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}

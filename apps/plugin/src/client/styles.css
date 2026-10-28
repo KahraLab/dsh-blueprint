@@ -477,3 +477,24 @@
   color: var(--dsw-alias-label-secondary, #8f8f8f);
   font-variant-numeric: tabular-nums;
 }
+
+.bp-marquee {
+  position: absolute;
+  border: 1px solid #4fc3f7;
+  background: rgba(79, 195, 247, 0.1);
+  pointer-events: none;
+}
+.bp-canvas[data-tool='hand'] {
+  cursor: grab;
+}
+.bp-canvas[data-tool='hand']:active {
+  cursor: grabbing;
+}
+.bp-canvas[data-tool='move'] {
+  cursor: default;
+}
+.bp-menu-item-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
