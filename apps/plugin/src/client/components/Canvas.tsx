@@ -91,6 +91,11 @@ function LayerView({
         borderRadius: layer.radius,
         background: layer.kind === 'text' ? 'transparent' : layer.fill,
         color: layer.kind === 'text' ? layer.fill : undefined,
+        opacity: layer.opacity,
+        fontSize: layer.kind === 'text' ? layer.fontSize : undefined,
+        fontWeight: layer.kind === 'text' ? layer.fontWeight : undefined,
+        lineHeight: layer.kind === 'text' ? layer.lineHeight : undefined,
+        textAlign: layer.kind === 'text' ? layer.textAlign : undefined,
       }}
       onPointerDown={onPointerDown}
     >
@@ -143,7 +148,7 @@ export function Canvas({
       const pointerY = event.clientY - rect.top;
       const current = live.current;
       if (event.ctrlKey || event.metaKey) {
-        const factor = Math.exp(-event.deltaY * 0.002);
+        const factor = Math.exp(-event.deltaY * 0.006);
         const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
         const worldX = (pointerX - current.x) / current.zoom;
         const worldY = (pointerY - current.y) / current.zoom;
@@ -379,7 +384,14 @@ export function Canvas({
               key={frame.id}
               className="bp-frame"
               data-selected={frameSelected || undefined}
-              style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height, background: frame.background }}
+              style={{
+                left: frame.x,
+                top: frame.y,
+                width: frame.width,
+                height: frame.height,
+                background: frame.background,
+                opacity: frame.opacity,
+              }}
               onPointerDown={(event) => startMoveFrame(event, frame)}
             >
               <span className="bp-frame-name">{frame.name}</span>

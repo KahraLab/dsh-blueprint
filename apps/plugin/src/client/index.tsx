@@ -2,13 +2,14 @@ import { useEffect, useRef, useState, type ComponentType, type PointerEvent as R
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { AddFrameIcon, CaretIcon, FrameIcon, HandIcon, LayersIcon, LockIcon, MarkIcon, MoreIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
+import { CaretIcon, FrameIcon, HandIcon, LayersIcon, LockIcon, MarkIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
   addLayer,
   createDocument,
   updateFrame,
+  normalizeDocument,
   removeSelection,
   updateLayer,
   type BlueprintDocument,
@@ -60,7 +61,6 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
-  const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
@@ -80,7 +80,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
       .then((data: unknown) => {
         if (!alive || !data || typeof data !== 'object') return;
         const candidate = data as BlueprintDocument;
-        if (Array.isArray(candidate.frames)) setDoc(candidate);
+        if (Array.isArray(candidate.frames)) setDoc(normalizeDocument(candidate));
       })
       .catch(() => {})
       .finally(() => {
@@ -128,10 +128,9 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   useEffect(() => {
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('.bp-menu, .bp-row-menu, .bp-caret, .bp-layer-more, .bp-layer-action')) return;
+      if (target?.closest('.bp-menu, .bp-caret, .bp-layer-action')) return;
       setMoveMenuOpen(false);
       setShapeMenuOpen(false);
-      setRowMenu(null);
     };
     window.addEventListener('pointerdown', onPointerDown, true);
     return () => window.removeEventListener('pointerdown', onPointerDown, true);
@@ -398,9 +397,6 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
           <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
             <div className="bp-layers-head">
               <h4>图层</h4>
-              <button type="button" className="bp-layer-add" title="新建画板" aria-label="新建画板" onClick={onCreateFrame}>
-                <AddFrameIcon />
-              </button>
             </div>
             {doc.frames.length === 0 ? (
               <div className="bp-empty">还没有画板</div>
@@ -436,29 +432,6 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                         <LockIcon locked={frame.locked} />
                       </button>
                     </span>
-                    <button
-                      type="button"
-                      className="bp-layer-more"
-                      aria-label="更多操作"
-                      onClick={() => setRowMenu(rowMenu === frame.id ? null : frame.id)}
-                    >
-                      <MoreIcon />
-                    </button>
-                    {rowMenu === frame.id ? (
-                      <div className="bp-row-menu">
-                        <button
-                          type="button"
-                          className="bp-row-menu-item"
-                          onClick={() => {
-                            setDoc((current) => removeSelection(current, [{ kind: 'frame', frameId: frame.id }]));
-                            setSelections([]);
-                            setRowMenu(null);
-                          }}
-                        >
-                          删除画板
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
 
                   {frame.layers.map((layer) => (
@@ -496,31 +469,6 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
                           <LockIcon locked={layer.locked} />
                         </button>
                       </span>
-                      <button
-                        type="button"
-                        className="bp-layer-more"
-                        aria-label="更多操作"
-                        onClick={() => setRowMenu(rowMenu === layer.id ? null : layer.id)}
-                      >
-                        <MoreIcon />
-                      </button>
-                      {rowMenu === layer.id ? (
-                        <div className="bp-row-menu">
-                          <button
-                            type="button"
-                            className="bp-row-menu-item"
-                            onClick={() => {
-                              setDoc((current) =>
-                                removeSelection(current, [{ kind: 'layer', frameId: frame.id, layerId: layer.id }]),
-                              );
-                              setSelections([]);
-                              setRowMenu(null);
-                            }}
-                          >
-                            删除图层
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   ))}
                 </div>

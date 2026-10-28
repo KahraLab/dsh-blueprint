@@ -215,22 +215,6 @@
   justify-content: space-between;
   margin: 2px 6px 8px;
 }
-.bp-layer-add {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary, #8f8f8f);
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-.bp-layer-add:hover {
-  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.1));
-  color: var(--dsw-alias-label-primary, #eee);
-}
 .bp-layers h4 {
   margin: 0;
   font-size: 11px;
@@ -497,56 +481,7 @@
   flex: 1;
   min-width: 0;
 }
-.bp-layer-more {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary, #8f8f8f);
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  opacity: 0;
-  flex: none;
-}
 .bp-layer-row:hover .bp-layer-more,
-.bp-layer-more:focus-visible {
-  opacity: 1;
-}
-.bp-layer-more:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--dsw-alias-label-primary, #eee);
-}
-.bp-row-menu {
-  position: absolute;
-  top: calc(100% + 2px);
-  right: 4px;
-  min-width: 108px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-2, #242424);
-  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-  z-index: 20;
-}
-.bp-row-menu-item {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-primary, #e6e8eb);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.bp-row-menu-item:hover {
-  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.08));
-}
 
 /* ---------- property inspector ---------- */
 .bp-inspector {
@@ -669,4 +604,27 @@
 .bp-layer-row[data-hidden='true'] .bp-layer-actions,
 .bp-layer-row[data-locked='true'] .bp-layer-actions {
   opacity: 1;
+}
+
+.bp-align-group {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+}
+.bp-align-btn {
+  appearance: none;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #b5b5b5);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 0;
+  flex: 1;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.bp-align-btn[data-on='true'] {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #4fc3f7;
 }

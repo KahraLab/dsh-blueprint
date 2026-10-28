@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection } from '../model/document';
+import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection, TextAlign } from '../model/document';
 
 interface FramePreset {
   label: string;
@@ -115,6 +115,12 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
                 onChange={(event) => onUpdateFrame(frame.id, { background: event.target.value })}
               />
             </label>
+            <NumberField
+              label="透明"
+              value={Math.round((frame.opacity ?? 1) * 100)}
+              onChange={(percent) => onUpdateFrame(frame.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
+              suffix="%"
+            />
           </section>
         </>
       ) : picked.kind === 'layer' && layer ? (
@@ -140,15 +146,51 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
             {layer.kind !== 'text' ? (
               <NumberField label="圆角" value={layer.radius} onChange={(radius) => onUpdateLayer(frame!.id, layer.id, { radius })} />
             ) : null}
+            <NumberField
+              label="透明"
+              value={Math.round((layer.opacity ?? 1) * 100)}
+              onChange={(percent) => onUpdateLayer(frame!.id, layer.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
+              suffix="%"
+            />
           </section>
           {layer.kind === 'text' ? (
             <section className="bp-inspector-section">
-              <h5>内容</h5>
+              <h5>文字</h5>
               <textarea
                 className="bp-field-textarea"
                 value={layer.text}
                 onChange={(event) => onUpdateLayer(frame!.id, layer.id, { text: event.target.value })}
               />
+              <NumberField label="字号" value={layer.fontSize} onChange={(fontSize) => onUpdateLayer(frame!.id, layer.id, { fontSize: Math.max(6, fontSize) })} />
+              <label className="bp-field">
+                <span className="bp-field-label">字重</span>
+                <select
+                  className="bp-field-input"
+                  value={layer.fontWeight}
+                  onChange={(event) => onUpdateLayer(frame!.id, layer.id, { fontWeight: Number(event.target.value) })}
+                >
+                  {[300, 400, 500, 600, 700].map((weight) => (
+                    <option key={weight} value={weight}>{weight}</option>
+                  ))}
+                </select>
+              </label>
+              <NumberField label="行高" value={layer.lineHeight} onChange={(lineHeight) => onUpdateLayer(frame!.id, layer.id, { lineHeight: Math.max(0.8, lineHeight) })} />
+              <div className="bp-field">
+                <span className="bp-field-label">对齐</span>
+                <div className="bp-align-group">
+                  {(['left', 'center', 'right'] as const).map((align: TextAlign) => (
+                    <button
+                      key={align}
+                      type="button"
+                      className="bp-align-btn"
+                      data-on={(layer.textAlign ?? 'left') === align}
+                      onClick={() => onUpdateLayer(frame!.id, layer.id, { textAlign: align })}
+                    >
+                      {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </section>
           ) : null}
         </>

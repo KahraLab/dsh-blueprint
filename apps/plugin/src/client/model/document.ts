@@ -8,6 +8,7 @@ function nextId(prefix: string): string {
 }
 
 export type LayerKind = 'rect' | 'ellipse' | 'text';
+export type TextAlign = 'left' | 'center' | 'right';
 
 export interface Layer {
   id: string;
@@ -19,7 +20,12 @@ export interface Layer {
   height: number;
   fill: string;
   radius: number;
+  opacity: number;
   text: string;
+  fontSize: number;
+  fontWeight: number;
+  lineHeight: number;
+  textAlign: TextAlign;
   visible: boolean;
   locked: boolean;
 }
@@ -32,6 +38,7 @@ export interface Frame {
   width: number;
   height: number;
   background: string;
+  opacity: number;
   visible: boolean;
   locked: boolean;
   layers: readonly Layer[];
@@ -46,10 +53,26 @@ export type Selection =
   | { kind: 'layer'; frameId: string; layerId: string };
 
 export type RectPatch = Partial<
-  Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background' | 'visible' | 'locked'>
+  Pick<Frame, 'x' | 'y' | 'width' | 'height' | 'background' | 'opacity' | 'visible' | 'locked'>
 >;
 export type LayerRectPatch = Partial<
-  Pick<Layer, 'x' | 'y' | 'width' | 'height' | 'fill' | 'radius' | 'text' | 'visible' | 'locked'>
+  Pick<
+    Layer,
+    | 'x'
+    | 'y'
+    | 'width'
+    | 'height'
+    | 'fill'
+    | 'radius'
+    | 'opacity'
+    | 'text'
+    | 'fontSize'
+    | 'fontWeight'
+    | 'lineHeight'
+    | 'textAlign'
+    | 'visible'
+    | 'locked'
+  >
 >;
 
 export const FRAME_MIN_SIZE = 120;
@@ -57,6 +80,29 @@ export const LAYER_MIN_SIZE = 8;
 
 const RECT_DEFAULTS = { width: 200, height: 120, fill: 'rgba(148, 154, 164, 0.35)', radius: 8 } as const;
 const TEXT_DEFAULTS = { width: 200, height: 32, fill: '#101828', radius: 0 } as const;
+
+/** Fill in fields that older documents may not have. */
+export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
+  return {
+    ...doc,
+    frames: (doc.frames ?? []).map((frame) => ({
+      ...frame,
+      opacity: frame.opacity ?? 1,
+      visible: frame.visible ?? true,
+      locked: frame.locked ?? false,
+      layers: (frame.layers ?? []).map((layer) => ({
+        ...layer,
+        opacity: layer.opacity ?? 1,
+        fontSize: layer.fontSize ?? 14,
+        fontWeight: layer.fontWeight ?? 400,
+        lineHeight: layer.lineHeight ?? 1.5,
+        textAlign: layer.textAlign ?? 'left',
+        visible: layer.visible ?? true,
+        locked: layer.locked ?? false,
+      })),
+    })),
+  };
+}
 
 export function createDocument(): BlueprintDocument {
   return { frames: [] };
@@ -95,6 +141,7 @@ export function addFrame(
     width: FRAME_WIDTH,
     height: FRAME_HEIGHT,
     background: '#FFFFFF',
+    opacity: 1,
     visible: true,
     locked: false,
     layers: [],
@@ -125,7 +172,12 @@ export function addLayer(
     height: defaults.height,
     fill: defaults.fill,
     radius: kind === 'ellipse' ? 999 : defaults.radius,
+    opacity: 1,
     text: kind === 'text' ? '文本' : '',
+    fontSize: 14,
+    fontWeight: 400,
+    lineHeight: 1.5,
+    textAlign: 'left',
     visible: true,
     locked: false,
   };
@@ -150,6 +202,7 @@ export function addFrameRect(
     width: Math.max(40, Math.round(rect.width)),
     height: Math.max(40, Math.round(rect.height)),
     background: '#FFFFFF',
+    opacity: 1,
     visible: true,
     locked: false,
     layers: [],
