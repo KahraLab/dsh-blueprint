@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useEffect, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas } from './components/Canvas';
 import { AddFrameIcon, LayersIcon, MarkIcon, RectIcon, TextIcon } from './icons';
@@ -26,6 +26,8 @@ const AUTO_OPEN_KEY = 'blueprint.panel.opened.v1';
 const LAYERS_MIN_WIDTH = 160;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
+const DOC_ENDPOINT = '/api/blueprint/doc';
+const SAVE_DEBOUNCE_MS = 600;
 
 type Tab = 'canvas' | 'flow';
 
@@ -48,8 +50,41 @@ function Panel(): ReactElement {
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const activeFrameId = selection?.frameId ?? null;
+
+  // Pull the document once on mount. A missing file is a normal first run.
+  useEffect(() => {
+    let alive = true;
+    fetch(DOC_ENDPOINT, { headers: { accept: 'application/json' } })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: unknown) => {
+        if (!alive || !data || typeof data !== 'object') return;
+        const candidate = data as BlueprintDocument;
+        if (Array.isArray(candidate.frames)) setDoc(candidate);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setHydrated(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Persist after the first load, debounced so dragging does not hammer the disk.
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = setTimeout(() => {
+      fetch(DOC_ENDPOINT, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(doc),
+      }).catch(() => {});
+    }, SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [doc, hydrated]);
 
   const onCreateFrame = (): void => {
     const result = addFrame(doc);

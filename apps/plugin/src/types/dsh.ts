@@ -49,10 +49,41 @@ export interface SidebarRightTabsService {
   register(definition: SidebarRightTabDefinition): Disposable;
 }
 
+export interface FsTarget {
+  readonly __target?: unique symbol;
+}
+
+export interface FsService {
+  resolve(path: string, opts?: { cwd?: string }): Promise<FsTarget>;
+  stat(target: FsTarget): Promise<unknown | undefined>;
+  readText(target: FsTarget): Promise<string>;
+  writeText(target: FsTarget, content: string): Promise<unknown>;
+}
+
+export interface FetchRoute {
+  path: string;
+  methods: readonly string[];
+  requestBody?: 'buffered' | 'stream';
+  fetch(request: Request): Promise<Response> | Response;
+}
+
+export interface ConnectionService {
+  fetch: {
+    register(route: FetchRoute): Promise<Disposable> | Disposable;
+  };
+}
+
+export interface WorkingDirectoryService {
+  readonly defaultDirectory: string;
+}
+
 export interface PluginContext {
   effect(setup: () => Disposable | void, label?: string): Disposable;
   locale: LocaleService;
   slots: SlotsService;
   sidebarRight: SidebarRightService;
   sidebarRightTabs: SidebarRightTabsService;
+  connection: ConnectionService;
+  fs: FsService;
+  workingDirectory: WorkingDirectoryService;
 }
