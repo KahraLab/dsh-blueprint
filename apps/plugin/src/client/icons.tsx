@@ -1,7 +1,7 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
-import SquarePlus from 'lucide-react/icons/square-plus';
+import Plus from 'lucide-react/icons/plus';
 import Type from 'lucide-react/icons/type';
 import type { ReactElement } from 'react';
 
@@ -34,9 +34,9 @@ export function LayersIcon({ size = 15, className }: IconProps): ReactElement {
   return <ListTree size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-/** New frame — a plus inside a frame outline. Used by the header action. */
+/** New frame — a bare plus. */
 export function AddFrameIcon({ size = 15, className }: IconProps): ReactElement {
-  return <SquarePlus size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+  return <Plus size={size} className={className} strokeWidth={2} aria-hidden="true" />;
 }
 
 /** Add a rectangle layer. */
