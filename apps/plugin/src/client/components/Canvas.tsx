@@ -18,10 +18,7 @@ export interface Viewport {
   zoom: number;
 }
 
-export interface ViewportInfo {
-  x: number;
-  y: number;
-  zoom: number;
+export interface ViewportInfo extends Viewport {
   width: number;
   height: number;
 }
@@ -54,9 +51,40 @@ type Drag =
   | { mode: 'pan'; pointerX: number; pointerY: number; originX: number; originY: number }
   | { mode: 'marquee'; startX: number; startY: number }
   | { mode: 'drawFrame'; startX: number; startY: number }
-  | { mode: 'moveFrame'; id: string; pointerX: number; pointerY: number; originX: number; originY: number }
-  | { mode: 'resizeFrame'; id: string; pointerX: number; pointerY: number; originWidth: number; originHeight: number }
-  | { mode: 'moveLayer'; frameId: string; layerId: string; pointerX: number; pointerY: number; originX: number; originY: number };
+  | {
+      mode: 'moveFrame';
+      id: string;
+      pointerX: number;
+      pointerY: number;
+      originX: number;
+      originY: number;
+      element: HTMLDivElement;
+      dx: number;
+      dy: number;
+    }
+  | {
+      mode: 'resizeFrame';
+      id: string;
+      pointerX: number;
+      pointerY: number;
+      originWidth: number;
+      originHeight: number;
+      element: HTMLDivElement;
+      width: number;
+      height: number;
+    }
+  | {
+      mode: 'moveLayer';
+      frameId: string;
+      layerId: string;
+      pointerX: number;
+      pointerY: number;
+      originX: number;
+      originY: number;
+      element: HTMLDivElement;
+      dx: number;
+      dy: number;
+    };
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
@@ -128,14 +156,17 @@ export function Canvas({
   const live = useRef(viewport);
   live.current = viewport;
 
-  // Remember where the user left the canvas, debounced so panning is cheap.
   useEffect(() => {
     const timer = setTimeout(() => onViewportChange?.(viewport), 400);
     return () => clearTimeout(timer);
   }, [viewport, onViewportChange]);
 
   const hostSize = hostRef.current;
-  viewportRef.current = { ...viewport, width: hostSize?.clientWidth ?? 0, height: hostSize?.clientHeight ?? 0 };
+  viewportRef.current = {
+    ...viewport,
+    width: hostSize?.clientWidth ?? 0,
+    height: hostSize?.clientHeight ?? 0,
+  };
 
   const toWorld = (clientX: number, clientY: number): { x: number; y: number } => {
     const host = hostRef.current;
@@ -147,7 +178,7 @@ export function Canvas({
     };
   };
 
-  // Wheel: pan by default, zoom with ctrl/meta. Non-passive so the page does not scroll.
+  // Wheel pans; ctrl/meta zooms around the pointer. Non-passive so the page does not scroll.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -222,12 +253,15 @@ export function Canvas({
       pointerY: event.clientY,
       originX: frame.x,
       originY: frame.y,
+      element: event.currentTarget,
+      dx: 0,
+      dy: 0,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const startResizeFrame = (event: ReactPointerEvent<HTMLDivElement>, frame: Frame): void => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || frame.locked) return;
     event.stopPropagation();
     onSelect([{ kind: 'frame', frameId: frame.id }]);
     drag.current = {
@@ -237,6 +271,9 @@ export function Canvas({
       pointerY: event.clientY,
       originWidth: frame.width,
       originHeight: frame.height,
+      element: (event.currentTarget.parentElement ?? event.currentTarget) as HTMLDivElement,
+      width: frame.width,
+      height: frame.height,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -261,6 +298,9 @@ export function Canvas({
       pointerY: event.clientY,
       originX: layer.x,
       originY: layer.y,
+      element: event.currentTarget,
+      dx: 0,
+      dy: 0,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -301,26 +341,30 @@ export function Canvas({
         return;
       }
 
-      case 'moveFrame':
-        onUpdateFrame(current.id, {
-          x: Math.round(current.originX + (event.clientX - current.pointerX) / zoom),
-          y: Math.round(current.originY + (event.clientY - current.pointerY) / zoom),
-        });
+      // Direct DOM writes during a drag: no document update, no re-render.
+      case 'moveFrame': {
+        current.dx = Math.round((event.clientX - current.pointerX) / zoom);
+        current.dy = Math.round((event.clientY - current.pointerY) / zoom);
+        current.element.style.left = `${current.originX + current.dx}px`;
+        current.element.style.top = `${current.originY + current.dy}px`;
         return;
+      }
 
-      case 'resizeFrame':
-        onUpdateFrame(current.id, {
-          width: Math.max(FRAME_MIN_SIZE, Math.round(current.originWidth + (event.clientX - current.pointerX) / zoom)),
-          height: Math.max(FRAME_MIN_SIZE, Math.round(current.originHeight + (event.clientY - current.pointerY) / zoom)),
-        });
+      case 'resizeFrame': {
+        current.width = Math.max(FRAME_MIN_SIZE, Math.round(current.originWidth + (event.clientX - current.pointerX) / zoom));
+        current.height = Math.max(FRAME_MIN_SIZE, Math.round(current.originHeight + (event.clientY - current.pointerY) / zoom));
+        current.element.style.width = `${current.width}px`;
+        current.element.style.height = `${current.height}px`;
         return;
+      }
 
-      case 'moveLayer':
-        onUpdateLayer(current.frameId, current.layerId, {
-          x: Math.round(current.originX + (event.clientX - current.pointerX) / zoom),
-          y: Math.round(current.originY + (event.clientY - current.pointerY) / zoom),
-        });
+      case 'moveLayer': {
+        current.dx = Math.round((event.clientX - current.pointerX) / zoom);
+        current.dy = Math.round((event.clientY - current.pointerY) / zoom);
+        current.element.style.left = `${current.originX + current.dx}px`;
+        current.element.style.top = `${current.originY + current.dy}px`;
         return;
+      }
 
       default:
         return;
@@ -345,11 +389,21 @@ export function Canvas({
       setMarquee(null);
     }
 
-    if (current?.mode === 'drawFrame' && draftFrame && draftFrame.width >= 20 && draftFrame.height >= 20) {
-      onCreateFrame(draftFrame);
+    if (current?.mode === 'drawFrame') {
+      if (draftFrame && draftFrame.width >= 20 && draftFrame.height >= 20) onCreateFrame(draftFrame);
       setDraftFrame(null);
-    } else if (current?.mode === 'drawFrame') {
-      setDraftFrame(null);
+    }
+
+    if (current?.mode === 'moveFrame') {
+      onUpdateFrame(current.id, { x: current.originX + current.dx, y: current.originY + current.dy });
+    }
+
+    if (current?.mode === 'resizeFrame') {
+      onUpdateFrame(current.id, { width: current.width, height: current.height });
+    }
+
+    if (current?.mode === 'moveLayer') {
+      onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
 
     drag.current = null;
@@ -357,6 +411,23 @@ export function Canvas({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
+
+  // Viewport culling: frames outside the visible world rect are not rendered.
+  const hostWidth = hostSize?.clientWidth ?? 0;
+  const hostHeight = hostSize?.clientHeight ?? 0;
+  const visibleWorld: WorldRect | null =
+    hostWidth > 0 && hostHeight > 0
+      ? {
+          x: -viewport.x / viewport.zoom,
+          y: -viewport.y / viewport.zoom,
+          width: hostWidth / viewport.zoom,
+          height: hostHeight / viewport.zoom,
+        }
+      : null;
+
+  const visibleFrames = doc.frames.filter(
+    (frame) => frame.visible && (visibleWorld === null || intersects(visibleWorld, frame)),
+  );
 
   return (
     <div
@@ -386,7 +457,7 @@ export function Canvas({
           />
         ) : null}
 
-        {doc.frames.filter((frame) => frame.visible).map((frame) => {
+        {visibleFrames.map((frame) => {
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
           const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
           return (
