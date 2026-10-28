@@ -111,6 +111,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   const updateLayer = useBlueprint((state) => state.updateLayer);
   const setFrameLayoutAction = useBlueprint((state) => state.setFrameLayout);
   const setLayerLayoutAction = useBlueprint((state) => state.setLayerLayout);
+  const reorderLayer = useBlueprint((state) => state.reorderLayer);
+  const reorderFrame = useBlueprint((state) => state.reorderFrame);
 
   // One effect for the whole session: read the document, then keep writing it
   // back. The debounce and the fetch live in the store, away from the render path.
@@ -391,6 +393,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onEditText={(frameId, layerId) => setEditing({ frameId, layerId })}
               onUpdateFrame={updateFrame}
               onUpdateLayer={updateLayer}
+              onReorderLayer={reorderLayer}
+              onReorderFrame={reorderFrame}
             />
             <div
               className="bp-resizer"

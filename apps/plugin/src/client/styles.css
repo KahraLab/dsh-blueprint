@@ -104,13 +104,10 @@
   min-width: 0;
   overflow: hidden;
   touch-action: none;
-  cursor: grab;
+  cursor: default;
   background-color: var(--dsw-alias-bg-base, #f2f2f2);
   background-image: radial-gradient(circle at 1px 1px, var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.12)) 1px, transparent 0);
   background-size: 16px 16px;
-}
-.bp-canvas:active {
-  cursor: grabbing;
 }
 .bp-world {
   position: absolute;
@@ -371,9 +368,28 @@
   background: rgba(79, 195, 247, 0.18);
   color: #4fc3f7;
 }
-.bp-canvas[data-tool='rect'],
+.bp-canvas[data-tool='frame'],
+.bp-canvas[data-tool='shape'],
 .bp-canvas[data-tool='text'] {
   cursor: crosshair;
+}
+
+/* The move tool keeps its cursor while dragging: no grabbing hand, no crosshair. */
+.bp-canvas[data-tool='move'] .bp-frame,
+.bp-canvas[data-tool='move'] .bp-el,
+.bp-canvas[data-tool='move'] .bp-el * {
+  cursor: move;
+}
+.bp-canvas[data-tool='move'] .bp-handle {
+  cursor: inherit;
+}
+.bp-canvas[data-tool='move'] .bp-handle[data-corner='nw'],
+.bp-canvas[data-tool='move'] .bp-handle[data-corner='se'] {
+  cursor: nwse-resize;
+}
+.bp-canvas[data-tool='move'] .bp-handle[data-corner='ne'],
+.bp-canvas[data-tool='move'] .bp-handle[data-corner='sw'] {
+  cursor: nesw-resize;
 }
 .bp-el-text {
   color: inherit;
@@ -564,6 +580,26 @@
 }
 
 /* ---------- layers rows ---------- */
+.bp-layer-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.bp-layer-drop {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: #4fc3f7;
+  pointer-events: none;
+  z-index: 2;
+}
+.bp-layer-row[data-dragging='true'] {
+  opacity: 0.45;
+}
 .bp-layer-caret-slot {
   flex: none;
   display: inline-flex;

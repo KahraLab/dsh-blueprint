@@ -8,6 +8,8 @@ import {
   moveLayer,
   normalizeDocument,
   removeSelection,
+  reorderFrame,
+  reorderLayer,
   setFrameLayout,
   setLayerLayout,
   updateFrame,
@@ -52,6 +54,8 @@ interface BlueprintState {
   setFrameLayout(frameId: string, layout: StackLayout | null): void;
   setLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
   deleteSelection(): void;
+  reorderLayer(frameId: string | null, parentId: string | null, layerId: string, beforeId: string | null): void;
+  reorderFrame(frameId: string, beforeId: string | null): void;
 }
 
 export const useBlueprint = create<BlueprintState>((set, get) => ({
@@ -109,6 +113,14 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
   updateLayer: (frameId, layerId, patch) => set({ doc: updateLayer(get().doc, frameId, layerId, patch) }),
   setFrameLayout: (frameId, layout) => set({ doc: setFrameLayout(get().doc, frameId, layout) }),
   setLayerLayout: (frameId, layerId, layout) => set({ doc: setLayerLayout(get().doc, frameId, layerId, layout) }),
+
+  reorderLayer: (frameId, parentId, layerId, beforeId) => {
+    set({ doc: reorderLayer(get().doc, frameId, parentId, layerId, beforeId) });
+  },
+
+  reorderFrame: (frameId, beforeId) => {
+    set({ doc: reorderFrame(get().doc, frameId, beforeId) });
+  },
 
   deleteSelection: () => {
     const { doc, selections } = get();

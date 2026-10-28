@@ -477,6 +477,29 @@ export function moveLayer(doc: BlueprintDocument, frameId: string | null, layerI
   return insertLayer(withRemoval, target, layer);
 }
 
+/** Reorder a layer among its siblings: later siblings paint on top. */
+export function reorderLayer(
+  doc: BlueprintDocument,
+  frameId: string | null,
+  parentId: string | null,
+  layerId: string,
+  beforeId: string | null,
+): BlueprintDocument {
+  return moveLayer(doc, frameId, layerId, { frameId, parentId, beforeId });
+}
+
+/** Reorder a whole frame; frames paint in array order, like layers do. */
+export function reorderFrame(doc: BlueprintDocument, frameId: string, beforeId: string | null): BlueprintDocument {
+  const frame = doc.frames.find((item) => item.id === frameId);
+  if (!frame) return doc;
+  if (frameId === beforeId) return doc;
+  const rest = doc.frames.filter((item) => item.id !== frameId);
+  if (beforeId === null) return { ...doc, frames: [...rest, frame] };
+  const index = rest.findIndex((item) => item.id === beforeId);
+  if (index < 0) return doc;
+  return { ...doc, frames: [...rest.slice(0, index), frame, ...rest.slice(index)] };
+}
+
 /** Append a layer to a container, resolving nothing about position: the caller already did. */
 export function addLayer(
   doc: BlueprintDocument,
