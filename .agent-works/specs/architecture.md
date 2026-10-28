@@ -128,3 +128,11 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 - **交接给编码 Agent**：读的就是磁盘上这份，不需要额外导出步骤，只需要打包。
 - **设计语言升级影响面**：扫所有 `blueprint.json` 里的 `designLanguage` 引用即可算出。
 - **多人协作**：暂时不做。将来要做的话，`apply` 这个唯一入口就是插入协同层的位置。
+
+## 客户端状态
+
+界面状态集中在 `apps/plugin/src/client/store.ts`，一个 zustand store：文档、选中、正在编辑的文字、工具、页签、保存状态都在里面。
+
+- **组件不直接取 store**：画布、属性栏、层级树收的是 props，store 只在面板里读一次再往下传。这样组件还能在无宿主的环境里单独渲染。
+- **读写盘不在渲染路径上**：读盘是 `loadDocument(url)`，写盘是 `startSession(url)` 订阅文档变化后防抖 600ms 再 POST。React 里只留一个 effect 负责启动这一对。
+- **文档永远是整份不可变替换**：每个动作返回新的文档对象，订阅按引用判断有没有变化。

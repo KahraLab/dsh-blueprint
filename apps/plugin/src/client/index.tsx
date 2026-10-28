@@ -1,28 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type EditingLayer, type NewLayerRequest, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
+import { Canvas, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
 import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
-import {
-  addFrame,
-  addFrameRect,
-  addLayer,
-  createDocument,
-  moveLayer,
-  normalizeDocument,
-  removeSelection,
-  setFrameLayout,
-  setLayerLayout,
-  updateFrame,
-  updateLayer,
-  type BlueprintDocument,
-  type InsertTarget,
-  type LayerRectPatch,
-  type RectPatch,
-  type Selection,
-  type StackLayout,
-} from './model/document';
+import { loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
@@ -38,8 +20,13 @@ const INSPECTOR_MAX_WIDTH = 340;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
-const SAVE_DEBOUNCE_MS = 600;
 const VIEWPORT_KEY = 'blueprint.viewport';
+
+/** World point at the middle of the visible canvas, used to place new frames. */
+function canvasCentre(info: ViewportInfo | null): { x: number; y: number } {
+  if (!info || info.zoom <= 0) return { x: 0, y: 0 };
+  return { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom };
+}
 
 function readViewport(key: string): Viewport | undefined {
   try {
@@ -52,8 +39,6 @@ function readViewport(key: string): Viewport | undefined {
     return undefined;
   }
 }
-
-type Tab = 'canvas' | 'flow';
 
 /** The chip inside the right-sidebar tab strip. */
 function createTabTitle(t: (key: string) => string) {
@@ -85,160 +70,51 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     }
   }, [viewportKey]);
 
-  const [tab, setTab] = useState<Tab>('canvas');
-  const [tool, setTool] = useState<Tool>('move');
-  const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
-  const [uiMinimized, setUiMinimized] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [inspectorWidth, setInspectorWidth] = useState(200);
   const [inspectorResize, setInspectorResize] = useState<{ pointerX: number; width: number } | null>(null);
-  const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
-  const [selections, setSelections] = useState<readonly Selection[]>([]);
-  const [editing, setEditing] = useState<EditingLayer | null>(null);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const canvasViewport = useRef<ViewportInfo | null>(null);
 
-  const activeFrameId = selections[0]?.frameId ?? null;
+  const doc = useBlueprint((state) => state.doc);
+  const selections = useBlueprint((state) => state.selections);
+  const editing = useBlueprint((state) => state.editing);
+  const tool = useBlueprint((state) => state.tool);
+  const shapeKind = useBlueprint((state) => state.shapeKind);
+  const tab = useBlueprint((state) => state.tab);
+  const uiMinimized = useBlueprint((state) => state.uiMinimized);
+  const saveState = useBlueprint((state) => state.saveState);
+  const setSelections = useBlueprint((state) => state.setSelections);
+  const setEditing = useBlueprint((state) => state.setEditing);
+  const setTool = useBlueprint((state) => state.setTool);
+  const setShapeKind = useBlueprint((state) => state.setShapeKind);
+  const setTab = useBlueprint((state) => state.setTab);
+  const toggleUiMinimized = useBlueprint((state) => state.toggleUiMinimized);
+  const createFrame = useBlueprint((state) => state.createFrame);
+  const createLayer = useBlueprint((state) => state.createLayer);
+  const moveLayerTo = useBlueprint((state) => state.moveLayerTo);
+  const updateFrame = useBlueprint((state) => state.updateFrame);
+  const updateLayer = useBlueprint((state) => state.updateLayer);
+  const setFrameLayoutAction = useBlueprint((state) => state.setFrameLayout);
+  const setLayerLayoutAction = useBlueprint((state) => state.setLayerLayout);
 
-  // Pull the document once on mount. A missing file is a normal first run.
+  // One effect for the whole session: read the document, then keep writing it
+  // back. The debounce and the fetch live in the store, away from the render path.
   useEffect(() => {
-    let alive = true;
-    fetch(docUrl, { headers: { accept: 'application/json' } })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: unknown) => {
-        if (!alive || !data || typeof data !== 'object') return;
-        const candidate = data as BlueprintDocument;
-        if (Array.isArray(candidate.frames)) setDoc(normalizeDocument(candidate));
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (alive) setHydrated(true);
-      });
-    return () => {
-      alive = false;
-    };
+    void loadDocument(docUrl);
+    return startSession(docUrl);
   }, [docUrl]);
 
-  // Persist after the first load, debounced so dragging does not hammer the disk.
-  useEffect(() => {
-    if (!hydrated) return;
-    const timer = setTimeout(() => {
-      setSaveState('saving');
-      fetch(docUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(doc),
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error(`save failed: ${response.status}`);
-          setSaveState('saved');
-        })
-        .catch((error: unknown) => {
-          console.warn('[blueprint] 保存失败', error);
-          setSaveState('error');
-        });
-    }, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [doc, hydrated, docUrl]);
-
-  const onCreateFrame = (): void => {
-    const info = canvasViewport.current;
-    const center = info && info.zoom > 0
-      ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
-      : { x: 0, y: 0 };
-    const result = addFrame(doc, center);
-    setDoc(result.doc);
-    setSelections([{ kind: 'frame', frameId: result.frame.id }]);
-    setTab('canvas');
-  };
-
-  // Any pointerdown outside a menu (and outside its trigger) closes every menu.
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent): void => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('.bp-menu, .bp-caret, .bp-layer-action')) return;
-      setMoveMenuOpen(false);
-      setShapeMenuOpen(false);
-    };
-    window.addEventListener('pointerdown', onPointerDown, true);
-    return () => window.removeEventListener('pointerdown', onPointerDown, true);
-  }, []);
-
-  // Delete removes whatever is selected, unless focus is inside a text field.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Backspace' && event.key !== 'Delete') return;
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-      if (selections.length === 0) return;
-      event.preventDefault();
-      setDoc((current) => removeSelection(current, selections));
-      setSelections([]);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selections]);
-
   const onPickPreset = (preset: { width: number; height: number }): void => {
-    const info = canvasViewport.current;
-    const center = info && info.zoom > 0
-      ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
-      : { x: 0, y: 0 };
-    onCreateFrameAt({
-      x: center.x - preset.width / 2,
-      y: center.y - preset.height / 2,
+    const centre = canvasCentre(canvasViewport.current);
+    useBlueprint.getState().createFrame({
+      x: centre.x - preset.width / 2,
+      y: centre.y - preset.height / 2,
       width: preset.width,
       height: preset.height,
     });
-    setTool('move');
-  };
-
-  const onCreateFrameAt = (rect: { x: number; y: number; width: number; height: number }): void => {
-    const result = addFrameRect(doc, rect);
-    setDoc(result.doc);
-    setSelections([{ kind: 'frame', frameId: result.frame.id }]);
-    setTool('move');
-  };
-
-  const onCreateLayer = (request: NewLayerRequest): void => {
-    const target: InsertTarget = { frameId: request.frameId, parentId: request.parentId, beforeId: null };
-    const result = addLayer(doc, target, request.kind, request.point, request.fill);
-    setDoc(result.doc);
-    setSelections([{ kind: 'layer', frameId: request.frameId, layerId: result.layer.id }]);
-    if (request.kind === 'text') setEditing({ frameId: request.frameId, layerId: result.layer.id });
-    setTool('move');
-  };
-
-  const onMoveLayer = (
-    frameId: string | null,
-    layerId: string,
-    target: InsertTarget,
-    point: { x: number; y: number } | null,
-  ): void => {
-    setDoc((current) => {
-      const moved = moveLayer(current, frameId, layerId, target);
-      return point ? updateLayer(moved, frameId, layerId, { x: point.x, y: point.y }) : moved;
-    });
-  };
-
-  const onSetFrameLayout = (frameId: string, layout: StackLayout | null): void => {
-    setDoc((current) => setFrameLayout(current, frameId, layout));
-  };
-
-  const onSetLayerLayout = (frameId: string | null, layerId: string, layout: StackLayout | null): void => {
-    setDoc((current) => setLayerLayout(current, frameId, layerId, layout));
-  };
-
-  const onUpdateFrame = (frameId: string, patch: RectPatch): void => {
-    setDoc((current) => updateFrame(current, frameId, patch));
-  };
-
-  const onUpdateLayer = (frameId: string | null, layerId: string, patch: LayerRectPatch): void => {
-    setDoc((current) => updateLayer(current, frameId, layerId, patch));
   };
 
   const onPointerDownResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -292,7 +168,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             title={uiMinimized ? '展开界面' : '收起界面'}
             aria-label={uiMinimized ? '展开界面' : '收起界面'}
             aria-pressed={uiMinimized}
-            onClick={() => setUiMinimized((value) => !value)}
+            onClick={toggleUiMinimized}
           >
             <MinimizeUiIcon />
           </button>
@@ -330,11 +206,11 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               initialViewport={initialViewport}
               onViewportChange={saveViewport}
               onSelect={setSelections}
-              onUpdateFrame={onUpdateFrame}
-              onUpdateLayer={onUpdateLayer}
-              onCreateLayer={onCreateLayer}
-              onCreateFrame={onCreateFrameAt}
-              onMoveLayer={onMoveLayer}
+              onUpdateFrame={updateFrame}
+              onUpdateLayer={updateLayer}
+              onCreateLayer={createLayer}
+              onCreateFrame={createFrame}
+              onMoveLayer={moveLayerTo}
               editing={editing}
               onEditingChange={setEditing}
             />
@@ -475,10 +351,10 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               selections={selections}
               framePresets={tool === 'frame'}
               onPickPreset={onPickPreset}
-              onUpdateFrame={onUpdateFrame}
-              onUpdateLayer={onUpdateLayer}
-              onSetFrameLayout={onSetFrameLayout}
-              onSetLayerLayout={onSetLayerLayout}
+              onUpdateFrame={updateFrame}
+              onUpdateLayer={updateLayer}
+              onSetFrameLayout={setFrameLayoutAction}
+              onSetLayerLayout={setLayerLayoutAction}
             />
             )}
 
@@ -497,8 +373,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               selections={selections}
               onSelect={setSelections}
               onEditText={(frameId, layerId) => setEditing({ frameId, layerId })}
-              onUpdateFrame={onUpdateFrame}
-              onUpdateLayer={onUpdateLayer}
+              onUpdateFrame={updateFrame}
+              onUpdateLayer={updateLayer}
             />
             <div
               className="bp-resizer"

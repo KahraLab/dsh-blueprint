@@ -297,8 +297,11 @@ function visualStyle(layer: Layer): CSSProperties {
     letterSpacing: `${layer.letterSpacing}px`,
     textAlign: layer.textAlign,
     whiteSpace: layer.sizeW === 'fill' ? 'pre-wrap' : 'pre',
+    // A text with a fixed height is a box: the run can sit at its top, middle or
+    // bottom. Horizontal alignment stays with text-align so wrapping still works.
     display: layer.sizeH === 'fixed' ? 'flex' : 'block',
-    alignItems:
+    flexDirection: layer.sizeH === 'fixed' ? 'column' : undefined,
+    justifyContent:
       layer.sizeH !== 'fixed'
         ? undefined
         : layer.verticalAlign === 'middle'
@@ -1097,15 +1100,17 @@ export function Canvas({
                 {frame.children.map((layer) => renderLayer(layer, frame.id, frame.layout))}
               </div>
 
-              {CORNERS.map((corner) => (
-                <div
-                  key={corner}
-                  className="bp-handle"
-                  data-corner={corner}
-                  aria-hidden="true"
-                  onPointerDown={(event) => startResize(event, { kind: 'frame', frameId: frame.id, id: frame.id, corner })}
-                />
-              ))}
+              {frameSelected
+                ? CORNERS.map((corner) => (
+                    <div
+                      key={corner}
+                      className="bp-handle"
+                      data-corner={corner}
+                      aria-hidden="true"
+                      onPointerDown={(event) => startResize(event, { kind: 'frame', frameId: frame.id, id: frame.id, corner })}
+                    />
+                  ))
+                : null}
             </div>
           );
         })}

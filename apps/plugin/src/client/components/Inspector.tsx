@@ -358,7 +358,55 @@ export function Inspector({
         )}
       </section>
 
-      {isText ? null : (
+      {isText ? (
+        <section className="bp-inspector-section">
+          <h5>布局</h5>
+          <div className="bp-typo-field">
+            <span className="bp-typo-label">水平</span>
+            <div className="bp-align-box">
+              {([
+                { id: 'left', label: '左对齐', Icon: TextAlignLeftIcon },
+                { id: 'center', label: '居中', Icon: TextAlignCenterIcon },
+                { id: 'right', label: '右对齐', Icon: TextAlignRightIcon },
+              ] as const).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="bp-align-btn"
+                  title={label}
+                  aria-label={label}
+                  data-on={(layer!.textAlign ?? 'left') === id}
+                  onClick={() => patchLayer({ textAlign: id })}
+                >
+                  <Icon />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bp-typo-field">
+            <span className="bp-typo-label">垂直</span>
+            <div className="bp-align-box">
+              {([
+                { id: 'top', label: '顶部对齐', Icon: AlignTopIcon },
+                { id: 'middle', label: '垂直居中', Icon: AlignMiddleIcon },
+                { id: 'bottom', label: '底部对齐', Icon: AlignBottomIcon },
+              ] as const).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="bp-align-btn"
+                  title={label}
+                  aria-label={label}
+                  data-on={(layer!.verticalAlign ?? 'top') === id}
+                  onClick={() => patchLayer({ verticalAlign: id })}
+                >
+                  <Icon />
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
         <LayoutSection
           layout={isFrame ? frame!.layout : layer!.layout}
           onSet={(layout) => {
@@ -504,49 +552,6 @@ export function Inspector({
               </div>
             </div>
 
-            <div className="bp-typo-field">
-              <span className="bp-typo-label">对齐</span>
-              <div className="bp-align-row">
-                <div className="bp-align-box">
-                  {([
-                    { id: 'left', label: '左对齐', Icon: TextAlignLeftIcon },
-                    { id: 'center', label: '居中', Icon: TextAlignCenterIcon },
-                    { id: 'right', label: '右对齐', Icon: TextAlignRightIcon },
-                  ] as const).map(({ id, label, Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className="bp-align-btn"
-                      title={label}
-                      aria-label={label}
-                      data-on={(layer!.textAlign ?? 'left') === id}
-                      onClick={() => patchLayer({ textAlign: id })}
-                    >
-                      <Icon />
-                    </button>
-                  ))}
-                </div>
-                <div className="bp-align-box">
-                  {([
-                    { id: 'top', label: '顶部对齐', Icon: AlignTopIcon },
-                    { id: 'middle', label: '垂直居中', Icon: AlignMiddleIcon },
-                    { id: 'bottom', label: '底部对齐', Icon: AlignBottomIcon },
-                  ] as const).map(({ id, label, Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className="bp-align-btn"
-                      title={label}
-                      aria-label={label}
-                      data-on={(layer!.verticalAlign ?? 'top') === id}
-                      onClick={() => patchLayer({ verticalAlign: id })}
-                    >
-                      <Icon />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
           </section>
         </>
       ) : null}
