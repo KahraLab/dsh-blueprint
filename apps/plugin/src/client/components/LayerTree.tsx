@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import { LockIcon, VisibilityIcon } from '../icons';
+import { useState, type ReactElement } from 'react';
+import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
 import type {
   BlueprintDocument,
   Frame,
@@ -27,6 +27,9 @@ function Row({
   active,
   visible,
   locked,
+  hasChildren,
+  collapsed,
+  onToggleCollapsed,
   onClick,
   onDoubleClick,
   onToggleVisible,
@@ -39,6 +42,9 @@ function Row({
   active: boolean;
   visible: boolean;
   locked: boolean;
+  hasChildren: boolean;
+  collapsed: boolean;
+  onToggleCollapsed(): void;
   onClick(): void;
   onDoubleClick?(): void;
   onToggleVisible(): void;
@@ -54,6 +60,21 @@ function Row({
       data-active={active || undefined}
       style={{ paddingLeft: BASE_INDENT + depth * INDENT }}
     >
+      <span className="bp-layer-caret-slot">
+        {hasChildren ? (
+          <button
+            type="button"
+            className="bp-layer-caret"
+            data-collapsed={collapsed || undefined}
+            title={collapsed ? '展开' : '收起'}
+            aria-label={collapsed ? '展开子项' : '收起子项'}
+            aria-expanded={!collapsed}
+            onClick={onToggleCollapsed}
+          >
+            <CaretIcon size={10} />
+          </button>
+        ) : null}
+      </span>
       <button type="button" className="bp-layer" onClick={onClick} onDoubleClick={onDoubleClick}>
         {name}
       </button>
@@ -89,47 +110,72 @@ export function LayerTree({
   onUpdateFrame,
   onUpdateLayer,
 }: LayerTreeProps): ReactElement {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const toggleCollapsed = (id: string): void => {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const isLayerActive = (frameId: string | null, layerId: string): boolean =>
     selections.some((item) => item.kind === 'layer' && item.frameId === frameId && item.layerId === layerId);
 
   const renderLayers = (layers: readonly Layer[], frameId: string | null, depth: number): ReactElement[] =>
-    layers.flatMap((layer) => [
-      <Row
-        key={layer.id}
-        name={layer.name}
-        depth={depth}
-        active={isLayerActive(frameId, layer.id)}
-        visible={layer.visible}
-        locked={layer.locked}
-        onClick={() => onSelect([{ kind: 'layer', frameId, layerId: layer.id }])}
-        onDoubleClick={() => {
-          onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
-          if (layer.kind === 'text') onEditText(frameId, layer.id);
-        }}
-        onToggleVisible={() => onUpdateLayer(frameId, layer.id, { visible: !layer.visible })}
-        onToggleLock={() => onUpdateLayer(frameId, layer.id, { locked: !layer.locked })}
-        visibleLabel="图层"
-        lockedLabel="图层"
-      />,
-      ...renderLayers(layer.children, frameId, depth + 1),
-    ]);
+    layers.flatMap((layer) => {
+      const hasChildren = layer.children.length > 0;
+      const isCollapsed = collapsed.has(layer.id);
+      return [
+        <Row
+          key={layer.id}
+          name={layer.name}
+          depth={depth}
+          active={isLayerActive(frameId, layer.id)}
+          visible={layer.visible}
+          locked={layer.locked}
+          hasChildren={hasChildren}
+          collapsed={isCollapsed}
+          onToggleCollapsed={() => toggleCollapsed(layer.id)}
+          onClick={() => onSelect([{ kind: 'layer', frameId, layerId: layer.id }])}
+          onDoubleClick={() => {
+            onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
+            if (layer.kind === 'text') onEditText(frameId, layer.id);
+          }}
+          onToggleVisible={() => onUpdateLayer(frameId, layer.id, { visible: !layer.visible })}
+          onToggleLock={() => onUpdateLayer(frameId, layer.id, { locked: !layer.locked })}
+          visibleLabel="图层"
+          lockedLabel="图层"
+        />,
+        ...(hasChildren && !isCollapsed ? renderLayers(layer.children, frameId, depth + 1) : []),
+      ];
+    });
 
-  const renderFrame = (frame: Frame): ReactElement[] => [
-    <Row
-      key={frame.id}
-      name={frame.name}
-      depth={0}
-      active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id)}
-      visible={frame.visible}
-      locked={frame.locked}
-      onClick={() => onSelect([{ kind: 'frame', frameId: frame.id }])}
-      onToggleVisible={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
-      onToggleLock={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
-      visibleLabel="画板"
-      lockedLabel="画板"
-    />,
-    ...renderLayers(frame.children, frame.id, 1),
-  ];
+  const renderFrame = (frame: Frame): ReactElement[] => {
+    const hasChildren = frame.children.length > 0;
+    const isCollapsed = collapsed.has(frame.id);
+    return [
+      <Row
+        key={frame.id}
+        name={frame.name}
+        depth={0}
+        active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id)}
+        visible={frame.visible}
+        locked={frame.locked}
+        hasChildren={hasChildren}
+        collapsed={isCollapsed}
+        onToggleCollapsed={() => toggleCollapsed(frame.id)}
+        onClick={() => onSelect([{ kind: 'frame', frameId: frame.id }])}
+        onToggleVisible={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
+        onToggleLock={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
+        visibleLabel="画板"
+        lockedLabel="画板"
+      />,
+      ...(hasChildren && !isCollapsed ? renderLayers(frame.children, frame.id, 1) : []),
+    ];
+  };
 
   const rows = [...renderLayers(doc.layers, null, 0), ...doc.frames.flatMap(renderFrame)];
 

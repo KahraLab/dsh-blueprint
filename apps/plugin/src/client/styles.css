@@ -235,6 +235,8 @@
   justify-content: space-between;
   min-height: 24px;
   margin: 0 4px 6px 8px;
+  /* The heading sits in the name column, past the caret slot. */
+  padding-left: 16px;
 }
 .bp-layers {
   padding: 10px 6px;
@@ -496,6 +498,38 @@
 }
 
 /* ---------- layers rows ---------- */
+.bp-layer-caret-slot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+.bp-layer-caret {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #888);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.bp-layer-caret svg {
+  display: block;
+}
+.bp-layer-caret:hover {
+  color: var(--dsw-alias-label-primary, #fff);
+}
+.bp-layer-caret[data-collapsed='true'] svg {
+  transform: rotate(-90deg);
+}
 .bp-layer-row {
   position: relative;
   display: flex;
