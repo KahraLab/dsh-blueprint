@@ -1,8 +1,19 @@
 import { useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas } from './components/Canvas';
-import { AddFrameIcon, LayersIcon, MarkIcon } from './icons';
-import { createFrame, type Frame } from './model/frame';
+import { AddFrameIcon, LayersIcon, MarkIcon, RectIcon, TextIcon } from './icons';
+import {
+  addFrame,
+  addLayer,
+  createDocument,
+  updateFrame,
+  updateLayer,
+  type BlueprintDocument,
+  type LayerKind,
+  type LayerRectPatch,
+  type RectPatch,
+  type Selection,
+} from './model/document';
 import css from './styles.css';
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
@@ -34,19 +45,33 @@ function Panel(): ReactElement {
   const [tab, setTab] = useState<Tab>('canvas');
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
-  const [frames, setFrames] = useState<readonly Frame[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [resizeStart, setResizeStart] = useState<{ pointerX: number; width: number } | null>(null);
 
-  const addFrame = (): void => {
-    const frame = createFrame(frames);
-    setFrames((current) => [...current, frame]);
-    setSelectedId(frame.id);
+  const activeFrameId = selection?.frameId ?? null;
+
+  const onCreateFrame = (): void => {
+    const result = addFrame(doc);
+    setDoc(result.doc);
+    setSelection({ kind: 'frame', frameId: result.frame.id });
     setTab('canvas');
   };
 
-  const changeFrame = (id: string, patch: Partial<Pick<Frame, 'x' | 'y' | 'width' | 'height'>>): void => {
-    setFrames((current) => current.map((frame) => (frame.id === id ? { ...frame, ...patch } : frame)));
+  const onCreateLayer = (kind: LayerKind): void => {
+    if (!activeFrameId) return;
+    const result = addLayer(doc, activeFrameId, kind);
+    if (!result) return;
+    setDoc(result.doc);
+    setSelection({ kind: 'layer', frameId: activeFrameId, layerId: result.layer.id });
+  };
+
+  const onUpdateFrame = (frameId: string, patch: RectPatch): void => {
+    setDoc((current) => updateFrame(current, frameId, patch));
+  };
+
+  const onUpdateLayer = (frameId: string, layerId: string, patch: LayerRectPatch): void => {
+    setDoc((current) => updateLayer(current, frameId, layerId, patch));
   };
 
   const onPointerDownResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -99,7 +124,7 @@ function Panel(): ReactElement {
         </div>
 
         <div className="bp-head-right">
-          <button type="button" className="bp-icon" title="新建画板" aria-label="新建画板" onClick={addFrame}>
+          <button type="button" className="bp-icon" title="新建画板" aria-label="新建画板" onClick={onCreateFrame}>
             <AddFrameIcon />
           </button>
         </div>
@@ -107,12 +132,37 @@ function Panel(): ReactElement {
 
       <div className="bp-main">
         {tab === 'canvas' ? (
-          <Canvas
-            frames={frames}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onChangeFrame={changeFrame}
-          />
+          <>
+            <Canvas
+              doc={doc}
+              selection={selection}
+              onSelect={setSelection}
+              onUpdateFrame={onUpdateFrame}
+              onUpdateLayer={onUpdateLayer}
+            />
+            <div className="bp-tools" role="toolbar" aria-label="添加元素">
+              <button
+                type="button"
+                className="bp-tool"
+                disabled={!activeFrameId}
+                title="矩形"
+                aria-label="矩形"
+                onClick={() => onCreateLayer('rect')}
+              >
+                <RectIcon />
+              </button>
+              <button
+                type="button"
+                className="bp-tool"
+                disabled={!activeFrameId}
+                title="文本"
+                aria-label="文本"
+                onClick={() => onCreateLayer('text')}
+              >
+                <TextIcon />
+              </button>
+            </div>
+          </>
         ) : (
           <div className="bp-placeholder">流程视图</div>
         )}
@@ -120,19 +170,31 @@ function Panel(): ReactElement {
         {layersOpen ? (
           <aside className="bp-layers" aria-label="图层" style={{ width: layersWidth }}>
             <h4>图层</h4>
-            {frames.length === 0 ? (
+            {doc.frames.length === 0 ? (
               <div className="bp-empty">还没有画板</div>
             ) : (
-              frames.map((frame) => (
-                <button
-                  key={frame.id}
-                  type="button"
-                  className="bp-layer"
-                  data-active={frame.id === selectedId || undefined}
-                  onClick={() => setSelectedId(frame.id)}
-                >
-                  {frame.name}
-                </button>
+              doc.frames.map((frame) => (
+                <div key={frame.id}>
+                  <button
+                    type="button"
+                    className="bp-layer"
+                    data-active={(selection?.kind === 'frame' && selection.frameId === frame.id) || undefined}
+                    onClick={() => setSelection({ kind: 'frame', frameId: frame.id })}
+                  >
+                    {frame.name}
+                  </button>
+                  {frame.layers.map((layer) => (
+                    <button
+                      key={layer.id}
+                      type="button"
+                      className="bp-layer bp-layer-child"
+                      data-active={(selection?.kind === 'layer' && selection.layerId === layer.id) || undefined}
+                      onClick={() => setSelection({ kind: 'layer', frameId: frame.id, layerId: layer.id })}
+                    >
+                      {layer.name}
+                    </button>
+                  ))}
+                </div>
               ))
             )}
             <div
