@@ -4,7 +4,7 @@ title: AI 编辑协议
 labels: [wayfinder:grilling]
 status: open
 assignee:
-blocked_by: [bp-g1, bp-p2]
+blocked_by: [bp-g1]
 ---
 
 ## Question
