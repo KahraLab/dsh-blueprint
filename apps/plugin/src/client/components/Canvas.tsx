@@ -1010,8 +1010,9 @@ export function Canvas({
       current.element.style.opacity = '';
       current.element.style.zIndex = '';
       if (current.drop) {
-        const { frameId, parentId, beforeId, point } = current.drop;
-        onMoveLayer(frameId, current.layerId, { frameId, parentId, beforeId }, point);
+        // Source frame is where the layer lives now; the drop carries the target.
+        const { frameId: targetFrameId, parentId, beforeId, point } = current.drop;
+        onMoveLayer(current.frameId, current.layerId, { frameId: targetFrameId, parentId, beforeId }, point);
       }
     }
 
