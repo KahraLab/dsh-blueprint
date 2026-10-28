@@ -65,12 +65,12 @@ function createTabTitle(t: (key: string) => string) {
 }
 
 interface PanelProps {
-  useTabInfo?: () => { tab?: { sessionId?: string }; sessionId?: string };
+  /** Standard prop of `sidebar.right.pane.tab`: the Session this tab belongs to. */
+  sessionId?: string;
 }
 
-function Panel({ useTabInfo }: PanelProps): ReactElement {
-  const tabInfo = typeof useTabInfo === 'function' ? useTabInfo() : undefined;
-  const sessionId = tabInfo?.tab?.sessionId ?? tabInfo?.sessionId ?? null;
+function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
+  const sessionId = tabSessionId ?? null;
   const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
   const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
   const [initialViewport] = useState<Viewport | undefined>(() => readViewport(viewportKey));
