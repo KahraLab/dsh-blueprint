@@ -142,6 +142,9 @@ type Drag =
       originX: number;
       originY: number;
       element: HTMLDivElement;
+      /** Frame body that would clip the drag; it stops clipping until the drop. */
+      clip: HTMLDivElement | null;
+      drop: Drop | null;
       dx: number;
       dy: number;
     }
@@ -625,6 +628,10 @@ export function Canvas({
         drop: null,
       };
     } else {
+      // A frame clips its content, so a free layer would vanish the moment it is
+      // dragged past the edge. Unclipping during the drag keeps it visible.
+      const clip = event.currentTarget.closest<HTMLDivElement>('.bp-frame-body');
+      if (clip) clip.style.overflow = 'visible';
       drag.current = {
         mode: 'moveLayer',
         frameId,
@@ -634,6 +641,8 @@ export function Canvas({
         originX: layer.x,
         originY: layer.y,
         element: event.currentTarget,
+        clip,
+        drop: null,
         dx: 0,
         dy: 0,
       };
@@ -642,31 +651,30 @@ export function Canvas({
   };
 
   /** Work out where a layer dragged to this pointer position would land. */
-  const resolveDrop = (clientX: number, clientY: number, layerId: string, frameId: string | null): Drop | null => {
+  const resolveDrop = (clientX: number, clientY: number, layerId: string): Drop | null => {
     const host = hostRef.current;
     if (!host) return null;
     const draggedElement = host.querySelector<HTMLElement>(`[data-layer-id="${layerId}"]`);
+    const hostRect = host.getBoundingClientRect();
+    const zoom = live.current.zoom;
     const under = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
 
     for (const element of under) {
       const token = element.dataset?.container;
-      // Only stacking containers and frames take a drop: a free layer positions
-      // its children by hand, so aiming at one targets its parent instead.
-      if (!token || (!token.startsWith('frame:') && element.dataset.flow !== 'stack')) continue;
+      if (!token) continue;
       if (draggedElement && (element === draggedElement || draggedElement.contains(element))) continue;
-      // A different frame is a different document branch; moving across is not supported yet.
-      const frameAttr = element.dataset.frame ?? '';
-      const hitFrame = frameAttr === '' ? null : frameAttr;
-      if (hitFrame !== frameId) continue;
 
-      const hostRect = host.getBoundingClientRect();
-      const parentId = element.dataset.container?.startsWith('layer:') ? element.dataset.container.slice('layer:'.length) : null;
+      const frameAttr = element.dataset.frame ?? '';
+      const targetFrameId = frameAttr === '' ? null : frameAttr;
+      const parentId = token.startsWith('layer:') ? token.slice('layer:'.length) : null;
+      // Free layers position their children by hand, so they are not drop targets;
+      // frames and stacking containers are.
+      if (parentId !== null && element.dataset.flow !== 'stack') continue;
 
       if (element.dataset.flow !== 'stack') {
         const box = element.getBoundingClientRect();
-        const zoom = live.current.zoom;
         return {
-          frameId,
+          frameId: targetFrameId,
           parentId,
           beforeId: null,
           point: { x: Math.round((clientX - box.left) / zoom), y: Math.round((clientY - box.top) / zoom) },
@@ -709,7 +717,14 @@ export function Canvas({
         }
       }
 
-      return { frameId, parentId, beforeId, point: null, indicator };
+      return { frameId: targetFrameId, parentId, beforeId, point: null, indicator };
+    }
+
+    // Nothing under the pointer but the canvas itself: the page root takes it,
+    // so a layer can leave its frame the same way it left its container.
+    if (clientX >= hostRect.left && clientX <= hostRect.right && clientY >= hostRect.top && clientY <= hostRect.bottom) {
+      const world = toWorld(clientX, clientY);
+      return { frameId: null, parentId: null, beforeId: null, point: { x: Math.round(world.x), y: Math.round(world.y) }, indicator: null };
     }
     return null;
   };
@@ -883,11 +898,13 @@ export function Canvas({
         current.dy = dy;
         current.element.style.left = `${current.originX + dx}px`;
         current.element.style.top = `${current.originY + dy}px`;
+        current.drop = resolveDrop(event.clientX, event.clientY, current.layerId);
+        setDropIndicator(current.drop?.indicator ?? null);
         return;
       }
 
       case 'moveInStack': {
-        const drop = resolveDrop(event.clientX, event.clientY, current.layerId, current.frameId);
+        const drop = resolveDrop(event.clientX, event.clientY, current.layerId);
         current.drop = drop;
         current.element.style.transform = `translate(${event.clientX - current.pointerX}px, ${event.clientY - current.pointerY}px)`;
         current.element.style.opacity = '0.55';
@@ -946,7 +963,22 @@ export function Canvas({
       else onUpdateLayer(target.frameId, target.id, { width: next.width, height: next.height, sizeW: 'fixed', sizeH: 'fixed' });
     }
     if (current?.mode === 'moveLayer') {
-      onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
+      if (current.clip) current.clip.style.overflow = '';
+      const { drop } = current;
+      const sourceParent = findParent(doc, current.frameId, current.layerId)?.parentId ?? null;
+      // Leaving the frame or entering a stacking container changes the parent;
+      // moving inside the same free container only changes coordinates.
+      const reparent = drop !== null && (drop.frameId !== current.frameId || (drop.parentId !== null && drop.parentId !== sourceParent));
+      if (reparent && drop) {
+        onMoveLayer(
+          current.frameId,
+          current.layerId,
+          { frameId: drop.frameId, parentId: drop.parentId, beforeId: drop.beforeId },
+          drop.point,
+        );
+      } else {
+        onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
+      }
     }
     if (current?.mode === 'moveInStack') {
       current.element.style.transform = '';

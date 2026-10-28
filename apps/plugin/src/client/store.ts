@@ -99,7 +99,10 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
 
   moveLayerTo: (frameId, layerId, target, point) => {
     const moved = moveLayer(get().doc, frameId, layerId, target);
-    set({ doc: point ? updateLayer(moved, frameId, layerId, { x: point.x, y: point.y }) : moved });
+    const doc = point ? updateLayer(moved, target.frameId, layerId, { x: point.x, y: point.y }) : moved;
+    // The layer may now belong to another frame; the selection has to follow it.
+    const moving = get().selections.some((item) => item.kind === 'layer' && item.layerId === layerId);
+    set({ doc, selections: moving ? [{ kind: 'layer', frameId: target.frameId, layerId }] : get().selections });
   },
 
   updateFrame: (frameId, patch) => set({ doc: updateFrame(get().doc, frameId, patch) }),

@@ -445,12 +445,15 @@ function isSelfOrDescendant(layers: readonly Layer[], rootId: string, candidateI
   return root ? findInTree([root], candidateId) !== undefined : false;
 }
 
+/** Move a layer anywhere: within its container, out of it, or into another frame. */
 export function moveLayer(doc: BlueprintDocument, frameId: string | null, layerId: string, target: InsertTarget): BlueprintDocument {
-  if (target.frameId !== frameId) return doc;
-  const sourceFrame = frameId === null ? undefined : findFrame(doc, frameId);
-  const rootLayers = frameId === null ? doc.layers : sourceFrame?.children;
+  const rootLayers = frameId === null ? doc.layers : findFrame(doc, frameId)?.children;
   if (!rootLayers) return doc;
-  if (target.parentId !== null && isSelfOrDescendant(rootLayers, layerId, target.parentId)) return doc;
+
+  // Only drop somewhere that will still exist once the layer is out of the tree.
+  if (target.frameId !== null && !findFrame(doc, target.frameId)) return doc;
+  if (target.parentId !== null && !findLayer(doc, target.frameId, target.parentId)) return doc;
+  if (target.parentId !== null && target.frameId === frameId && isSelfOrDescendant(rootLayers, layerId, target.parentId)) return doc;
 
   const extracted = extractFromTree(rootLayers, layerId);
   if (!extracted.found) return doc;
