@@ -27,7 +27,7 @@ export interface ViewportInfo {
   height: number;
 }
 
-export type Tool = 'select' | 'rect' | 'text';
+export type Tool = 'select' | 'frame' | 'shape' | 'text';
 
 interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
@@ -38,6 +38,7 @@ interface CanvasProps {
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
   onCreateLayer(frameId: string, kind: 'rect' | 'text', x: number, y: number): void;
+  onCreateFrame(x: number, y: number): void;
 }
 
 type Drag =
@@ -81,7 +82,7 @@ function LayerView({
   );
 }
 
-export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer }: CanvasProps): ReactElement {
+export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer, onCreateFrame }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
   const drag = useRef<Drag | null>(null);
@@ -126,6 +127,18 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
 
   const startPan = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
+
+    if (tool === 'frame') {
+      const host = hostRef.current;
+      if (!host) return;
+      const rect = host.getBoundingClientRect();
+      const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
+      const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
+      onCreateFrame(worldX, worldY);
+      return;
+    }
+
+    if (tool !== 'select') return; // shape/text draw inside a frame, not on bare canvas
     onSelect(null);
     drag.current = {
       mode: 'pan',
@@ -148,7 +161,7 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
       const rect = host.getBoundingClientRect();
       const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
       const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
-      onCreateLayer(frame.id, tool, Math.round(worldX - frame.x), Math.round(worldY - frame.y));
+      onCreateLayer(frame.id, tool === 'text' ? 'text' : 'rect', Math.round(worldX - frame.x), Math.round(worldY - frame.y));
       return;
     }
 

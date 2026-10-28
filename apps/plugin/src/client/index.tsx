@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
-import { AddFrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
+import { AddFrameIcon, FrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
   addLayer,
@@ -117,6 +117,13 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setTab('canvas');
   };
 
+  const onCreateFrameAt = (x: number, y: number): void => {
+    const result = addFrame(doc, { x, y });
+    setDoc(result.doc);
+    setSelection({ kind: 'frame', frameId: result.frame.id });
+    setTool('select');
+  };
+
   const onCreateLayer = (frameId: string, kind: LayerKind, x: number, y: number): void => {
     const result = addLayer(doc, frameId, kind, { x, y });
     if (!result) return;
@@ -203,13 +210,15 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
               onCreateLayer={onCreateLayer}
+              onCreateFrame={onCreateFrameAt}
             />
             <div className="bp-tools" role="toolbar" aria-label="工具">
               {(
                 [
                   { id: 'select', label: '选择', Icon: PointerIcon },
-                  { id: 'rect', label: '矩形', Icon: RectIcon },
-                  { id: 'text', label: '文本', Icon: TextIcon },
+                  { id: 'frame', label: 'Frame', Icon: FrameIcon },
+                  { id: 'shape', label: '形状', Icon: RectIcon },
+                  { id: 'text', label: '文字', Icon: TextIcon },
                 ] as const
               ).map(({ id, label, Icon }) => (
                 <button
