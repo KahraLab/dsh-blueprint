@@ -856,11 +856,11 @@
 .bp-fill-field {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   height: 28px;
-  padding: 0 7px;
+  padding: 0 6px;
   box-sizing: border-box;
   border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
   border-radius: 6px;
@@ -889,11 +889,12 @@
   flex: none;
   width: 1px;
   height: 16px;
+  margin: 0 1px;
   background: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
 }
 .bp-fill-opacity {
   flex: none;
-  width: 34px;
+  width: 24px;
   text-align: right;
 }
 .bp-fill-action {
@@ -939,4 +940,11 @@
 .bp-section-add:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--dsw-alias-label-primary, #eee);
+}
+
+.bp-fill-field .bp-input-field {
+  font-size: 11px;
+}
+.bp-fill-field .bp-input-suffix {
+  margin-left: -1px;
 }
