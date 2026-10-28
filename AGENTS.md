@@ -37,7 +37,7 @@ dsh-blueprint/
 ## 工作方式
 
 1. 跑 `python3 .agent-works/issues/frontier.py`，看现在能动的票。
-2. 读地图的 Destination、Notes、Decisions so far。
+2. 读地图的 Destination、实现进度、Notes、Decisions so far。
 3. 认领一张票：把票 frontmatter 里的 `assignee` 写成自己的名字。
 4. 按票的 `labels` 做事：`research` 派子代理查、结果进 `.tmp/research/`；`grilling` 和用户谈定、不替他决定；`prototype` 在 `.tmp/prototype/` 做个粗糙能看的；`task` 做完产出一句可引用的事实。
 5. 收口：票里补 `## Resolution`，`status` 改 `closed`，在地图 Decisions so far 加一行。
@@ -52,7 +52,7 @@ dsh-blueprint/
 - 前端用 React 18，跟平台走；槽位、渲染器、组件库同一套运行时，不引入别的框架。
 - 设计语言的令牌只挂 `[data-bp-dl]` 作用域，不写 `:root`，避免漏进宿主界面。
 - 过程产物一律放 `.tmp/`。`.agent-works/` 只放定稿的东西，仓库根目录不放临时文件、截图、脚本。
-- 定稿之前不写实现代码。这张地图用来定决策，不是用来赶工。
+- **按块定、按块做。** 一块动工之前，那块的决定先定完；没定的先开票谈，不在代码里猜。
 
 ## 命令
 
