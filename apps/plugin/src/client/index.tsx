@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type Tool, type ViewportInfo } from './components/Canvas';
-import { AddFrameIcon, FrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
+import { AddFrameIcon, ChevronDown, FrameIcon, LayersIcon, MarkIcon, PointerIcon, RectIcon, TextIcon } from './icons';
 import {
   addFrame,
+  addFrameRect,
   addLayer,
   createDocument,
   updateFrame,
@@ -54,6 +55,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
 
   const [tab, setTab] = useState<Tab>('canvas');
   const [tool, setTool] = useState<Tool>('select');
+  const [shapeKind, setShapeKind] = useState<'rect' | 'ellipse'>('rect');
+  const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(true);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [doc, setDoc] = useState<BlueprintDocument>(createDocument);
@@ -117,8 +120,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setTab('canvas');
   };
 
-  const onCreateFrameAt = (x: number, y: number): void => {
-    const result = addFrame(doc, { x, y });
+  const onCreateFrameAt = (rect: { x: number; y: number; width: number; height: number }): void => {
+    const result = addFrameRect(doc, rect);
     setDoc(result.doc);
     setSelection({ kind: 'frame', frameId: result.frame.id });
     setTool('select');
@@ -206,6 +209,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               doc={doc}
               selection={selection}
               tool={tool}
+              shapeKind={shapeKind}
               onSelect={setSelection}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
@@ -213,28 +217,122 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onCreateFrame={onCreateFrameAt}
             />
             <div className="bp-tools" role="toolbar" aria-label="工具">
-              {(
-                [
-                  { id: 'select', label: '选择', Icon: PointerIcon },
-                  { id: 'frame', label: 'Frame', Icon: FrameIcon },
-                  { id: 'shape', label: '形状', Icon: RectIcon },
-                  { id: 'text', label: '文字', Icon: TextIcon },
-                ] as const
-              ).map(({ id, label, Icon }) => (
+              <button
+                type="button"
+                className="bp-tool"
+                data-on={tool === 'select'}
+                title="选择"
+                aria-label="选择"
+                aria-pressed={tool === 'select'}
+                onClick={() => setTool('select')}
+              >
+                <PointerIcon />
+              </button>
+
+              <button
+                type="button"
+                className="bp-tool"
+                data-on={tool === 'frame'}
+                title="Frame"
+                aria-label="Frame"
+                aria-pressed={tool === 'frame'}
+                onClick={() => setTool('frame')}
+              >
+                <FrameIcon />
+              </button>
+
+              <div className="bp-tool-group">
                 <button
-                  key={id}
                   type="button"
                   className="bp-tool"
-                  data-on={tool === id}
-                  title={label}
-                  aria-label={label}
-                  aria-pressed={tool === id}
-                  onClick={() => setTool(id)}
+                  data-on={tool === 'shape'}
+                  title={shapeKind === 'rect' ? '矩形' : '椭圆'}
+                  aria-label="形状"
+                  aria-pressed={tool === 'shape'}
+                  onClick={() => setTool('shape')}
                 >
-                  <Icon />
+                  <RectIcon />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="bp-caret"
+                  aria-label="更多形状"
+                  aria-expanded={shapeMenuOpen}
+                  onClick={() => setShapeMenuOpen((open) => !open)}
+                >
+                  <ChevronDown />
+                </button>
+                {shapeMenuOpen ? (
+                  <div className="bp-menu" role="menu">
+                    {([
+                      { id: 'rect', label: '矩形' },
+                      { id: 'ellipse', label: '椭圆' },
+                    ] as const).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="menuitem"
+                        className="bp-menu-item"
+                        data-on={shapeKind === item.id}
+                        onClick={() => {
+                          setShapeKind(item.id);
+                          setTool('shape');
+                          setShapeMenuOpen(false);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <button
+                type="button"
+                className="bp-tool"
+                data-on={tool === 'text'}
+                title="文字"
+                aria-label="文字"
+                aria-pressed={tool === 'text'}
+                onClick={() => setTool('text')}
+              >
+                <TextIcon />
+              </button>
             </div>
+
+            {tool === 'frame' ? (
+              <div className="bp-presets" role="group" aria-label="预设画板尺寸">
+                <div className="bp-presets-title">新画板</div>
+                {([
+                  { label: '手机', width: 390, height: 844 },
+                  { label: '平板', width: 768, height: 1024 },
+                  { label: '桌面', width: 1440, height: 900 },
+                  { label: '方形', width: 800, height: 800 },
+                ] as const).map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className="bp-preset"
+                    onClick={() => {
+                      const info = canvasViewport.current;
+                      const center = info && info.zoom > 0
+                        ? { x: (info.width / 2 - info.x) / info.zoom, y: (info.height / 2 - info.y) / info.zoom }
+                        : { x: 0, y: 0 };
+                      onCreateFrameAt({
+                        x: center.x - preset.width / 2,
+                        y: center.y - preset.height / 2,
+                        width: preset.width,
+                        height: preset.height,
+                      });
+                      setTool('select');
+                    }}
+                  >
+                    <span>{preset.label}</span>
+                    <span className="bp-preset-size">{preset.width} × {preset.height}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="bp-placeholder">流程视图</div>

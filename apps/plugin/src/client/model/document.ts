@@ -7,7 +7,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${counter}`;
 }
 
-export type LayerKind = 'rect' | 'text';
+export type LayerKind = 'rect' | 'ellipse' | 'text';
 
 export interface Layer {
   id: string;
@@ -92,7 +92,7 @@ export function addFrame(
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
 }
 
-const LAYER_NAMES: Record<LayerKind, string> = { rect: '矩形', text: '文本' };
+const LAYER_NAMES: Record<LayerKind, string> = { rect: '矩形', ellipse: '椭圆', text: '文本' };
 
 /** Append a layer to the top of a frame's stack. */
 export function addLayer(
@@ -104,7 +104,7 @@ export function addLayer(
   const frame = doc.frames.find((item) => item.id === frameId);
   if (!frame) return null;
 
-  const defaults = kind === 'rect' ? RECT_DEFAULTS : TEXT_DEFAULTS;
+  const defaults = kind === 'text' ? TEXT_DEFAULTS : RECT_DEFAULTS;
   const layer: Layer = {
     id: nextId('layer'),
     kind,
@@ -114,7 +114,7 @@ export function addLayer(
     width: defaults.width,
     height: defaults.height,
     fill: defaults.fill,
-    radius: defaults.radius,
+    radius: kind === 'ellipse' ? 999 : defaults.radius,
     text: kind === 'text' ? '文本' : '',
   };
 
@@ -123,6 +123,24 @@ export function addLayer(
     doc: { ...doc, frames: doc.frames.map((item) => (item.id === frameId ? next : item)) },
     layer,
   };
+}
+
+/** Append a frame with explicit geometry (drag-drawn or preset). */
+export function addFrameRect(
+  doc: BlueprintDocument,
+  rect: { x: number; y: number; width: number; height: number },
+): { doc: BlueprintDocument; frame: Frame } {
+  const frame: Frame = {
+    id: nextId('frame'),
+    name: `画板 ${doc.frames.length + 1}`,
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.max(40, Math.round(rect.width)),
+    height: Math.max(40, Math.round(rect.height)),
+    background: '#FFFFFF',
+    layers: [],
+  };
+  return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
 }
 
 export function updateFrame(doc: BlueprintDocument, frameId: string, patch: RectPatch): BlueprintDocument {

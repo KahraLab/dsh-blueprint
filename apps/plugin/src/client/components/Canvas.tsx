@@ -34,15 +34,17 @@ interface CanvasProps {
   doc: BlueprintDocument;
   selection: Selection | null;
   tool: Tool;
+  shapeKind: 'rect' | 'ellipse';
   onSelect(selection: Selection | null): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string, layerId: string, patch: LayerRectPatch): void;
-  onCreateLayer(frameId: string, kind: 'rect' | 'text', x: number, y: number): void;
-  onCreateFrame(x: number, y: number): void;
+  onCreateLayer(frameId: string, kind: 'rect' | 'ellipse' | 'text', x: number, y: number): void;
+  onCreateFrame(rect: { x: number; y: number; width: number; height: number }): void;
 }
 
 type Drag =
   | { mode: 'pan'; pointerX: number; pointerY: number; originX: number; originY: number }
+  | { mode: 'drawFrame'; startX: number; startY: number }
   | { mode: 'moveFrame'; id: string; pointerX: number; pointerY: number; originX: number; originY: number }
   | { mode: 'resizeFrame'; id: string; pointerX: number; pointerY: number; originWidth: number; originHeight: number }
   | { mode: 'moveLayer'; frameId: string; layerId: string; pointerX: number; pointerY: number; originX: number; originY: number };
@@ -82,9 +84,10 @@ function LayerView({
   );
 }
 
-export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer, onCreateFrame }: CanvasProps): ReactElement {
+export function Canvas({ viewportRef, doc, selection, tool, shapeKind, onSelect, onUpdateFrame, onUpdateLayer, onCreateLayer, onCreateFrame }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 40, y: 40, zoom: 0.75 });
+  const [drawRect, setDrawRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const drag = useRef<Drag | null>(null);
   const currentViewport = useRef(viewport);
   currentViewport.current = viewport;
@@ -132,9 +135,11 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
       const host = hostRef.current;
       if (!host) return;
       const rect = host.getBoundingClientRect();
-      const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
-      const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
-      onCreateFrame(worldX, worldY);
+      const worldX = (event.clientX - rect.left - currentViewport.current.x) / currentViewport.current.zoom;
+      const worldY = (event.clientY - rect.top - currentViewport.current.y) / currentViewport.current.zoom;
+      drag.current = { mode: 'drawFrame', startX: worldX, startY: worldY };
+      setDrawRect({ x: worldX, y: worldY, width: 0, height: 0 });
+      event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
@@ -161,7 +166,7 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
       const rect = host.getBoundingClientRect();
       const worldX = (event.clientX - rect.left - viewport.x) / viewport.zoom;
       const worldY = (event.clientY - rect.top - viewport.y) / viewport.zoom;
-      onCreateLayer(frame.id, tool === 'text' ? 'text' : 'rect', Math.round(worldX - frame.x), Math.round(worldY - frame.y));
+      onCreateLayer(frame.id, tool === 'text' ? 'text' : shapeKind, Math.round(worldX - frame.x), Math.round(worldY - frame.y));
       return;
     }
 
@@ -211,10 +216,25 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
     const current = drag.current;
     if (!current) return;
     const zoom = currentViewport.current.zoom;
-    const deltaX = (event.clientX - current.pointerX) / zoom;
-    const deltaY = (event.clientY - current.pointerY) / zoom;
+    const deltaX = current.mode === 'drawFrame' ? 0 : (event.clientX - current.pointerX) / zoom;
+    const deltaY = current.mode === 'drawFrame' ? 0 : (event.clientY - current.pointerY) / zoom;
 
     switch (current.mode) {
+      case 'drawFrame': {
+        const zoomNow = currentViewport.current.zoom;
+        const host = hostRef.current;
+        if (!host) return;
+        const rect = host.getBoundingClientRect();
+        const worldX = (event.clientX - rect.left - currentViewport.current.x) / zoomNow;
+        const worldY = (event.clientY - rect.top - currentViewport.current.y) / zoomNow;
+        setDrawRect({
+          x: Math.min(current.startX, worldX),
+          y: Math.min(current.startY, worldY),
+          width: Math.abs(worldX - current.startX),
+          height: Math.abs(worldY - current.startY),
+        });
+        return;
+      }
       case 'pan':
         setViewport({
           ...currentViewport.current,
@@ -246,6 +266,13 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
   };
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const current = drag.current;
+    if (current?.mode === 'drawFrame' && drawRect && drawRect.width >= 20 && drawRect.height >= 20) {
+      onCreateFrame(drawRect);
+      setDrawRect(null);
+    } else if (current?.mode === 'drawFrame') {
+      setDrawRect(null);
+    }
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -266,6 +293,13 @@ export function Canvas({ viewportRef, doc, selection, tool, onSelect, onUpdateFr
         className="bp-world"
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}
       >
+        {drawRect ? (
+          <div
+            className="bp-draw-frame"
+            style={{ left: drawRect.x, top: drawRect.y, width: drawRect.width, height: drawRect.height }}
+          />
+        ) : null}
+
         {doc.frames.map((frame) => {
           const frameSelected = selection?.kind === 'frame' && selection.frameId === frame.id;
           return (

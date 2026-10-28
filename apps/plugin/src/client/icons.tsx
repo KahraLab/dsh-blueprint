@@ -1,4 +1,5 @@
 import DraftingCompass from 'lucide-react/icons/drafting-compass';
+import ChevronDown from 'lucide-react/icons/chevron-down';
 import Frame from 'lucide-react/icons/frame';
 import ListTree from 'lucide-react/icons/list-tree';
 import Square from 'lucide-react/icons/square';
@@ -60,3 +61,5 @@ export function FrameIcon({ size = 15, className }: IconProps): ReactElement {
 export function PointerIcon({ size = 15, className }: IconProps): ReactElement {
   return <MousePointer2 size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
+
+export { ChevronDown };
