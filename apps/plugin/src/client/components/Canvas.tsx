@@ -163,13 +163,16 @@ function LayerView({
   useEffect(() => {
     if (!editing || !editorRef.current) return;
     const node = editorRef.current;
-    node.focus();
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
+    const frame = requestAnimationFrame(() => {
+      node.focus();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [editing]);
 
   return (
@@ -201,6 +204,7 @@ function LayerView({
             ref={editorRef}
             className="bp-text-editor"
             contentEditable
+            onPointerDown={(event) => event.stopPropagation()}
             suppressContentEditableWarning
             spellCheck={false}
             onInput={(event) => onTextInput?.((event.currentTarget as HTMLDivElement).textContent ?? '')}
@@ -333,6 +337,8 @@ export function Canvas({
     }
 
     if (tool === 'shape' || tool === 'text') {
+      // Keep the pointer from stealing focus away from the freshly created editor.
+      event.preventDefault();
       const frame = frameAt(world.x, world.y);
       const kind = tool === 'text' ? 'text' : shapeKind;
       const fill = tool === 'text' ? textColourAt(world.x, world.y) : 'rgba(148, 154, 164, 0.35)';

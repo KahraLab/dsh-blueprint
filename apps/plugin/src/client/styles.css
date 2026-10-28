@@ -689,3 +689,112 @@
   outline: 1px solid #4fc3f7;
   outline-offset: 2px;
 }
+
+/* Canvas chrome is not document text: dragging must never select labels. */
+.bp-canvas,
+.bp-frame,
+.bp-frame-name,
+.bp-frame-size,
+.bp-layer,
+.bp-layer-row,
+.bp-tools,
+.bp-zoom {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bp-el-text,
+.bp-text-editor {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.bp-text-editor:empty::before {
+  content: '';
+  display: inline-block;
+  width: 1ch;
+}
+
+/* ---------- inspector: Figma-like fields ---------- */
+.bp-inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--dsw-alias-label-primary, #e6e8eb);
+}
+.bp-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.bp-input-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base, #161616);
+}
+.bp-input-box:focus-within {
+  border-color: #4fc3f7;
+}
+.bp-input-label {
+  flex: none;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+}
+.bp-input-field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #e6e8eb);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.bp-input-field::-webkit-inner-spin-button,
+.bp-input-field::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.bp-input-suffix {
+  flex: none;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+}
+.bp-color-box .bp-color-swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.bp-align-box {
+  display: flex;
+  gap: 2px;
+}
+.bp-align-box .bp-align-btn {
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  background: var(--dsw-alias-bg-base, #161616);
+  height: 28px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.bp-align-box .bp-align-btn[data-on='true'] {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #4fc3f7;
+}

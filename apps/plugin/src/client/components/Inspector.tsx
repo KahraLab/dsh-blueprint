@@ -1,18 +1,12 @@
 import type { ReactElement } from 'react';
 import type { BlueprintDocument, Layer, LayerRectPatch, RectPatch, Selection, TextAlign } from '../model/document';
 
-interface FramePreset {
-  label: string;
-  width: number;
-  height: number;
-}
-
-const FRAME_PRESETS: readonly FramePreset[] = [
+const FRAME_PRESETS = [
   { label: '手机', width: 390, height: 844 },
   { label: '平板', width: 768, height: 1024 },
   { label: '桌面', width: 1440, height: 900 },
   { label: '方形', width: 800, height: 800 },
-];
+] as const;
 
 interface InspectorProps {
   doc: BlueprintDocument;
@@ -36,7 +30,7 @@ function singleSelection(selections: readonly Selection[]): Single | null {
   return { kind: only.kind, frameId: only.frameId, layerId: only.kind === 'layer' ? only.layerId : undefined };
 }
 
-function NumberField({
+function NumberBox({
   label,
   value,
   onChange,
@@ -48,10 +42,10 @@ function NumberField({
   suffix?: string;
 }): ReactElement {
   return (
-    <label className="bp-field">
-      <span className="bp-field-label">{label}</span>
+    <label className="bp-input-box">
+      <span className="bp-input-label">{label}</span>
       <input
-        className="bp-field-input"
+        className="bp-input-field"
         type="number"
         value={Math.round(value)}
         onChange={(event) => {
@@ -59,24 +53,80 @@ function NumberField({
           if (Number.isFinite(next)) onChange(next);
         }}
       />
-      {suffix ? <span className="bp-field-suffix">{suffix}</span> : null}
+      {suffix ? <span className="bp-input-suffix">{suffix}</span> : null}
     </label>
   );
 }
 
-export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdateFrame, onUpdateLayer }: InspectorProps): ReactElement {
+function ColorBox({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange(value: string): void;
+}): ReactElement {
+  const safe = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : '#000000';
+  return (
+    <label className="bp-input-box bp-color-box">
+      <span className="bp-input-label">{label}</span>
+      <input className="bp-color-swatch" type="color" value={safe} onChange={(event) => onChange(event.target.value)} />
+      <input
+        className="bp-input-field"
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function AlignBox({
+  value,
+  onChange,
+}: {
+  value: TextAlign;
+  onChange(value: TextAlign): void;
+}): ReactElement {
+  return (
+    <div className="bp-align-box">
+      {(['left', 'center', 'right'] as const).map((align) => (
+        <button
+          key={align}
+          type="button"
+          className="bp-align-btn"
+          data-on={value === align}
+          onClick={() => onChange(align)}
+        >
+          {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Inspector({
+  doc,
+  selections,
+  framePresets,
+  onPickPreset,
+  onUpdateFrame,
+  onUpdateLayer,
+}: InspectorProps): ReactElement {
   const picked = singleSelection(selections);
   const frame = picked?.frameId ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
   const layer: Layer | undefined =
     picked?.kind === 'layer' && picked.layerId
-      ? (frame ? frame.layers.find((item) => item.id === picked.layerId) : doc.layers.find((item) => item.id === picked.layerId))
+      ? frame
+        ? frame.layers.find((item) => item.id === picked.layerId)
+        : doc.layers.find((item) => item.id === picked.layerId)
       : undefined;
 
-  return (
-    <aside className="bp-inspector" aria-label="属性">
-      <div className="bp-inspector-head">{framePresets ? '画板尺寸' : '属性'}</div>
-
-      {framePresets ? (
+  if (framePresets) {
+    return (
+      <aside className="bp-inspector" aria-label="画板尺寸">
+        <div className="bp-inspector-head">画板尺寸</div>
         <section className="bp-inspector-section">
           <h5>新建画板</h5>
           {FRAME_PRESETS.map((preset) => (
@@ -93,112 +143,120 @@ export function Inspector({ doc, selections, framePresets, onPickPreset, onUpdat
             </button>
           ))}
         </section>
-      ) : selections.length === 0 ? (
+      </aside>
+    );
+  }
+
+  if (!picked) {
+    return (
+      <aside className="bp-inspector" aria-label="属性">
+        <div className="bp-inspector-head">属性</div>
+        <div className="bp-inspector-empty">{selections.length === 0 ? '未选择' : `已选 ${selections.length} 项`}</div>
+      </aside>
+    );
+  }
+
+  const isFrame = picked.kind === 'frame' && frame !== undefined;
+  const target = isFrame ? frame : layer;
+  if (!target) {
+    return (
+      <aside className="bp-inspector" aria-label="属性">
+        <div className="bp-inspector-head">属性</div>
         <div className="bp-inspector-empty">未选择</div>
-      ) : !picked ? (
-        <div className="bp-inspector-empty">已选 {selections.length} 项</div>
-      ) : picked.kind === 'frame' && frame ? (
-        <>
-          <section className="bp-inspector-section">
-            <h5>画板</h5>
-            <NumberField label="X" value={frame.x} onChange={(x) => onUpdateFrame(frame.id, { x })} />
-            <NumberField label="Y" value={frame.y} onChange={(y) => onUpdateFrame(frame.id, { y })} />
-            <NumberField label="W" value={frame.width} onChange={(width) => onUpdateFrame(frame.id, { width: Math.max(40, width) })} />
-            <NumberField label="H" value={frame.height} onChange={(height) => onUpdateFrame(frame.id, { height: Math.max(40, height) })} />
-          </section>
-          <section className="bp-inspector-section">
-            <h5>外观</h5>
-            <label className="bp-field">
-              <span className="bp-field-label">填充</span>
-              <input
-                className="bp-field-color"
-                type="color"
-                value={frame.background === 'transparent' ? '#ffffff' : frame.background}
-                onChange={(event) => onUpdateFrame(frame.id, { background: event.target.value })}
-              />
-            </label>
-            <NumberField
-              label="透明"
-              value={Math.round((frame.opacity ?? 1) * 100)}
-              onChange={(percent) => onUpdateFrame(frame.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
-              suffix="%"
-            />
-          </section>
-        </>
-      ) : picked.kind === 'layer' && layer ? (
-        <>
-          <section className="bp-inspector-section">
-            <h5>{layer.name}</h5>
-            <NumberField label="X" value={layer.x} onChange={(x) => onUpdateLayer(picked.frameId, layer.id, { x })} />
-            <NumberField label="Y" value={layer.y} onChange={(y) => onUpdateLayer(picked.frameId, layer.id, { y })} />
-            <NumberField label="W" value={layer.width} onChange={(width) => onUpdateLayer(picked.frameId, layer.id, { width: Math.max(4, width) })} />
-            <NumberField label="H" value={layer.height} onChange={(height) => onUpdateLayer(picked.frameId, layer.id, { height: Math.max(4, height) })} />
-          </section>
-          <section className="bp-inspector-section">
-            <h5>外观</h5>
-            <label className="bp-field">
-              <span className="bp-field-label">{layer.kind === 'text' ? '文字色' : '填充'}</span>
-              <input
-                className="bp-field-color"
-                type="color"
-                value={layer.fill === 'transparent' ? '#000000' : layer.fill}
-                onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { fill: event.target.value })}
-              />
-            </label>
-            {layer.kind !== 'text' ? (
-              <NumberField label="圆角" value={layer.radius} onChange={(radius) => onUpdateLayer(picked.frameId, layer.id, { radius })} />
-            ) : null}
-            <NumberField
-              label="透明"
-              value={Math.round((layer.opacity ?? 1) * 100)}
-              onChange={(percent) => onUpdateLayer(picked.frameId, layer.id, { opacity: Math.min(100, Math.max(0, percent)) / 100 })}
-              suffix="%"
-            />
-          </section>
-          {layer.kind === 'text' ? (
-            <section className="bp-inspector-section">
-              <h5>文字</h5>
-              <textarea
-                className="bp-field-textarea"
-                value={layer.text}
-                onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { text: event.target.value })}
-              />
-              <NumberField label="字号" value={layer.fontSize} onChange={(fontSize) => onUpdateLayer(picked.frameId, layer.id, { fontSize: Math.max(6, fontSize) })} />
-              <label className="bp-field">
-                <span className="bp-field-label">字重</span>
-                <select
-                  className="bp-field-input"
-                  value={layer.fontWeight}
-                  onChange={(event) => onUpdateLayer(picked.frameId, layer.id, { fontWeight: Number(event.target.value) })}
-                >
-                  {[300, 400, 500, 600, 700].map((weight) => (
-                    <option key={weight} value={weight}>{weight}</option>
-                  ))}
-                </select>
-              </label>
-              <NumberField label="行高" value={layer.lineHeight} onChange={(lineHeight) => onUpdateLayer(picked.frameId, layer.id, { lineHeight: Math.max(0.8, lineHeight) })} />
-              <div className="bp-field">
-                <span className="bp-field-label">对齐</span>
-                <div className="bp-align-group">
-                  {(['left', 'center', 'right'] as const).map((align: TextAlign) => (
-                    <button
-                      key={align}
-                      type="button"
-                      className="bp-align-btn"
-                      data-on={(layer.textAlign ?? 'left') === align}
-                      onClick={() => onUpdateLayer(picked.frameId, layer.id, { textAlign: align })}
-                    >
-                      {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
+      </aside>
+    );
+  }
+
+  const patchFrame = (patch: RectPatch): void => {
+    if (frame) onUpdateFrame(frame.id, patch);
+  };
+  const patchLayer = (patch: LayerRectPatch): void => {
+    if (layer) onUpdateLayer(picked.frameId, layer.id, patch);
+  };
+
+  return (
+    <aside className="bp-inspector" aria-label="属性">
+      <div className="bp-inspector-head">{picked.kind === 'frame' ? '画板' : layer?.name ?? '图层'}</div>
+
+      <section className="bp-inspector-section">
+        <h5>位置</h5>
+        <div className="bp-grid2">
+          <NumberBox label="X" value={target.x} onChange={(x) => (isFrame ? patchFrame({ x }) : patchLayer({ x }))} />
+          <NumberBox label="Y" value={target.y} onChange={(y) => (isFrame ? patchFrame({ y }) : patchLayer({ y }))} />
+        </div>
+      </section>
+
+      <section className="bp-inspector-section">
+        <h5>尺寸</h5>
+        <div className="bp-grid2">
+          <NumberBox
+            label="W"
+            value={target.width}
+            onChange={(width) => (isFrame ? patchFrame({ width: Math.max(40, width) }) : patchLayer({ width: Math.max(4, width) }))}
+          />
+          <NumberBox
+            label="H"
+            value={target.height}
+            onChange={(height) => (isFrame ? patchFrame({ height: Math.max(40, height) }) : patchLayer({ height: Math.max(4, height) }))}
+          />
+        </div>
+      </section>
+
+      <section className="bp-inspector-section">
+        <h5>{isFrame ? '画板' : '外观'}</h5>
+        <ColorBox
+          label="填充"
+          value={isFrame ? frame!.background : layer!.kind === 'text' ? layer!.fill : layer!.fill}
+          onChange={(value) => (isFrame ? patchFrame({ background: value }) : patchLayer({ fill: value }))}
+        />
+        <div className="bp-grid2">
+          <NumberBox
+            label="透明"
+            value={Math.round(target.opacity * 100)}
+            suffix="%"
+            onChange={(percent) => {
+              const opacity = Math.min(100, Math.max(0, percent)) / 100;
+              if (isFrame) patchFrame({ opacity });
+              else patchLayer({ opacity });
+            }}
+          />
+          {!isFrame && layer?.kind !== 'text' ? (
+            <NumberBox label="圆角" value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
           ) : null}
-        </>
-      ) : (
-        <div className="bp-inspector-empty">未选择</div>
-      )}
+        </div>
+      </section>
+
+      {!isFrame && layer?.kind === 'text' ? (
+        <section className="bp-inspector-section">
+          <h5>文字</h5>
+          <textarea
+            className="bp-field-textarea"
+            value={layer.text}
+            onChange={(event) => patchLayer({ text: event.target.value })}
+          />
+          <div className="bp-grid2">
+            <NumberBox label="字号" value={layer.fontSize} onChange={(fontSize) => patchLayer({ fontSize: Math.max(6, fontSize) })} />
+            <label className="bp-input-box">
+              <span className="bp-input-label">字重</span>
+              <select
+                className="bp-input-field"
+                value={layer.fontWeight}
+                onChange={(event) => patchLayer({ fontWeight: Number(event.target.value) })}
+              >
+                {[300, 400, 500, 600, 700].map((weight) => (
+                  <option key={weight} value={weight}>
+                    {weight}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="bp-grid2">
+            <NumberBox label="行高" value={layer.lineHeight} onChange={(lineHeight) => patchLayer({ lineHeight: Math.max(0.8, lineHeight) })} />
+            <AlignBox value={layer.textAlign} onChange={(textAlign) => patchLayer({ textAlign })} />
+          </div>
+        </section>
+      ) : null}
     </aside>
   );
 }
