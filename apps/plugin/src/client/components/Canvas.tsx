@@ -325,6 +325,14 @@ function ShapeGraphic({ kind, fills, width, height }: { kind: LayerKind; fills: 
     );
   }
 
+  if (kind === 'ellipse') {
+    return (
+      <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <ellipse cx={50} cy={50} rx={50} ry={50} fill={color} />
+      </svg>
+    );
+  }
+
   if (kind === 'polygon' || kind === 'star') {
     return (
       <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -339,7 +347,7 @@ function ShapeGraphic({ kind, fills, width, height }: { kind: LayerKind; fills: 
 /** The shape as it will look while the pointer is still dragging it out. */
 function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): ReactElement {
   const fills: FillStyle[] = [{ id: 'preview', color: '#D9D9D9', opacity: 1 }];
-  const boxed = kind === 'rect' || kind === 'ellipse';
+  const boxed = kind === 'rect';
   return (
     <div
       className="bp-shape-preview"
@@ -349,7 +357,7 @@ function ShapePreview({ kind, rect }: { kind: LayerKind; rect: WorldRect }): Rea
         width: Math.max(1, rect.width),
         height: Math.max(1, rect.height),
         background: boxed ? '#D9D9D9' : 'transparent',
-        borderRadius: kind === 'ellipse' ? '50%' : kind === 'rect' ? 8 : undefined,
+        borderRadius: kind === 'rect' ? 8 : undefined,
       }}
     >
       <ShapeGraphic kind={kind} fills={fills} width={rect.width} height={rect.height} />
@@ -376,11 +384,11 @@ function constrainSquare(startX: number, startY: number, x: number, y: number): 
 function visualStyle(layer: Layer): CSSProperties {
   const isText = layer.kind === 'text';
   if (!isText) {
-    const boxed = layer.kind === 'rect' || layer.kind === 'ellipse';
+    // Only rectangles paint a CSS background; every other shape is drawn as
+    // vector geometry inside its box, so no corner radius can ever distort it.
+    const boxed = layer.kind === 'rect';
     return {
-      // 50% follows the box in both axes; a large px radius would only round the
-      // corners of a rectangle and leave straight runs on the long side.
-      borderRadius: layer.kind === 'ellipse' ? '50%' : boxed ? layer.radius : undefined,
+      borderRadius: boxed ? layer.radius : undefined,
       background: boxed ? fillBackground(layer.fills) : 'transparent',
       opacity: layer.opacity,
     };
