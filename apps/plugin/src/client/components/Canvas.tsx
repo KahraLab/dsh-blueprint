@@ -336,6 +336,7 @@ export function Canvas({
   onEditingChange,
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
+  const sizeChipRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
@@ -651,6 +652,22 @@ export function Canvas({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
+  /** Blue readout under the box being resized or drawn, written straight to the DOM. */
+  const showSizeChip = (rect: DOMRect, width: number, height: number): void => {
+    const host = hostRef.current;
+    const chip = sizeChipRef.current;
+    if (!host || !chip) return;
+    const hostRect = host.getBoundingClientRect();
+    chip.textContent = `${Math.round(width)} × ${Math.round(height)}`;
+    chip.style.left = `${rect.left - hostRect.left + rect.width / 2}px`;
+    chip.style.top = `${rect.bottom - hostRect.top + 8}px`;
+    chip.style.display = 'block';
+  };
+
+  const hideSizeChip = (): void => {
+    if (sizeChipRef.current) sizeChipRef.current.style.display = 'none';
+  };
+
   /** Topmost visible frame holding a world point, read from the document. */
   const frameAtWorld = (world: { x: number; y: number }): Frame | undefined => {
     for (let index = doc.frames.length - 1; index >= 0; index -= 1) {
@@ -778,12 +795,28 @@ export function Canvas({
 
       case 'drawFrame': {
         const world = toWorld(event.clientX, event.clientY);
-        setDraftFrame({
+        const draft = {
           x: Math.min(current.startX, world.x),
           y: Math.min(current.startY, world.y),
           width: Math.abs(world.x - current.startX),
           height: Math.abs(world.y - current.startY),
-        });
+        };
+        setDraftFrame(draft);
+        const host = hostRef.current;
+        if (host) {
+          const hostRect = host.getBoundingClientRect();
+          const view = live.current;
+          showSizeChip(
+            new DOMRect(
+              hostRect.left + view.x + draft.x * view.zoom,
+              hostRect.top + view.y + draft.y * view.zoom,
+              draft.width * view.zoom,
+              draft.height * view.zoom,
+            ),
+            draft.width,
+            draft.height,
+          );
+        }
         return;
       }
 
@@ -860,6 +893,7 @@ export function Canvas({
         }
         current.element.style.width = `${width}px`;
         current.element.style.height = `${height}px`;
+        showSizeChip(current.element.getBoundingClientRect(), width, height);
         return;
       }
 
@@ -1016,6 +1050,7 @@ export function Canvas({
       }
     }
 
+    hideSizeChip();
     setDropIndicator(null);
     setDropFrameId(null);
     setGuides({ x: [], y: [] });
@@ -1198,6 +1233,8 @@ export function Canvas({
 
         {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
       </div>
+
+      <div ref={sizeChipRef} className="bp-size-chip" aria-hidden="true" />
 
       {measure?.map((item, index) => (
         <div key={`m-${index}`} className="bp-measure" style={{ left: item.x, top: item.y, width: item.width, height: item.height }}>

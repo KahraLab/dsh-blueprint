@@ -175,6 +175,23 @@
 .bp-handle[data-corner='sw'] { left: -3px; bottom: -3px; cursor: nesw-resize; }
 .bp-handle[data-corner='se'] { right: -3px; bottom: -3px; cursor: nwse-resize; }
 
+/* ---------- size readout while resizing or drawing ---------- */
+.bp-size-chip {
+  position: absolute;
+  display: none;
+  transform: translateX(-50%);
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #0d99ff;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 7;
+}
+
 /* ---------- measuring (hold ctrl / cmd over the canvas) ---------- */
 .bp-measure {
   position: absolute;
