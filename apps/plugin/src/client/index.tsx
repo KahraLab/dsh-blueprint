@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
-import { Canvas, type EditingLayer, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
+import { Canvas, type EditingLayer, type NewLayerRequest, type Tool, type Viewport, type ViewportInfo } from './components/Canvas';
 import { Inspector } from './components/Inspector';
+import { LayerTree } from './components/LayerTree';
 import { CaretIcon, FrameIcon, HandIcon, LockIcon, MarkIcon, MinimizeUiIcon, PointerIcon, RectIcon, TextIcon, VisibilityIcon } from './icons';
 import {
   addFrame,
   addFrameRect,
   addLayer,
-  addRootLayer,
   createDocument,
-  updateFrame,
+  moveLayer,
   normalizeDocument,
   removeSelection,
+  setFrameLayout,
+  setLayerLayout,
+  updateFrame,
   updateLayer,
-  updateRootLayer,
   type BlueprintDocument,
-  type LayerKind,
+  type InsertTarget,
   type LayerRectPatch,
   type RectPatch,
   type Selection,
+  type StackLayout,
 } from './model/document';
 import css from './styles.css';
 
@@ -201,20 +204,33 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
     setTool('move');
   };
 
-  const onCreateLayer = (frameId: string | null, kind: LayerKind, x: number, y: number, fill: string): void => {
-    if (frameId) {
-      const result = addLayer(doc, frameId, kind, { x, y }, fill);
-      if (!result) return;
-      setDoc(result.doc);
-      setSelections([{ kind: 'layer', frameId, layerId: result.layer.id }]);
-      if (kind === 'text') setEditing({ frameId, layerId: result.layer.id });
-    } else {
-      const result = addRootLayer(doc, kind, x, y, fill);
-      setDoc(result.doc);
-      setSelections([{ kind: 'layer', frameId: null, layerId: result.layer.id }]);
-      if (kind === 'text') setEditing({ frameId: null, layerId: result.layer.id });
-    }
+  const onCreateLayer = (request: NewLayerRequest): void => {
+    const target: InsertTarget = { frameId: request.frameId, parentId: request.parentId, beforeId: null };
+    const result = addLayer(doc, target, request.kind, request.point, request.fill);
+    setDoc(result.doc);
+    setSelections([{ kind: 'layer', frameId: request.frameId, layerId: result.layer.id }]);
+    if (request.kind === 'text') setEditing({ frameId: request.frameId, layerId: result.layer.id });
     setTool('move');
+  };
+
+  const onMoveLayer = (
+    frameId: string | null,
+    layerId: string,
+    target: InsertTarget,
+    point: { x: number; y: number } | null,
+  ): void => {
+    setDoc((current) => {
+      const moved = moveLayer(current, frameId, layerId, target);
+      return point ? updateLayer(moved, frameId, layerId, { x: point.x, y: point.y }) : moved;
+    });
+  };
+
+  const onSetFrameLayout = (frameId: string, layout: StackLayout | null): void => {
+    setDoc((current) => setFrameLayout(current, frameId, layout));
+  };
+
+  const onSetLayerLayout = (frameId: string | null, layerId: string, layout: StackLayout | null): void => {
+    setDoc((current) => setLayerLayout(current, frameId, layerId, layout));
   };
 
   const onUpdateFrame = (frameId: string, patch: RectPatch): void => {
@@ -222,7 +238,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
   };
 
   const onUpdateLayer = (frameId: string | null, layerId: string, patch: LayerRectPatch): void => {
-    setDoc((current) => (frameId ? updateLayer(current, frameId, layerId, patch) : updateRootLayer(current, layerId, patch)));
+    setDoc((current) => updateLayer(current, frameId, layerId, patch));
   };
 
   const onPointerDownResize = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -318,6 +334,7 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onUpdateLayer={onUpdateLayer}
               onCreateLayer={onCreateLayer}
               onCreateFrame={onCreateFrameAt}
+              onMoveLayer={onMoveLayer}
               editing={editing}
               onEditingChange={setEditing}
             />
@@ -460,6 +477,8 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
               onPickPreset={onPickPreset}
               onUpdateFrame={onUpdateFrame}
               onUpdateLayer={onUpdateLayer}
+              onSetFrameLayout={onSetFrameLayout}
+              onSetLayerLayout={onSetLayerLayout}
             />
             )}
 
@@ -473,129 +492,14 @@ function Panel({ useTabInfo }: PanelProps): ReactElement {
             <div className="bp-layers-head">
               <h4>图层</h4>
             </div>
-            {doc.layers.map((layer) => (
-              <div
-                className="bp-layer-row"
-                key={layer.id}
-                data-hidden={String(!layer.visible)}
-                data-locked={String(layer.locked)}
-                data-active={selections.some((item) => item.kind === 'layer' && item.frameId === null && item.layerId === layer.id) || undefined}
-              >
-                <button
-                  type="button"
-                  className="bp-layer"
-                  onClick={() => setSelections([{ kind: 'layer', frameId: null, layerId: layer.id }])}
-                  onDoubleClick={() => {
-                    setSelections([{ kind: 'layer', frameId: null, layerId: layer.id }]);
-                    setEditing({ frameId: null, layerId: layer.id });
-                  }}
-                >
-                  {layer.name}
-                </button>
-                <span className="bp-layer-actions">
-                  <button
-                    type="button"
-                    className="bp-layer-action"
-                    title={layer.visible ? '隐藏' : '显示'}
-                    aria-label={layer.visible ? '隐藏图层' : '显示图层'}
-                    onClick={() => onUpdateLayer(null, layer.id, { visible: !layer.visible })}
-                  >
-                    <VisibilityIcon visible={layer.visible} />
-                  </button>
-                  <button
-                    type="button"
-                    className="bp-layer-action"
-                    title={layer.locked ? '解锁' : '锁定'}
-                    aria-label={layer.locked ? '解锁图层' : '锁定图层'}
-                    onClick={() => onUpdateLayer(null, layer.id, { locked: !layer.locked })}
-                  >
-                    <LockIcon locked={layer.locked} />
-                  </button>
-                </span>
-              </div>
-            ))}
-
-            {doc.frames.length === 0 && doc.layers.length === 0 ? (
-              <div className="bp-empty">还没有内容</div>
-            ) : (
-              doc.frames.map((frame) => (
-                <div key={frame.id}>
-                  <div
-                    className="bp-layer-row"
-                    data-hidden={String(!frame.visible)}
-                    data-locked={String(frame.locked)}
-                    data-active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id) || undefined}
-                  >
-                    <button
-                      type="button"
-                      className="bp-layer"
-                      onClick={() => setSelections([{ kind: 'frame', frameId: frame.id }])}
-                    >
-                      {frame.name}
-                    </button>
-                    <span className="bp-layer-actions">
-                      <button
-                        type="button"
-                        className="bp-layer-action"
-                        title={frame.visible ? '隐藏' : '显示'}
-                        aria-label={frame.visible ? '隐藏画板' : '显示画板'}
-                        onClick={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
-                      >
-                        <VisibilityIcon visible={frame.visible} />
-                      </button>
-                      <button
-                        type="button"
-                        className="bp-layer-action"
-                        title={frame.locked ? '解锁' : '锁定'}
-                        aria-label={frame.locked ? '解锁画板' : '锁定画板'}
-                        onClick={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
-                      >
-                        <LockIcon locked={frame.locked} />
-                      </button>
-                    </span>
-                  </div>
-
-                  {frame.layers.map((layer) => (
-                    <div
-                      className="bp-layer-row bp-layer-row-child"
-                      key={layer.id}
-                      style={{ paddingLeft: 18 }}
-                      data-hidden={String(!layer.visible)}
-                      data-locked={String(layer.locked)}
-                      data-active={selections.some((item) => item.kind === 'layer' && item.layerId === layer.id) || undefined}
-                    >
-                      <button
-                        type="button"
-                        className="bp-layer bp-layer-child"
-                        onClick={() => setSelections([{ kind: 'layer', frameId: frame.id, layerId: layer.id }])}
-                      >
-                        {layer.name}
-                      </button>
-                      <span className="bp-layer-actions">
-                        <button
-                          type="button"
-                          className="bp-layer-action"
-                          title={layer.visible ? '隐藏' : '显示'}
-                          aria-label={layer.visible ? '隐藏图层' : '显示图层'}
-                          onClick={() => onUpdateLayer(frame.id, layer.id, { visible: !layer.visible })}
-                        >
-                          <VisibilityIcon visible={layer.visible} />
-                        </button>
-                        <button
-                          type="button"
-                          className="bp-layer-action"
-                          title={layer.locked ? '解锁' : '锁定'}
-                          aria-label={layer.locked ? '解锁图层' : '锁定图层'}
-                          onClick={() => onUpdateLayer(frame.id, layer.id, { locked: !layer.locked })}
-                        >
-                          <LockIcon locked={layer.locked} />
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
+            <LayerTree
+              doc={doc}
+              selections={selections}
+              onSelect={setSelections}
+              onEditText={(frameId, layerId) => setEditing({ frameId, layerId })}
+              onUpdateFrame={onUpdateFrame}
+              onUpdateLayer={onUpdateLayer}
+            />
             <div
               className="bp-resizer"
               role="separator"

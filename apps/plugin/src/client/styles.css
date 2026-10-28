@@ -326,8 +326,8 @@
   border-radius: inherit;
 }
 .bp-el {
-  position: absolute;
   cursor: default;
+  min-width: 0;
 }
 .bp-el[data-selected='true'] {
   outline: 1.5px solid #4fc3f7;
@@ -336,8 +336,7 @@
 .bp-el-text {
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   color: var(--dsw-alias-label-primary, #101828);
-  padding: 2px 0;
-  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 
@@ -959,4 +958,61 @@
 }
 .bp-fill-field .bp-input-suffix {
   margin-left: -1px;
+}
+
+/* ---------- auto layout ---------- */
+.bp-flow-row {
+  display: flex;
+  gap: 4px;
+}
+.bp-flow-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0;
+  appearance: none;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base, #161616);
+  color: var(--dsw-alias-label-secondary, #b5b5b5);
+  cursor: pointer;
+}
+.bp-flow-btn svg {
+  display: block;
+}
+.bp-flow-btn:hover {
+  color: var(--dsw-alias-label-primary, #fff);
+}
+.bp-flow-btn[data-on='true'] {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #4fc3f7;
+}
+.bp-size-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.bp-size-row .bp-input-box {
+  flex: 1;
+  min-width: 0;
+}
+.bp-size-mode {
+  flex: none;
+  width: 56px;
+  height: 28px;
+  padding: 0 2px;
+}
+.bp-input-box[data-disabled='true'] {
+  opacity: 0.45;
+}
+.bp-drop-line {
+  position: absolute;
+  background: #4fc3f7;
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 5;
 }

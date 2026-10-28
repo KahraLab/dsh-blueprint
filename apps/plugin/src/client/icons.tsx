@@ -5,6 +5,16 @@ import AlignEndVertical from 'lucide-react/icons/align-end-vertical';
 import AlignLeft from 'lucide-react/icons/align-left';
 import AlignRight from 'lucide-react/icons/align-right';
 import AlignStartVertical from 'lucide-react/icons/align-start-vertical';
+import Move from 'lucide-react/icons/move';
+import ArrowDown from 'lucide-react/icons/arrow-down';
+import ArrowRight from 'lucide-react/icons/arrow-right';
+import AlignStartHorizontal from 'lucide-react/icons/align-start-horizontal';
+import AlignCenterHorizontal from 'lucide-react/icons/align-center-horizontal';
+import AlignEndHorizontal from 'lucide-react/icons/align-end-horizontal';
+import AlignHorizontalSpaceBetween from 'lucide-react/icons/align-horizontal-space-between';
+import AlignVerticalSpaceBetween from 'lucide-react/icons/align-vertical-space-between';
+import StretchHorizontal from 'lucide-react/icons/stretch-horizontal';
+import StretchVertical from 'lucide-react/icons/stretch-vertical';
 import ChevronDown from 'lucide-react/icons/chevron-down';
 import Eye from 'lucide-react/icons/eye';
 import EyeOff from 'lucide-react/icons/eye-off';
@@ -134,4 +144,45 @@ export function AlignBottomIcon({ size = 14 }: { size?: number }): ReactElement 
 /** Remove / reset affordance. */
 export function MinusIcon({ size = 13 }: { size?: number }): ReactElement {
   return <Minus size={size} strokeWidth={2} aria-hidden="true" />;
+}
+
+/** Free positioning — children keep their own coordinates. */
+export function FlowFreeIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <Move size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Column: children stack downwards. */
+export function FlowColumnIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <ArrowDown size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Row: children flow to the right. */
+export function FlowRowIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <ArrowRight size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+export type AxisAlignMode = 'start' | 'center' | 'end' | 'between';
+
+/**
+ * Alignment inside a container. `axis` is the direction the children are placed
+ * along: `'x'` draws vertical guide lines, `'y'` draws horizontal ones.
+ */
+export function AxisAlignIcon({ axis, mode, size = 14 }: { axis: 'x' | 'y'; mode: AxisAlignMode; size?: number }): ReactElement {
+  if (axis === 'x') {
+    if (mode === 'start') return <AlignStartVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+    if (mode === 'center') return <AlignCenterVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+    if (mode === 'end') return <AlignEndVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
+    return <AlignVerticalSpaceBetween size={size} strokeWidth={1.8} aria-hidden="true" />;
+  }
+  if (mode === 'start') return <AlignStartHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />;
+  if (mode === 'center') return <AlignCenterHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />;
+  if (mode === 'end') return <AlignEndHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />;
+  return <AlignHorizontalSpaceBetween size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Stretch a child across the container's cross axis. */
+export function StretchIcon({ axis, size = 14 }: { axis: 'x' | 'y'; size?: number }): ReactElement {
+  return axis === 'x'
+    ? <StretchHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />
+    : <StretchVertical size={size} strokeWidth={1.8} aria-hidden="true" />;
 }

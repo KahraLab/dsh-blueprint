@@ -1,12 +1,19 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactElement } from 'react';
 import {
   FRAME_MIN_SIZE,
+  findFrame,
+  findLayer,
+  findParent,
   type BlueprintDocument,
   type Frame,
+  type InsertTarget,
   type Layer,
   type LayerRectPatch,
   type RectPatch,
   type Selection,
+  type StackAlign,
+  type StackJustify,
+  type StackLayout,
 } from '../model/document';
 import { fillBackground, topFillColor } from '../model/fill';
 
@@ -32,6 +39,14 @@ export interface EditingLayer {
   layerId: string;
 }
 
+export interface NewLayerRequest {
+  frameId: string | null;
+  parentId: string | null;
+  point: { x: number; y: number };
+  kind: 'rect' | 'ellipse' | 'text';
+  fill: string;
+}
+
 interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
   doc: BlueprintDocument;
@@ -44,8 +59,9 @@ interface CanvasProps {
   onSelect(selections: Selection[]): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
-  onCreateLayer(frameId: string | null, kind: 'rect' | 'ellipse' | 'text', x: number, y: number, fill: string): void;
+  onCreateLayer(request: NewLayerRequest): void;
   onCreateFrame(rect: { x: number; y: number; width: number; height: number }): void;
+  onMoveLayer(frameId: string | null, layerId: string, target: InsertTarget, point: { x: number; y: number } | null): void;
   onEditingChange(editing: EditingLayer | null): void;
 }
 
@@ -54,6 +70,22 @@ interface WorldRect {
   y: number;
   width: number;
   height: number;
+}
+
+interface LocalRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Where a dragged layer would land. */
+interface Drop {
+  frameId: string | null;
+  parentId: string | null;
+  beforeId: string | null;
+  point: { x: number; y: number } | null;
+  indicator: LocalRect | null;
 }
 
 type Drag =
@@ -93,7 +125,27 @@ type Drag =
       element: HTMLDivElement;
       dx: number;
       dy: number;
+    }
+  | {
+      mode: 'moveInStack';
+      frameId: string | null;
+      layerId: string;
+      drop: Drop | null;
     };
+
+const ALIGN_CSS: Record<StackAlign, CSSProperties['alignItems']> = {
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end',
+  stretch: 'stretch',
+};
+
+const JUSTIFY_CSS: Record<StackJustify, CSSProperties['justifyContent']> = {
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end',
+  between: 'space-between',
+};
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
@@ -147,7 +199,7 @@ function snapDelta(values: number[], candidates: number[], threshold: number): {
 
 let measureCanvas: HTMLCanvasElement | null = null;
 
-/** Text follows the glyphs: the box is measured from the characters, not fixed. */
+/** Text follows the glyphs: one line hugs the characters, a filled box wraps. */
 function measureText(
   layer: Pick<Layer, 'text' | 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing'>,
 ): { width: number; height: number } {
@@ -163,107 +215,79 @@ function measureText(
   return { width: Math.max(8, width), height };
 }
 
-function LayerView({
-  layer,
-  selected,
-  editing,
-  onPointerDown,
-  onDoubleClick,
-  onTextInput,
-  onFinishEditing,
-}: {
-  layer: Layer;
-  selected: boolean;
-  editing: boolean;
-  onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void;
-  onDoubleClick?(): void;
-  onTextInput?(text: string): void;
-  onFinishEditing?(): void;
-}): ReactElement {
-  const editorRef = useRef<HTMLDivElement>(null);
+/** Flex settings for a container that arranges its children. */
+function containerStyle(layout: StackLayout): CSSProperties {
+  return {
+    display: 'flex',
+    flexDirection: layout.direction === 'row' ? 'row' : 'column',
+    gap: layout.gap,
+    padding: `${layout.padding.top}px ${layout.padding.right}px ${layout.padding.bottom}px ${layout.padding.left}px`,
+    alignItems: ALIGN_CSS[layout.align],
+    justifyContent: JUSTIFY_CSS[layout.justify],
+    overflow: 'hidden',
+  };
+}
+
+/** Where a child sits when its parent is a stack. */
+function flowItemStyle(layer: Layer, layout: StackLayout): CSSProperties {
+  const row = layout.direction === 'row';
+  const style: CSSProperties = { position: 'relative' };
+  const mainMode = row ? layer.sizeW : layer.sizeH;
+  const crossMode = row ? layer.sizeH : layer.sizeW;
+
+  if (mainMode === 'fixed') {
+    if (row) style.width = layer.width;
+    else style.height = layer.height;
+  } else if (mainMode === 'fill') {
+    style.flex = '1 1 0';
+    if (row) style.minWidth = 0;
+    else style.minHeight = 0;
+  }
+
+  if (crossMode === 'fixed') {
+    if (row) style.height = layer.height;
+    else style.width = layer.width;
+  } else if (crossMode === 'fill') {
+    style.alignSelf = 'stretch';
+  }
+  return style;
+}
+
+/** Where a child sits when its parent positions children freely. */
+function freeItemStyle(layer: Layer): CSSProperties {
+  const style: CSSProperties = { position: 'absolute', left: layer.x, top: layer.y };
+  if (layer.sizeW === 'fixed') style.width = layer.width;
+  if (layer.sizeH === 'fixed') style.height = layer.height;
+  return style;
+}
+
+/** Paint, corner radius and type. */
+function visualStyle(layer: Layer): CSSProperties {
   const isText = layer.kind === 'text';
-
-  useEffect(() => {
-    if (!editing || !editorRef.current) return;
-    const node = editorRef.current;
-    // Seed the editor with the layer's text; React owns no children here, so the
-    // DOM text survives re-renders while typing.
-    node.textContent = layer.text;
-    // Wait for the native double-click word selection to finish, then take over
-    // and select the whole run: entering edit always starts with everything selected.
-    const timer = setTimeout(() => {
-      node.focus();
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [editing, layer.id]);
-
-  return (
-    <div
-      className={`bp-el bp-el-${layer.kind}`}
-      data-selected={selected || undefined}
-      data-editing={editing || undefined}
-      style={{
-        left: layer.x,
-        top: layer.y,
-        width: isText ? undefined : layer.width,
-        height: isText ? layer.height : layer.height,
-        borderRadius: layer.radius,
-        background: isText ? 'transparent' : fillBackground(layer.fills),
-        color: isText ? topFillColor(layer.fills) : undefined,
-        opacity: layer.opacity,
-        fontSize: isText ? layer.fontSize : undefined,
-        fontFamily: isText ? `"${layer.fontFamily}", ${TEXT_FONT_STACK}` : undefined,
-        fontWeight: isText ? layer.fontWeight : undefined,
-        lineHeight: isText ? layer.lineHeight : undefined,
-        letterSpacing: isText ? `${layer.letterSpacing}px` : undefined,
-        textAlign: isText ? layer.textAlign : undefined,
-        whiteSpace: isText ? 'pre' : undefined,
-        display: isText ? 'flex' : undefined,
-        alignItems:
-          isText
-            ? layer.verticalAlign === 'middle'
-              ? 'center'
-              : layer.verticalAlign === 'bottom'
-                ? 'flex-end'
-                : 'flex-start'
-            : undefined,
-      }}
-      onPointerDown={onPointerDown}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onDoubleClick?.();
-      }}
-    >
-      {isText ? (
-        editing ? (
-          <div
-            ref={editorRef}
-            className="bp-text-editor"
-            contentEditable
-            onPointerDown={(event) => event.stopPropagation()}
-            suppressContentEditableWarning
-            spellCheck={false}
-            onInput={(event) => onTextInput?.((event.currentTarget as HTMLDivElement).textContent ?? '')}
-            onBlur={() => onFinishEditing?.()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                onFinishEditing?.();
-              }
-            }}
-          />
-        ) : (
-          layer.text
-        )
-      ) : null}
-    </div>
-  );
+  const fill = isText ? 'transparent' : fillBackground(layer.fills);
+  if (!isText) {
+    return { borderRadius: layer.radius, background: fill, opacity: layer.opacity };
+  }
+  return {
+    color: topFillColor(layer.fills),
+    opacity: layer.opacity,
+    fontSize: layer.fontSize,
+    fontFamily: `"${layer.fontFamily}", ${TEXT_FONT_STACK}`,
+    fontWeight: layer.fontWeight,
+    lineHeight: layer.lineHeight,
+    letterSpacing: `${layer.letterSpacing}px`,
+    textAlign: layer.textAlign,
+    whiteSpace: layer.sizeW === 'fill' ? 'pre-wrap' : 'pre',
+    display: layer.sizeH === 'fixed' ? 'flex' : 'block',
+    alignItems:
+      layer.sizeH !== 'fixed'
+        ? undefined
+        : layer.verticalAlign === 'middle'
+          ? 'center'
+          : layer.verticalAlign === 'bottom'
+            ? 'flex-end'
+            : 'flex-start',
+  };
 }
 
 export function Canvas({
@@ -280,6 +304,7 @@ export function Canvas({
   onUpdateLayer,
   onCreateLayer,
   onCreateFrame,
+  onMoveLayer,
   onEditingChange,
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -287,6 +312,7 @@ export function Canvas({
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [dropIndicator, setDropIndicator] = useState<LocalRect | null>(null);
   const drag = useRef<Drag | null>(null);
   const live = useRef(viewport);
   live.current = viewport;
@@ -313,19 +339,10 @@ export function Canvas({
     };
   };
 
-  /** The frame under a world point, topmost first. */
-  const frameAt = (x: number, y: number): Frame | undefined => {
-    for (let index = doc.frames.length - 1; index >= 0; index -= 1) {
-      const frame = doc.frames[index];
-      if (!frame || !frame.visible || frame.locked) continue;
-      if (x >= frame.x && x <= frame.x + frame.width && y >= frame.y && y <= frame.y + frame.height) return frame;
-    }
-    return undefined;
-  };
-
   /** Dark text on light surfaces, light text on dark ones. */
   const textColourAt = (x: number, y: number): string => {
-    const frame = frameAt(x, y);
+    const hit = containerAtElement(document.elementFromPoint(x, y) as HTMLElement | null);
+    const frame = hit?.frameId ? findFrame(doc, hit.frameId) : undefined;
     if (frame) return prefersDarkText(topFillColor(frame.fills), true) ? '#101828' : '#F5F5F5';
     const host = hostRef.current;
     const background = host ? getComputedStyle(host).backgroundColor : '';
@@ -356,6 +373,35 @@ export function Canvas({
     return () => host.removeEventListener('wheel', onWheel);
   }, []);
 
+  // ---------------------------------------------------------------- hit testing
+
+  /** The nearest element that can hold children, read off the DOM. */
+  function containerAtElement(start: HTMLElement | null): { frameId: string | null; parentId: string | null; layout: StackLayout | null; element: HTMLElement } | null {
+    let node: HTMLElement | null = start;
+    while (node) {
+      const token = node.dataset?.container;
+      // Free layers position their children by hand, so they never become the
+      // insertion parent: the nearest stacking container (or the frame) wins.
+      if (token && (token.startsWith('frame:') || node.dataset.flow === 'stack')) {
+        const frameAttr = node.dataset.frame ?? '';
+        const frameId = frameAttr === '' ? null : frameAttr;
+        const parentId = token.startsWith('layer:') ? token.slice('layer:'.length) : null;
+        const layout = node.dataset.flow === 'stack' ? findLayout(frameId, parentId) : null;
+        return { frameId, parentId, layout, element: node };
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function findLayout(frameId: string | null, parentId: string | null): StackLayout | null {
+    if (parentId === null) {
+      if (frameId === null) return null;
+      return findFrame(doc, frameId)?.layout ?? null;
+    }
+    return findLayer(doc, frameId, parentId)?.layout ?? null;
+  }
+
   const startCanvasDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
     const world = toWorld(event.clientX, event.clientY);
@@ -382,16 +428,19 @@ export function Canvas({
     if (tool === 'shape' || tool === 'text') {
       // Keep the pointer from stealing focus away from the freshly created editor.
       event.preventDefault();
-      const frame = frameAt(world.x, world.y);
+      const hit = containerAtElement(event.target as HTMLElement | null);
       const kind = tool === 'text' ? 'text' : shapeKind;
-      const fill = tool === 'text' ? textColourAt(world.x, world.y) : 'rgba(148, 154, 164, 0.35)';
-      onCreateLayer(
-        frame ? frame.id : null,
-        kind,
-        frame ? world.x - frame.x : world.x,
-        frame ? world.y - frame.y : world.y,
-        fill,
-      );
+      const fill = tool === 'text' ? textColourAt(event.clientX, event.clientY) : 'rgba(148, 154, 164, 0.35)';
+
+      if (!hit) {
+        onCreateLayer({ frameId: null, parentId: null, point: world, kind, fill });
+        return;
+      }
+      const box = hit.element.getBoundingClientRect();
+      const point = hit.layout
+        ? { x: 0, y: 0 }
+        : { x: (event.clientX - box.left) / live.current.zoom, y: (event.clientY - box.top) / live.current.zoom };
+      onCreateLayer({ frameId: hit.frameId, parentId: hit.parentId, point, kind, fill });
       return;
     }
 
@@ -442,7 +491,12 @@ export function Canvas({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const startMoveLayer = (event: ReactPointerEvent<HTMLDivElement>, frameId: string | null, layer: Layer): void => {
+  const startLayerDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    frameId: string | null,
+    layer: Layer,
+    parentLayout: StackLayout | null,
+  ): void => {
     if (event.button !== 0 || layer.locked) return;
     // Drawing tools bubble to the canvas so insertion works on top of layers too.
     if (tool === 'shape' || tool === 'text') return;
@@ -450,19 +504,98 @@ export function Canvas({
     event.stopPropagation();
     if (editing && editing.layerId === layer.id) return;
     onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
-    drag.current = {
-      mode: 'moveLayer',
-      frameId,
-      layerId: layer.id,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      originX: layer.x,
-      originY: layer.y,
-      element: event.currentTarget,
-      dx: 0,
-      dy: 0,
-    };
+
+    if (parentLayout) {
+      // Inside a stack every move is a reorder, so no free coordinates are touched.
+      drag.current = { mode: 'moveInStack', frameId, layerId: layer.id, drop: null };
+    } else {
+      drag.current = {
+        mode: 'moveLayer',
+        frameId,
+        layerId: layer.id,
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        originX: layer.x,
+        originY: layer.y,
+        element: event.currentTarget,
+        dx: 0,
+        dy: 0,
+      };
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  /** Work out where a layer dragged to this pointer position would land. */
+  const resolveDrop = (clientX: number, clientY: number, layerId: string, frameId: string | null): Drop | null => {
+    const host = hostRef.current;
+    if (!host) return null;
+    const draggedElement = host.querySelector<HTMLElement>(`[data-layer-id="${layerId}"]`);
+    const under = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+
+    for (const element of under) {
+      const token = element.dataset?.container;
+      // Only stacking containers and frames take a drop: a free layer positions
+      // its children by hand, so aiming at one targets its parent instead.
+      if (!token || (!token.startsWith('frame:') && element.dataset.flow !== 'stack')) continue;
+      if (draggedElement && (element === draggedElement || draggedElement.contains(element))) continue;
+      // A different frame is a different document branch; moving across is not supported yet.
+      const frameAttr = element.dataset.frame ?? '';
+      const hitFrame = frameAttr === '' ? null : frameAttr;
+      if (hitFrame !== frameId) continue;
+
+      const hostRect = host.getBoundingClientRect();
+      const parentId = element.dataset.container?.startsWith('layer:') ? element.dataset.container.slice('layer:'.length) : null;
+
+      if (element.dataset.flow !== 'stack') {
+        const box = element.getBoundingClientRect();
+        const zoom = live.current.zoom;
+        return {
+          frameId,
+          parentId,
+          beforeId: null,
+          point: { x: Math.round((clientX - box.left) / zoom), y: Math.round((clientY - box.top) / zoom) },
+          indicator: null,
+        };
+      }
+
+      const row = element.dataset.direction === 'row';
+      const kids = Array.from(element.querySelectorAll<HTMLElement>(':scope > [data-layer-id]')).filter(
+        (kid) => kid !== draggedElement && !(draggedElement && draggedElement.contains(kid)),
+      );
+
+      let beforeId: string | null = null;
+      let indicator: LocalRect | null = null;
+
+      for (const kid of kids) {
+        const box = kid.getBoundingClientRect();
+        const centre = row ? (box.left + box.right) / 2 : (box.top + box.bottom) / 2;
+        if ((row ? clientX : clientY) < centre) {
+          beforeId = kid.dataset.layerId ?? null;
+          indicator = row
+            ? { left: box.left - hostRect.left - 1, top: box.top - hostRect.top, width: 2, height: box.height }
+            : { left: box.left - hostRect.left, top: box.top - hostRect.top - 1, width: box.width, height: 2 };
+          break;
+        }
+      }
+
+      if (!indicator) {
+        const last = kids[kids.length - 1];
+        if (last) {
+          const box = last.getBoundingClientRect();
+          indicator = row
+            ? { left: box.right - hostRect.left - 1, top: box.top - hostRect.top, width: 2, height: box.height }
+            : { left: box.left - hostRect.left, top: box.bottom - hostRect.top - 1, width: box.width, height: 2 };
+        } else {
+          const box = element.getBoundingClientRect();
+          indicator = row
+            ? { left: box.left - hostRect.left, top: box.top - hostRect.top, width: 2, height: box.height }
+            : { left: box.left - hostRect.left, top: box.top - hostRect.top, width: box.width, height: 2 };
+        }
+      }
+
+      return { frameId, parentId, beforeId, point: null, indicator };
+    }
+    return null;
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -542,20 +675,28 @@ export function Canvas({
         let dx = Math.round((event.clientX - current.pointerX) / zoom);
         let dy = Math.round((event.clientY - current.pointerY) / zoom);
 
-        const frame = current.frameId ? doc.frames.find((item) => item.id === current.frameId) : undefined;
-        const layer = frame
-          ? frame.layers.find((item) => item.id === current.layerId)
-          : doc.layers.find((item) => item.id === current.layerId);
+        const container = findParent(doc, current.frameId, current.layerId);
+        const frame = current.frameId ? findFrame(doc, current.frameId) : undefined;
+        const layer = findLayer(doc, current.frameId, current.layerId);
+        const parentLayer = container?.parentId ? findLayer(doc, current.frameId, container.parentId) : undefined;
+        const originX = parentLayer ? 0 : frame ? frame.x : 0;
+        const originY = parentLayer ? 0 : frame ? frame.y : 0;
+
         if (layer) {
-          const offsetX = frame ? frame.x : 0;
-          const offsetY = frame ? frame.y : 0;
           const xs: number[] = [];
           const ys: number[] = [];
-
-          if (frame) {
+          if (parentLayer) {
+            xs.push(0, parentLayer.width / 2, parentLayer.width);
+            ys.push(0, parentLayer.height / 2, parentLayer.height);
+            for (const sibling of parentLayer.children) {
+              if (sibling.id === layer.id || !sibling.visible) continue;
+              xs.push(sibling.x, sibling.x + sibling.width / 2, sibling.x + sibling.width);
+              ys.push(sibling.y, sibling.y + sibling.height / 2, sibling.y + sibling.height);
+            }
+          } else if (frame) {
             xs.push(0, frame.width / 2, frame.width);
             ys.push(0, frame.height / 2, frame.height);
-            for (const sibling of frame.layers) {
+            for (const sibling of frame.children) {
               if (sibling.id === layer.id || !sibling.visible) continue;
               xs.push(sibling.x, sibling.x + sibling.width / 2, sibling.x + sibling.width);
               ys.push(sibling.y, sibling.y + sibling.height / 2, sibling.y + sibling.height);
@@ -575,8 +716,8 @@ export function Canvas({
           if (snapX) dx += snapX.delta;
           if (snapY) dy += snapY.delta;
           setGuides({
-            x: snapX ? [snapX.line + offsetX] : [],
-            y: snapY ? [snapY.line + offsetY] : [],
+            x: snapX ? [snapX.line + originX] : [],
+            y: snapY ? [snapY.line + originY] : [],
           });
         }
 
@@ -584,6 +725,13 @@ export function Canvas({
         current.dy = dy;
         current.element.style.left = `${current.originX + dx}px`;
         current.element.style.top = `${current.originY + dy}px`;
+        return;
+      }
+
+      case 'moveInStack': {
+        const drop = resolveDrop(event.clientX, event.clientY, current.layerId, current.frameId);
+        current.drop = drop;
+        setDropIndicator(drop?.indicator ?? null);
         return;
       }
 
@@ -596,21 +744,31 @@ export function Canvas({
     const current = drag.current;
 
     if (current?.mode === 'marquee' && marquee) {
-      const hits: Selection[] = [];
-      for (const frame of doc.frames) {
-        if (!frame.visible || frame.locked) continue;
-        if (intersects(marquee, frame)) hits.push({ kind: 'frame', frameId: frame.id });
-        for (const layer of frame.layers) {
-          if (!layer.visible || layer.locked) continue;
-          const world: WorldRect = { x: frame.x + layer.x, y: frame.y + layer.y, width: layer.width, height: layer.height };
-          if (intersects(marquee, world)) hits.push({ kind: 'layer', frameId: frame.id, layerId: layer.id });
+      const host = hostRef.current;
+      if (host) {
+        const hostRect = host.getBoundingClientRect();
+        const zoom = live.current.zoom;
+        const toWorldRect = (box: DOMRect): WorldRect => ({
+          x: (box.left - hostRect.left - live.current.x) / zoom,
+          y: (box.top - hostRect.top - live.current.y) / zoom,
+          width: box.width / zoom,
+          height: box.height / zoom,
+        });
+        const hits: Selection[] = [];
+        for (const element of host.querySelectorAll<HTMLElement>('[data-frame-id]')) {
+          if (intersects(marquee, toWorldRect(element.getBoundingClientRect()))) {
+            hits.push({ kind: 'frame', frameId: element.dataset.frameId ?? '' });
+          }
         }
+        for (const element of host.querySelectorAll<HTMLElement>('[data-layer-id]')) {
+          const layerId = element.dataset.layerId;
+          if (!layerId) continue;
+          if (!intersects(marquee, toWorldRect(element.getBoundingClientRect()))) continue;
+          const frameAttr = element.dataset.frame ?? '';
+          hits.push({ kind: 'layer', frameId: frameAttr === '' ? null : frameAttr, layerId });
+        }
+        onSelect(hits);
       }
-      for (const layer of doc.layers) {
-        if (!layer.visible || layer.locked) continue;
-        if (intersects(marquee, layer)) hits.push({ kind: 'layer', frameId: null, layerId: layer.id });
-      }
-      onSelect(hits);
       setMarquee(null);
     }
 
@@ -624,7 +782,12 @@ export function Canvas({
     if (current?.mode === 'moveLayer') {
       onUpdateLayer(current.frameId, current.layerId, { x: current.originX + current.dx, y: current.originY + current.dy });
     }
+    if (current?.mode === 'moveInStack' && current.drop) {
+      const { frameId, parentId, beforeId, point } = current.drop;
+      onMoveLayer(frameId, current.layerId, { frameId, parentId, beforeId }, point);
+    }
 
+    setDropIndicator(null);
     setGuides({ x: [], y: [] });
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -632,7 +795,8 @@ export function Canvas({
     }
   };
 
-  // Viewport culling: frames outside the visible world rect are not rendered.
+  // ---------------------------------------------------------------- rendering
+
   const hostWidth = hostSize?.clientWidth ?? 0;
   const hostHeight = hostSize?.clientHeight ?? 0;
   const visibleWorld: WorldRect | null =
@@ -652,22 +816,48 @@ export function Canvas({
     (layer) => layer.visible && (visibleWorld === null || intersects(visibleWorld, layer)),
   );
 
-  const renderLayer = (layer: Layer, frameId: string | null): ReactElement => {
+  const renderLayer = (layer: Layer, frameId: string | null, container: StackLayout | null): ReactElement | null => {
+    if (!layer.visible) return null;
     const isEditing = editing?.layerId === layer.id && editing.frameId === frameId;
+    const style: CSSProperties = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
+    if (layer.layout) Object.assign(style, containerStyle(layer.layout));
+
     return (
-      <LayerView
+      <div
         key={layer.id}
-        layer={layer}
-        selected={isLayerSelected(selections, frameId, layer.id)}
-        editing={isEditing}
-        onPointerDown={(event) => startMoveLayer(event, frameId, layer)}
-        onDoubleClick={layer.kind === 'text' ? () => onEditingChange({ frameId, layerId: layer.id }) : undefined}
-        onTextInput={(text) => {
-          const size = measureText({ ...layer, text });
-          onUpdateLayer(frameId, layer.id, { text, width: size.width, height: size.height });
-        }}
-        onFinishEditing={() => onEditingChange(null)}
-      />
+        className={`bp-el bp-el-${layer.kind}`}
+        data-layer-id={layer.id}
+        data-frame={frameId ?? ''}
+        data-container={`layer:${layer.id}`}
+        data-flow={layer.layout ? 'stack' : 'free'}
+        data-direction={layer.layout?.direction ?? ''}
+        data-selected={isLayerSelected(selections, frameId, layer.id) || undefined}
+        data-editing={isEditing || undefined}
+        style={style}
+        onPointerDown={(event) => startLayerDrag(event, frameId, layer, container)}
+        onDoubleClick={
+          layer.kind === 'text'
+            ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onEditingChange({ frameId, layerId: layer.id });
+              }
+            : undefined
+        }
+      >
+        {layer.kind === 'text' ? (
+          isEditing ? (
+            <TextEditor layer={layer} onFinishEditing={() => onEditingChange(null)} onTextInput={(text) => {
+              const size = measureText({ ...layer, text });
+              onUpdateLayer(frameId, layer.id, { text, width: size.width, height: size.height });
+            }} />
+          ) : (
+            layer.text
+          )
+        ) : (
+          layer.children.map((child) => renderLayer(child, frameId, layer.layout))
+        )}
+      </div>
     );
   };
 
@@ -709,10 +899,12 @@ export function Canvas({
         {visibleFrames.map((frame) => {
           const hasLayerSelection = selections.some((item) => item.kind === 'layer' && item.frameId === frame.id);
           const frameSelected = isFrameSelected(selections, frame.id) && !hasLayerSelection;
+          const bodyStyle: CSSProperties = frame.layout ? containerStyle(frame.layout) : {};
           return (
             <div
               key={frame.id}
               className="bp-frame"
+              data-frame-id={frame.id}
               data-selected={frameSelected || undefined}
               style={{
                 left: frame.x,
@@ -729,8 +921,15 @@ export function Canvas({
                 {frame.width} × {frame.height}
               </span>
 
-              <div className="bp-frame-body">
-                {frame.layers.filter((layer) => layer.visible).map((layer) => renderLayer(layer, frame.id))}
+              <div
+                className="bp-frame-body"
+                data-container={`frame:${frame.id}`}
+                data-frame={frame.id}
+                data-flow={frame.layout ? 'stack' : 'free'}
+                data-direction={frame.layout?.direction ?? ''}
+                style={bodyStyle}
+              >
+                {frame.children.map((layer) => renderLayer(layer, frame.id, frame.layout))}
               </div>
 
               <div className="bp-handle" onPointerDown={(event) => startResizeFrame(event, frame)} aria-hidden="true" />
@@ -738,10 +937,68 @@ export function Canvas({
           );
         })}
 
-        {visibleRootLayers.map((layer) => renderLayer(layer, null))}
+        {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
       </div>
+
+      {dropIndicator ? (
+        <div
+          className="bp-drop-line"
+          style={{ left: dropIndicator.left, top: dropIndicator.top, width: dropIndicator.width, height: dropIndicator.height }}
+        />
+      ) : null}
 
       <div className="bp-zoom">{Math.round(viewport.zoom * 100)}%</div>
     </div>
+  );
+}
+
+/** Inline text entry: the DOM owns the characters while editing. */
+function TextEditor({
+  layer,
+  onTextInput,
+  onFinishEditing,
+}: {
+  layer: Layer;
+  onTextInput(text: string): void;
+  onFinishEditing(): void;
+}): ReactElement {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = editorRef.current;
+    if (!node) return;
+    // Seed the editor with the layer's text; React owns no children here, so the
+    // DOM text survives re-renders while typing.
+    node.textContent = layer.text;
+    // Wait for the native double-click word selection to finish, then take over
+    // and select the whole run: entering edit always starts with everything selected.
+    const timer = setTimeout(() => {
+      node.focus();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [layer.id]);
+
+  return (
+    <div
+      ref={editorRef}
+      className="bp-text-editor"
+      contentEditable
+      onPointerDown={(event) => event.stopPropagation()}
+      suppressContentEditableWarning
+      spellCheck={false}
+      onInput={(event) => onTextInput((event.currentTarget as HTMLDivElement).textContent ?? '')}
+      onBlur={() => onFinishEditing()}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onFinishEditing();
+        }
+      }}
+    />
   );
 }
