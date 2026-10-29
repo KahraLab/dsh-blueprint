@@ -8,7 +8,7 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
-import { Canvas } from './Canvas';
+import { FramePreview } from './FramePreview';
 
 export interface GalleryBlueprint {
   id: string;
@@ -28,10 +28,6 @@ export interface GalleryProps {
   onOpen(blueprintId: string): void;
   onNew(): void;
 }
-
-/** The preview lives inside the card with breathing room, not edge to edge. */
-const THUMB_HEIGHT = 128;
-const THUMB_WIDTH = 116;
 
 export function BlueprintGallery({ blueprints, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
   const { t } = useTranslation();
@@ -92,35 +88,7 @@ function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: Blu
   const frame = doc.frames[0];
   if (!frame) return <span className="bp-card-note">{t('gallery.blank')}</span>;
 
-  const scale = Math.min(0.18, THUMB_HEIGHT / Math.max(frame.height, 1), THUMB_WIDTH / Math.max(frame.width, 1));
-  return (
-    <span
-      className="bp-thumb"
-      style={{ width: Math.round(frame.width * scale), height: Math.round(frame.height * scale) }}
-    >
-      <span
-        className="bp-thumb-stage"
-        style={{ width: frame.width, height: frame.height, transform: `scale(${scale})` }}
-      >
-        <Canvas
-          viewportRef={{ current: null }}
-          doc={{ frames: [frame], layers: [] }}
-          selections={[]}
-          tool="move"
-          shapeKind="rect"
-          editing={null}
-          initialViewport={{ x: -frame.x, y: -frame.y, zoom: 1 }}
-          onSelect={() => undefined}
-          onUpdateFrame={() => undefined}
-          onUpdateLayer={() => undefined}
-          onCreateLayer={() => undefined}
-          onCreateFrame={() => undefined}
-          onMoveLayer={() => undefined}
-          onEditingChange={() => undefined}
-        />
-      </span>
-    </span>
-  );
+  return <FramePreview frame={frame} />;
 }
 
 function updatedLabel(blueprint: GalleryBlueprint, t: (key: string, options?: Record<string, unknown>) => string): string {

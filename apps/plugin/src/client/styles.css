@@ -1349,16 +1349,9 @@
   display: flex;
   transform-origin: 0 0;
 }
-.bp-thumb-stage .bp-canvas {
-  position: absolute;
-  inset: 0;
-}
-.bp-thumb .bp-canvas {
-  background-image: none;
-}
-.bp-thumb .bp-frame-name,
-.bp-thumb .bp-zoom {
-  display: none;
+.bp-frame-static,
+.bp-el-static {
+  pointer-events: none;
 }
 .bp-card-meta {
   display: flex;
