@@ -146,7 +146,7 @@
       DESIGN.md
       history/1.md
   prototypes/
-    checkout/blueprint.json    ← 记着：harbor，版本 1
+    checkout/checkout.blueprint.json    ← 记着：harbor，版本 1
 ```
 
 - 一套语言一个文件，原型只记「用了哪套、哪个版本」，不复制内容。

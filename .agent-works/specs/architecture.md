@@ -57,7 +57,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 │           └── 1.md
 └── prototypes/
     └── checkout/
-        ├── blueprint.json
+        ├── checkout.blueprint.json
         ├── assets/
         │   └── 7f3a9c.png
         ├── assets.json
@@ -66,11 +66,12 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
             └── 0001-2026-10-28T13-40-12.json
 ```
 
-- **没有总索引文件**。项目列表就是目录列表，`blueprint.json` 里存标题、创建时间这些元信息。少一个要和目录对账的文件。
+- **没有总索引文件**。项目列表就是目录列表，`<id>.blueprint.json` 里存标题、创建时间这些元信息。少一个要和目录对账的文件。
+- **文件名是 `<目录名>.blueprint.json`**，目录名就是 id，文件跟着目录走。单个文件拷出去也认得出这是蓝图文档。
 - **目录名就是 id**，创建后不再改。改标题只改文件里的 `title`，不动目录——避免因为改名让 git 历史断掉、让引用失效。
 - id 只允许小写字母、数字、连字符，防止拼路径时出问题。
 
-## blueprint.json 的骨架
+## `<id>.blueprint.json` 的骨架
 
 ```json
 {
@@ -128,7 +129,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 ## 对下游的影响
 
 - **交接给编码 Agent**：读的就是磁盘上这份，不需要额外导出步骤，只需要打包。
-- **设计语言升级影响面**：扫所有 `blueprint.json` 里的 `designLanguage` 引用即可算出。
+- **设计语言升级影响面**：扫所有 `<id>.blueprint.json` 里的 `designLanguage` 引用即可算出。
 - **多人协作**：暂时不做。将来要做的话，`apply` 这个唯一入口就是插入协同层的位置。
 
 ## 客户端状态

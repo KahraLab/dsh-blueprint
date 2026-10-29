@@ -12,7 +12,7 @@
 handoff/<原型 id>/
 ├── README.md          入口：这是什么、从哪读起、怎么跑
 ├── DESIGN.md          设计语言原文
-├── blueprint.json     原型文档原文
+├── <原型 id>.blueprint.json   原型文档原文
 ├── screens/
 │   ├── tickets.html           参考实现，单文件、能单独打开
 │   └── ticket-detail.html
@@ -23,7 +23,7 @@ handoff/<原型 id>/
 |---|---|---|
 | `README.md` | 人，也顺带给 AI | 三分钟看懂这是什么、按什么顺序读 |
 | `DESIGN.md` | 人、AI、构建工具 | 颜色、字体、间距、组件的唯一来源 |
-| `blueprint.json` | 工具链、AI | 屏幕、状态、跳转、动作节点的结构化真身 |
+| `<原型 id>.blueprint.json` | 工具链、AI | 屏幕、状态、跳转、动作节点的结构化真身 |
 | `screens/*.html` | AI、人 | 能打开的参考实现，用来看效果、量尺寸、对结构 |
 | `IMPLEMENT.md` | AI 主要读，人负责核对 | 逐屏怎么实现、哪里不能改、做完怎么验收 |
 
@@ -82,7 +82,7 @@ handoff/<原型 id>/
 每条都要能判断「过了」还是「没过」，不写「风格统一」这种没法验的话。
 
 ```markdown
-- [ ] 每个屏幕都存在，id 与 blueprint.json 一致
+- [ ] 每个屏幕都存在，id 与 `<原型 id>.blueprint.json` 一致
 - [ ] 每个屏幕的空 / 加载 / 错误状态都能实际触发
 - [ ] 所有跳转按条件生效，走不回去的死路数为 0
 - [ ] 关键文案与原型逐字一致（见上方各屏「别改」）
