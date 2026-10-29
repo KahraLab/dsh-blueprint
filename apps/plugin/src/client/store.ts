@@ -289,6 +289,10 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** The document URL this module state belongs to; polls of stale panels are ignored. */
 let activeUrl: string | null = null;
 let saveWatchdog: ReturnType<typeof setTimeout> | null = null;
+/** A read is in flight; the poll below must not stack another one on top. */
+let loading = false;
+/** Warn once per outage instead of every poll tick. */
+let loadFailed = false;
 
 /** Never leave the header saying "saving" forever: surface a stuck write. */
 function armSaveWatchdog(): void {
@@ -311,9 +315,16 @@ function sameDocument(left: BlueprintDocument, right: BlueprintDocument): boolea
   return left === right || JSON.stringify(left) === JSON.stringify(right);
 }
 
-async function getStored(url: string): Promise<StoredReply | null> {
+/**
+ * Read the file behind a panel.
+ *
+ * A failed read is not an empty document: the caller keeps what it has and asks
+ * again, so a host restart or a dropped request never wipes the canvas.
+ */
+async function getStored(url: string): Promise<StoredReply | 'missing' | null> {
   try {
     const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (response.status === 404) return 'missing';
     if (!response.ok) return null;
     const data = (await response.json()) as { revision?: number; document?: BlueprintDocument };
     if (!data?.document) return null;
@@ -424,19 +435,38 @@ async function reportSelection(url: string): Promise<void> {
   }
 }
 
-/** Pull the document for this session. A missing file is a normal first run. */
-export async function loadDocument(url: string): Promise<void> {  const stored = await getStored(url);
-  if (stored) {
+/**
+ * Pull the document for this session.
+ *
+ * When the read fails the panel keeps showing what it already has, stops writing
+ * so a stale copy cannot overwrite the file, and leaves the retry to the poll.
+ */
+export async function loadDocument(url: string): Promise<void> {
+  if (url !== activeUrl) {
+    activeUrl = url;
+    syncedDoc = null;
+    syncedRevision = 0;
+  }
+  if (loading) return;
+  loading = true;
+  try {
+    const stored = await getStored(url);
+    if (url !== activeUrl) return;
+    if (typeof stored === 'string' || stored === null) {
+      useBlueprint.setState({ hydrated: false, saveState: 'idle' });
+      if (!loadFailed) {
+        loadFailed = true;
+        console.warn('[blueprint] 读取文档失败，继续重试', url);
+      }
+      return;
+    }
+    loadFailed = false;
     syncedRevision = stored.revision;
     syncedDoc = stored.document;
-    useBlueprint.setState({ doc: stored.document, saveState: 'saved' });
-  } else {
-    const doc = useBlueprint.getState().doc;
-    syncedDoc = doc;
-    syncedRevision = 0;
-    useBlueprint.setState({ saveState: 'saved' });
+    useBlueprint.setState({ doc: stored.document, saveState: 'saved', hydrated: true });
+  } finally {
+    loading = false;
   }
-  useBlueprint.setState({ hydrated: true });
 }
 
 /**
@@ -445,6 +475,7 @@ export async function loadDocument(url: string): Promise<void> {  const stored =
  * React so no render depends on it.
  */
 export function startSession(url: string, selectionUrl: string): () => void {
+  activeUrl = url;
   const unsubscribe = useBlueprint.subscribe((state, previous) => {
     if (state.doc === previous.doc || !state.hydrated) return;
     if (state.doc === syncedDoc) return; // came from the file, not from the user
@@ -488,6 +519,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
+    if (activeUrl === url) activeUrl = null;
   };
 }
 
@@ -495,10 +527,15 @@ export function startSession(url: string, selectionUrl: string): () => void {
 async function poll(url: string): Promise<void> {
   if (url !== activeUrl) return;
   const before = useBlueprint.getState();
-  if (!before.hydrated || before.saveState !== 'saved' || before.doc !== syncedDoc) return;
+  if (!before.hydrated) {
+    // The first read failed (host restarting, dropped request): try again.
+    void loadDocument(url);
+    return;
+  }
+  if (before.saveState !== 'saved' || before.doc !== syncedDoc) return;
 
   const stored = await getStored(url);
-  if (!stored || stored.revision === syncedRevision) return;
+  if (url !== activeUrl || stored === null || stored === 'missing' || stored.revision === syncedRevision) return;
 
   const now = useBlueprint.getState();
   if (now.saveState !== 'saved' || now.doc !== syncedDoc) return; // user started editing again

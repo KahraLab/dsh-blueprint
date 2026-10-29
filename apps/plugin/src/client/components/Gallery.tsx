@@ -28,9 +28,10 @@ export interface GalleryProps {
   error: string | null;
   onOpen(blueprintId: string): void;
   onNew(): void;
+  onRetry(): void;
 }
 
-export function BlueprintGallery({ blueprints, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
+export function BlueprintGallery({ blueprints, previews, current, loading, error, onOpen, onNew, onRetry }: GalleryProps): ReactElement {
   const { t } = useTranslation();
   return (
     <div className="bp-gallery">
@@ -46,7 +47,14 @@ export function BlueprintGallery({ blueprints, previews, current, loading, error
         </button>
       </header>
 
-      {error === null ? null : <p className="bp-gallery-error">{error}</p>}
+      {error === null ? null : (
+        <p className="bp-gallery-error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="bp-gallery-retry" onClick={onRetry}>
+            {t('gallery.retry')}
+          </button>
+        </p>
+      )}
 
       {blueprints.length === 0 && loading ? null : blueprints.length === 0 ? (
         <div className="bp-gallery-empty">

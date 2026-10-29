@@ -1276,8 +1276,25 @@ body[data-ds-dark-theme] .bp-gallery {
 }
 .bp-gallery-error {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
   color: #f97066;
+}
+.bp-gallery-retry {
+  appearance: none;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.bp-gallery-retry:hover {
+  opacity: 0.8;
 }
 .bp-new {
   appearance: none;

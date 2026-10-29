@@ -45,6 +45,43 @@ const SELECTION_ENDPOINT = '/api/blueprint/selection';
 
 type BlueprintEntry = import('./components/Gallery').GalleryBlueprint;
 const VIEWPORT_KEY = 'blueprint.viewport';
+const VIEW_KEY = 'blueprint.view';
+
+interface SavedView {
+  blueprint: string;
+  screen: 'gallery' | 'editor';
+}
+
+/** Where the panel was last placed, so a reload or a hot swap lands back there. */
+function readSavedView(key: string): SavedView | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedView>;
+    if (typeof parsed.blueprint !== 'string' || (parsed.screen !== 'gallery' && parsed.screen !== 'editor')) return null;
+    return { blueprint: parsed.blueprint, screen: parsed.screen };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read JSON with a few retries. The host can be restarting under a hot swap, and
+ * a single failed read must not turn into a permanently empty panel.
+ */
+async function fetchJson<T>(url: string, attempts = 3): Promise<T | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { accept: 'application/json' } });
+      if (!response.ok) throw new Error(String(response.status));
+      return (await response.json()) as T;
+    } catch {
+      if (attempt === attempts - 1) return null;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+  return null;
+}
 
 /** World point at the middle of the visible canvas, used to place new frames. */
 function canvasCentre(info: ViewportInfo | null): { x: number; y: number } {
@@ -89,7 +126,17 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const currentUrl = query === '' ? CURRENT_ENDPOINT : `${CURRENT_ENDPOINT}?${query}`;
   const selectionUrl = query === '' ? SELECTION_ENDPOINT : `${SELECTION_ENDPOINT}?${query}`;
   const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
+  const viewKey = sessionId ? `${VIEW_KEY}.${sessionId}` : VIEW_KEY;
   const [initialViewport] = useState<Viewport | undefined>(() => readViewport(viewportKey));
+  const [savedView] = useState<SavedView | null>(() => readSavedView(viewKey));
+  const rememberView = useCallback((next: SavedView | null): void => {
+    try {
+      if (next === null) globalThis.localStorage?.removeItem(viewKey);
+      else globalThis.localStorage?.setItem(viewKey, JSON.stringify(next));
+    } catch {
+      // Private-mode storage failures must not break the panel.
+    }
+  }, [viewKey]);
   const saveViewport = useCallback((next: Viewport): void => {
     try {
       globalThis.localStorage?.setItem(viewportKey, JSON.stringify(next));
@@ -160,41 +207,39 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
   /** The blueprint list plus one screen per blueprint, for the gallery cards. */
   const loadGallery = useCallback(async (): Promise<void> => {
-    try {
-      const response = await fetch(blueprintsUrl, { headers: { accept: 'application/json' } });
-      const data = (await response.json()) as { ok?: boolean; blueprints?: BlueprintEntry[]; current?: string | null; error?: string };
-      if (data?.ok !== true) {
-        setBlueprintError(data?.error ?? t('gallery.loadFailed'));
-        setBlueprints([]);
-        return;
-      }
-      const list = data.blueprints ?? [];
-      setBlueprints(list);
-      setBlueprintError(null);
-
-      if (!initialised.current) {
-        initialised.current = true;
-        const current = data.current ?? null;
-        const chosen = current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null;
-        setBlueprintId(chosen);
-        if (chosen !== null && chosen !== current) void reportCurrent(chosen);
-      }
-
-      const entries = await Promise.all(list.map(async (entry) => {
-        try {
-          const reply = await fetch(documentUrlOf(entry.id), { headers: { accept: 'application/json' } });
-          const body = (await reply.json()) as { document?: BlueprintDocument };
-          return [entry.id, body?.document ?? null] as const;
-        } catch {
-          return [entry.id, null] as const;
-        }
-      }));
-      setPreviews(Object.fromEntries(entries));
-    } catch (error) {
-      setBlueprintError(error instanceof Error ? error.message : String(error));
+    const data = await fetchJson<{ ok?: boolean; blueprints?: BlueprintEntry[]; current?: string | null; error?: string }>(blueprintsUrl);
+    if (data === null || data.ok !== true) {
+      setBlueprintError(data?.error ?? t('gallery.loadFailed'));
       setBlueprints([]);
+      return;
     }
-  }, [blueprintsUrl, documentUrlOf, reportCurrent, t]);
+    const list = data.blueprints ?? [];
+    setBlueprints(list);
+    setBlueprintError(null);
+
+    if (!initialised.current) {
+      initialised.current = true;
+      const current = data.current ?? null;
+      // Resume the editor after a reload or a hot swap; fall back to the
+      // gallery when that blueprint is gone.
+      const resume = savedView !== null
+        && savedView.screen === 'editor'
+        && list.some((entry) => entry.id === savedView.blueprint)
+        ? savedView.blueprint
+        : null;
+      const chosen = resume
+        ?? (current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null);
+      setBlueprintId(chosen);
+      if (resume !== null) setScreen('editor');
+      if (chosen !== null && chosen !== current) void reportCurrent(chosen);
+    }
+
+    const entries = await Promise.all(list.map(async (entry) => {
+      const body = await fetchJson<{ document?: BlueprintDocument }>(documentUrlOf(entry.id), 2);
+      return [entry.id, body?.document ?? null] as const;
+    }));
+    setPreviews(Object.fromEntries(entries));
+  }, [blueprintsUrl, documentUrlOf, reportCurrent, savedView, t]);
 
   // Refresh the gallery whenever it is shown, so previews track edits.
   useEffect(() => {
@@ -204,8 +249,14 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const openBlueprint = useCallback((id: string): void => {
     setBlueprintId(id);
     setScreen('editor');
+    rememberView({ blueprint: id, screen: 'editor' });
     void reportCurrent(id);
-  }, [reportCurrent]);
+  }, [rememberView, reportCurrent]);
+
+  const openGallery = useCallback((): void => {
+    setScreen('gallery');
+    if (blueprintId !== null) rememberView({ blueprint: blueprintId, screen: 'gallery' });
+  }, [blueprintId, rememberView]);
 
   const createBlueprintNow = useCallback(async (): Promise<void> => {
     try {
@@ -324,6 +375,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
           error={blueprintError}
           onOpen={openBlueprint}
           onNew={() => void createBlueprintNow()}
+          onRetry={() => void loadGallery()}
         />
       </div>
     );
@@ -335,7 +387,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <header className="bp-head">
         <div className="bp-head-left">
-          <button type="button" className="bp-icon" title={t('header.gallery')} aria-label={t('header.gallery')} onClick={() => setScreen('gallery')}>
+          <button type="button" className="bp-icon" title={t('header.gallery')} aria-label={t('header.gallery')} onClick={openGallery}>
             <BackIcon />
           </button>
           <button
