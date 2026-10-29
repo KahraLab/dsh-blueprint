@@ -1342,6 +1342,14 @@
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16);
   background: #fff;
 }
+.bp-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  user-select: none;
+  pointer-events: none;
+}
 .bp-thumb-stage {
   position: absolute;
   top: 0;

@@ -5,10 +5,11 @@
  * card opens the editor; the editor's header keeps only window chrome, so this is
  * where choosing a design file happens.
  */
-import type { ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
-import { FramePreview } from './FramePreview';
+import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
+import { FramePreview, thumbSize } from './FramePreview';
 
 export interface GalleryBlueprint {
   id: string;
@@ -82,13 +83,51 @@ export function BlueprintGallery({ blueprints, previews, current, loading, error
 
 function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: BlueprintDocument | null }): ReactElement {
   const { t } = useTranslation();
+  const frame = doc?.frames[0] ?? null;
+  const key = frame === null ? '' : `${blueprint.id}:${blueprint.revision}`;
+  const stage = useRef<HTMLSpanElement | null>(null);
+  const [image, setImage] = useState<string | null>(() => (key === '' ? null : cachedThumbnail(key) ?? null));
+
+  useEffect(() => {
+    if (frame === null || key === '') return;
+    const cached = cachedThumbnail(key);
+    if (cached !== undefined) {
+      setImage(cached);
+      return;
+    }
+    const node = stage.current;
+    if (node === null) return;
+    let alive = true;
+    // Let the card paint first, then paint it into a picture.
+    const timer = window.setTimeout(() => {
+      void rasterizeThumbnail(node, key)
+        .then((dataUrl) => {
+          if (alive) setImage(dataUrl);
+        })
+        .catch((error: unknown) => {
+          // The DOM preview stays on screen: a missing picture is not fatal.
+          console.warn('[blueprint] 缩略图绘制失败', error);
+        });
+    }, 40);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [frame, key]);
+
   if (blueprint.broken) return <span className="bp-card-note">{t('gallery.broken')}</span>;
   if (doc === null) return <span className="bp-card-note">{t('gallery.reading')}</span>;
+  if (frame === null) return <span className="bp-card-note">{t('gallery.blank')}</span>;
 
-  const frame = doc.frames[0];
-  if (!frame) return <span className="bp-card-note">{t('gallery.blank')}</span>;
-
-  return <FramePreview frame={frame} />;
+  if (image !== null) {
+    const size = thumbSize(frame);
+    return (
+      <span className="bp-thumb" aria-hidden="true" style={{ width: size.width, height: size.height }}>
+        <img className="bp-thumb-image" src={image} alt="" draggable={false} />
+      </span>
+    );
+  }
+  return <FramePreview ref={stage} frame={frame} />;
 }
 
 function updatedLabel(blueprint: GalleryBlueprint, t: (key: string, options?: Record<string, unknown>) => string): string {
