@@ -9,7 +9,7 @@ import { ShapeIcon, ShapeMenu, shapeLabel } from './components/ShapeMenu';
 import {
   CaretIcon,
   FrameIcon,
-  GridIcon,
+  BackIcon,
   HandIcon,
   LockIcon,
   MarkIcon,
@@ -346,7 +346,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       <header className="bp-head">
         <div className="bp-head-left">
           <button type="button" className="bp-icon" title={t('header.gallery')} aria-label={t('header.gallery')} onClick={() => setScreen('gallery')}>
-            <GridIcon />
+            <BackIcon />
           </button>
           <button
             type="button"
