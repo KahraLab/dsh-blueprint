@@ -353,7 +353,16 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
                 </button>
               </div>
             ) : (
-              <div className="bp-ip-grid" ref={gridRef} onScroll={(event) => setGeometry((previous) => ({ ...previous, scrollTop: event.currentTarget.scrollTop }))}>
+              <div
+                className="bp-ip-grid"
+                ref={gridRef}
+                onScroll={(event) => {
+                  // Read the element now: the state updater may run after the
+                  // event has been released, when currentTarget is already null.
+                  const scrollTop = event.currentTarget.scrollTop;
+                  setGeometry((previous) => ({ ...previous, scrollTop }));
+                }}
+              >
                 <div className="bp-ip-grid-inner" style={{ height: PAD * 2 + rowCount * STEP }}>
                   {visible.map((cell) => {
                     const data = sets[cell.set];
