@@ -138,6 +138,9 @@
 .bp-frame[data-selected='true'] {
   border-color: transparent;
 }
+.bp-frame[data-selected='true'] {
+  outline: 1.5px solid #4fc3f7;
+}
 .bp-frame-name {
   position: absolute;
   top: -20px;
@@ -145,7 +148,7 @@
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #6b7078);
   white-space: nowrap;
-  pointer-events: none;
+  cursor: default;
 }
 .bp-frame[data-selected='true'] .bp-frame-name {
   color: #0a84c9;
@@ -176,6 +179,32 @@
 }
 .bp-selection .bp-handle {
   pointer-events: auto;
+}
+
+/* Multi-selection: each chosen thing keeps its own outline, plus one box around
+   the union (Figma-style). The box is chrome only, so it ignores pointers. */
+.bp-selection-multi {
+  position: absolute;
+  outline: 1.5px solid #4fc3f7;
+  pointer-events: none;
+  z-index: 11;
+}
+.bp-selection-multi .bp-size-chip {
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  transform: translateX(-50%);
+  background: #0d99ff;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.bp-el[data-selected='true'] {
+  outline: 1.5px solid #4fc3f7;
+  outline-offset: 0;
 }
 
 .bp-handle {
@@ -384,7 +413,6 @@
 }
 
 /* The move tool keeps its cursor while dragging: no grabbing hand, no crosshair. */
-.bp-canvas[data-tool='move'] .bp-frame,
 .bp-canvas[data-tool='move'] .bp-el,
 .bp-canvas[data-tool='move'] .bp-el * {
   cursor: move;
@@ -653,10 +681,27 @@
 .bp-layer-row:hover {
   background: rgba(255, 255, 255, 0.06);
 }
-.bp-layer-row[data-active='true'] {
-  background: rgba(255, 255, 255, 0.1);
+.bp-layer-row[data-inside='true'] {
+  background: rgba(255, 255, 255, 0.045);
 }
-.bp-layer-row[data-active='true'] .bp-layer {
+.bp-layer-row[data-selected='true'] {
+  background: rgba(255, 255, 255, 0.11);
+}
+/* A selected range reads as one block: rounded only at its outside edges. */
+.bp-layer-row[data-inside='true'],
+.bp-layer-row[data-selected='true'] {
+  border-radius: 0;
+}
+.bp-layer-row[data-block-start='true'] {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+.bp-layer-row[data-block-end='true'] {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+.bp-layer-row[data-selected='true'] .bp-layer,
+.bp-layer-row[data-inside='true'] .bp-layer {
   color: var(--dsw-alias-label-primary, #fff);
 }
 .bp-layer-row .bp-layer {

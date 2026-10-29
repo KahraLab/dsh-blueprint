@@ -490,6 +490,7 @@ export function Canvas({
   const selectionTarget = useRef<{ kind: 'frame' | 'layer'; frameId: string | null; id: string } | null>(null);
   const [viewport, setViewport] = useState<Viewport>(() => initialViewport ?? { x: 40, y: 40, zoom: 0.75 });
   const [marquee, setMarquee] = useState<WorldRect | null>(null);
+  const [multiBox, setMultiBox] = useState<WorldRect | null>(null);
   const [draftFrame, setDraftFrame] = useState<WorldRect | null>(null);
   const [draftShape, setDraftShape] = useState<WorldRect | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
@@ -1287,6 +1288,38 @@ export function Canvas({
     }
   };
 
+  // Multi-selection gets one box around the union of what was chosen. Its
+  // per-item outlines come from the elements themselves.
+  useEffect(() => {
+    if (selections.length < 2) {
+      setMultiBox(null);
+      return;
+    }
+    const host = hostRef.current;
+    if (!host) {
+      setMultiBox(null);
+      return;
+    }
+    const hostRect = host.getBoundingClientRect();
+    const zoom = live.current.zoom;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    for (const selection of selections) {
+      const element = selection.kind === 'frame'
+        ? host.querySelector<HTMLElement>(`[data-frame-id="${selection.frameId}"]`)
+        : host.querySelector<HTMLElement>(`[data-layer-id="${selection.layerId}"]`);
+      if (!element) continue;
+      const box = element.getBoundingClientRect();
+      left = Math.min(left, (box.left - hostRect.left - live.current.x) / zoom);
+      top = Math.min(top, (box.top - hostRect.top - live.current.y) / zoom);
+      right = Math.max(right, (box.right - hostRect.left - live.current.x) / zoom);
+      bottom = Math.max(bottom, (box.bottom - hostRect.top - live.current.y) / zoom);
+    }
+    setMultiBox(Number.isFinite(left) ? { x: left, y: top, width: right - left, height: bottom - top } : null);
+  }, [selections, doc]);
+
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const current = drag.current;
     // The last pointermove can lag behind the release; decide the drop here.
@@ -1559,9 +1592,22 @@ export function Canvas({
                 background: fillBackground(frame.fills),
                 opacity: frame.opacity,
               }}
-              onPointerDown={(event) => startMoveFrame(event, frame, event.currentTarget)}
+              onPointerDown={(event) => {
+                // Clicking an unselected screen is not a way to grab it: it lets
+                // the canvas start a marquee, like clicking any empty area.
+                if (!frameSelected) return;
+                startMoveFrame(event, frame, event.currentTarget);
+              }}
             >
-              <span className="bp-frame-name">{frame.name}</span>
+              <span
+                className="bp-frame-name"
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  onSelect([{ kind: 'frame', frameId: frame.id }]);
+                }}
+              >
+                {frame.name}
+              </span>
               <span className="bp-frame-size">
                 {frame.width} × {frame.height}
               </span>
@@ -1582,6 +1628,17 @@ export function Canvas({
         })}
 
         {visibleRootLayers.map((layer) => renderLayer(layer, null, null))}
+
+        {multiBox ? (
+          <div
+            className="bp-selection-multi"
+            style={{ left: multiBox.x, top: multiBox.y, width: multiBox.width, height: multiBox.height }}
+          >
+            <span className="bp-size-chip">
+              {Math.round(multiBox.width)} × {Math.round(multiBox.height)}
+            </span>
+          </div>
+        ) : null}
 
         {/* Selection chrome floats above the frames so a clipping container cannot cut it. */}
         <div

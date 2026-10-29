@@ -38,7 +38,13 @@ interface RowInfo {
 interface RowProps {
   name: string;
   depth: number;
-  active: boolean;
+  /** The row itself is selected. */
+  selected: boolean;
+  /** The row is inside a selected screen or container. */
+  inside: boolean;
+  /** First / last row of a selected block, so only the block gets rounded. */
+  blockStart: boolean;
+  blockEnd: boolean;
   visible: boolean;
   locked: boolean;
   hasChildren: boolean;
@@ -58,7 +64,10 @@ interface RowProps {
 function Row({
   name,
   depth,
-  active,
+  selected,
+  inside,
+  blockStart,
+  blockEnd,
   visible,
   locked,
   hasChildren,
@@ -80,7 +89,10 @@ function Row({
       data-row={JSON.stringify(info)}
       data-hidden={String(!visible)}
       data-locked={String(locked)}
-      data-active={active || undefined}
+      data-selected={selected || undefined}
+      data-inside={inside || undefined}
+      data-block-start={blockStart || undefined}
+      data-block-end={blockEnd || undefined}
       data-dragging={dragging || undefined}
       style={{ paddingLeft: BASE_INDENT + depth * INDENT }}
       onPointerDown={onPress}
@@ -242,75 +254,158 @@ export function LayerTree({
     candidate.current = { info, x: event.clientX, y: event.clientY };
   };
 
-  const isLayerActive = (frameId: string | null, layerId: string): boolean =>
-    selections.some((item) => item.kind === 'layer' && item.frameId === frameId && item.layerId === layerId);
+  interface MetaRow {
+    kind: 'frame' | 'layer';
+    frameId: string | null;
+    parentId: string | null;
+    id: string;
+    name: string;
+    depth: number;
+    visible: boolean;
+    locked: boolean;
+    hasChildren: boolean;
+    collapsed: boolean;
+    info: RowInfo;
+    frame?: Frame;
+    layer?: Layer;
+  }
 
-  const renderLayers = (layers: readonly Layer[], frameId: string | null, parentId: string | null, depth: number): ReactElement[] =>
-    layers.flatMap((layer) => {
-      const hasChildren = layer.children.length > 0;
-      const isCollapsed = collapsed.has(layer.id);
-      const info: RowInfo = { kind: 'layer', frameId, parentId, id: layer.id };
-      return [
-        <Row
-          key={layer.id}
-          name={layer.name}
-          depth={depth}
-          active={isLayerActive(frameId, layer.id)}
-          visible={layer.visible}
-          locked={layer.locked}
-          hasChildren={hasChildren}
-          collapsed={isCollapsed}
-          info={info}
-          dragging={dragging?.id === layer.id}
-          onToggleCollapsed={() => toggleCollapsed(layer.id)}
-          onPress={(event) => beginRowPress(event, info)}
-          onClick={() => onSelect([{ kind: 'layer', frameId, layerId: layer.id }])}
-          onDoubleClick={() => {
-            onSelect([{ kind: 'layer', frameId, layerId: layer.id }]);
-            if (layer.kind === 'text') onEditText(frameId, layer.id);
-          }}
-          onToggleVisible={() => onUpdateLayer(frameId, layer.id, { visible: !layer.visible })}
-          onToggleLock={() => onUpdateLayer(frameId, layer.id, { locked: !layer.locked })}
-          visibleLabel="图层"
-          lockedLabel="图层"
-        />,
-        ...(hasChildren && !isCollapsed ? renderLayers(layer.children, frameId, layer.id, depth + 1) : []),
-      ];
-    });
+  const selectedFrames = new Set(
+    selections.filter((item): item is Extract<Selection, { kind: 'frame' }> => item.kind === 'frame').map((item) => item.frameId),
+  );
+  const selectedLayers = new Set(
+    selections.filter((item): item is Extract<Selection, { kind: 'layer' }> => item.kind === 'layer').map((item) => item.layerId),
+  );
 
-  const renderFrame = (frame: Frame): ReactElement[] => {
-    const hasChildren = frame.children.length > 0;
-    const isCollapsed = collapsed.has(frame.id);
-    const info: RowInfo = { kind: 'frame', frameId: frame.id, parentId: null, id: frame.id };
-    return [
-      <Row
-        key={frame.id}
-        name={frame.name}
-        depth={0}
-        active={selections.some((item) => item.kind === 'frame' && item.frameId === frame.id)}
-        visible={frame.visible}
-        locked={frame.locked}
-        hasChildren={hasChildren}
-        collapsed={isCollapsed}
-        info={info}
-        dragging={dragging?.id === frame.id}
-        onToggleCollapsed={() => toggleCollapsed(frame.id)}
-        onPress={(event) => beginRowPress(event, info)}
-        onClick={() => onSelect([{ kind: 'frame', frameId: frame.id }])}
-        onToggleVisible={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
-        onToggleLock={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
-        visibleLabel="画板"
-        lockedLabel="画板"
-      />,
-      ...(hasChildren && !isCollapsed ? renderLayers(frame.children, frame.id, null, 1) : []),
-    ];
+  // Where every layer sits, regardless of what is collapsed right now.
+  const parentOf = new Map<string, string | null>();
+  const frameOf = new Map<string, string | null>();
+  const indexTree = (layers: readonly Layer[], frameId: string | null, parentId: string | null): void => {
+    for (const layer of layers) {
+      parentOf.set(layer.id, parentId);
+      frameOf.set(layer.id, frameId);
+      indexTree(layer.children, frameId, layer.id);
+    }
+  };
+  for (const frame of doc.frames) indexTree(frame.children, frame.id, null);
+
+  const covered = (frameId: string | null, layerId: string): boolean => {
+    if (frameId !== null && selectedFrames.has(frameId)) return true;
+    let cursor = parentOf.get(layerId) ?? null;
+    while (cursor !== null) {
+      if (selectedLayers.has(cursor)) return true;
+      cursor = parentOf.get(cursor) ?? null;
+    }
+    return false;
   };
 
-  const rows = [...renderLayers(doc.layers, null, null, 0), ...doc.frames.flatMap(renderFrame)];
+  const rows: MetaRow[] = [];
+  const pushLayers = (layers: readonly Layer[], frameId: string | null, parentId: string | null, depth: number): void => {
+    for (const layer of layers) {
+      const hasChildren = layer.children.length > 0;
+      const isCollapsed = collapsed.has(layer.id);
+      rows.push({
+        kind: 'layer',
+        frameId,
+        parentId,
+        id: layer.id,
+        name: layer.name,
+        depth,
+        visible: layer.visible,
+        locked: layer.locked,
+        hasChildren,
+        collapsed: isCollapsed,
+        info: { kind: 'layer', frameId, parentId, id: layer.id },
+        layer,
+      });
+      if (hasChildren && !isCollapsed) pushLayers(layer.children, frameId, layer.id, depth + 1);
+    }
+  };
+  pushLayers(doc.layers, null, null, 0);
+  for (const frame of doc.frames) {
+    const hasChildren = frame.children.length > 0;
+    const isCollapsed = collapsed.has(frame.id);
+    rows.push({
+      kind: 'frame',
+      frameId: frame.id,
+      parentId: null,
+      id: frame.id,
+      name: frame.name,
+      depth: 0,
+      visible: frame.visible,
+      locked: frame.locked,
+      hasChildren,
+      collapsed: isCollapsed,
+      info: { kind: 'frame', frameId: frame.id, parentId: null, id: frame.id },
+      frame,
+    });
+    if (hasChildren && !isCollapsed) pushLayers(frame.children, frame.id, null, 1);
+  }
+
+  const marked = rows.map((row) => {
+    const selected = row.kind === 'frame' ? selectedFrames.has(row.id) : selectedLayers.has(row.id);
+    const inside = !selected && row.kind === 'layer' && covered(row.frameId, row.id);
+    return { row, selected, inside, block: selected || inside };
+  });
+
+  const elements = marked.map((entry, index) => {
+    const { row, selected, inside, block } = entry;
+    const previous = marked[index - 1];
+    const next = marked[index + 1];
+    const blockStart = block && previous?.block !== true;
+    const blockEnd = block && next?.block !== true;
+    const common = {
+      key: row.id,
+      name: row.name,
+      depth: row.depth,
+      selected,
+      inside,
+      blockStart,
+      blockEnd,
+      visible: row.visible,
+      locked: row.locked,
+      hasChildren: row.hasChildren,
+      collapsed: row.collapsed,
+      info: row.info,
+      dragging: dragging?.id === row.id,
+      onToggleCollapsed: () => toggleCollapsed(row.id),
+      onPress: (event: ReactPointerEvent<HTMLDivElement>) => beginRowPress(event, row.info),
+    } as const;
+
+    if (row.kind === 'frame') {
+      const frame = row.frame!;
+      return (
+        <Row
+          {...common}
+          onClick={() => onSelect([{ kind: 'frame', frameId: frame.id }])}
+          onToggleVisible={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
+          onToggleLock={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
+          visibleLabel="画板"
+          lockedLabel="画板"
+        />
+      );
+    }
+
+    const layer = row.layer!;
+    return (
+      <Row
+        {...common}
+        onClick={() => onSelect([{ kind: 'layer', frameId: row.frameId, layerId: layer.id }])}
+        onDoubleClick={() => {
+          onSelect([{ kind: 'layer', frameId: row.frameId, layerId: layer.id }]);
+          if (layer.kind === 'text') onEditText(row.frameId, layer.id);
+        }}
+        onToggleVisible={() => onUpdateLayer(row.frameId, layer.id, { visible: !layer.visible })}
+        onToggleLock={() => onUpdateLayer(row.frameId, layer.id, { locked: !layer.locked })}
+        visibleLabel="图层"
+        lockedLabel="图层"
+      />
+    );
+  });
 
   return (
     <div className="bp-layer-list" ref={listRef}>
-      {rows.length === 0 ? <div className="bp-empty">还没有内容</div> : rows}
+      {elements.length === 0 ? <div className="bp-empty">还没有内容</div> : elements}
       {dropY !== null ? <div className="bp-layer-drop" style={{ top: dropY }} /> : null}
     </div>
   );
