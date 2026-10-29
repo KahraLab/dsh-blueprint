@@ -22,6 +22,7 @@ const DIRECTORY = `
 bp — DSH 蓝图插件配套命令行工具
 
   bp view [id]                 看原型 / 一块屏幕 / 一个元素（JSON）
+  bp session                   当前用的是哪个会话、文档在哪
   bp selection                 用户当前选中了什么
   bp find --name 文本           按名字、类型或容器找元素
   bp apply < change.json       一次提交一批修改

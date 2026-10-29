@@ -54,7 +54,11 @@ export function buildSchema(): Record<string, unknown> {
       meaning: '每次成功写入后 revision 加一。读取得到的 revision 原样带回 baseRevision。',
       conflict: 'baseRevision 对不上时整批不写，返回 REVISION_CONFLICT。不要自动重试，先重新读。',
       atomic: '一次 apply 是一个撤销单元；失败或被拒的 apply 不产生新版本。',
-      defaults: '省略的字段按画布规则补齐：手机屏幕 390×844，排布缺省 column、gap 8。',
+    },
+    defaults: {
+      fields: '省略的字段按画布规则补齐：手机屏幕 390×844；形状默认底色 #D9D9D9；文字默认 #101828。',
+      transparent: 'fills 写成 [] 表示透明。不写 fills 才取默认底色；只给区域做布局容器时要写 []。',
+      layout: 'layout 只写 direction 时：gap 8、padding 0、align stretch、justify start。',
     },
     errors: {
       USAGE: '命令或请求的用法不对',

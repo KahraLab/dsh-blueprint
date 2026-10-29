@@ -51,6 +51,7 @@ export function skillFor(command: string): SkillRegistration {
 
 - id 只能从命令输出里抄。自己编的 id 会被拒绝。
 - 字段写错会被整条拒绝。契约之外的字段不会静默忽略，照着 bp schema 写。
+- 只做布局的容器要写 fills: []。不写 fills 会带上默认底色，一块灰底会盖住整个区域；只有真的要有底色的形状才给颜色。
 - 新建节点必须写语义化的 name。「登录页」「手机号输入框」「登录按钮」可以，「画板1」「矩形2」这类自动编号会被拒绝。
 - 批内引用用 ref。insert 的节点带 { "ref": "login" }，同一批里别的操作写 "@login"；ref 不会写进文档。
 - 一次 apply 就是一个撤销单元。用户按一次撤销，退回这一步之前。

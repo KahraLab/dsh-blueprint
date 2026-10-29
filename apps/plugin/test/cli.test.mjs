@@ -307,6 +307,30 @@ describe('协议契约', () => {
     assert.equal(box.view().revision, 1);
   });
 
+  test('显式的空 fills 表示透明，读回来不会补默认底色', () => {
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    box.apply({
+      baseRevision: 1,
+      ops: [
+        {
+          op: 'insert',
+          parent: frameId,
+          node: { ref: 'title-group', kind: 'rect', name: '标题组', sizeW: 'fill', sizeH: 'hug', fills: [], layout: { direction: 'column' } },
+        },
+      ],
+    });
+    const node = box.view(box.find(['--name', '标题组']).matches[0].id).node;
+    assert.deepEqual(node.fills, [], 'explicit [] must stay transparent after a reload');
+  });
+
+  test('session 命令报出当前会话和文档路径', () => {
+    const info = box.ok(['session']);
+    assert.equal(info.session, SESSION);
+    assert.ok(info.document.endsWith('document.json'));
+    assert.equal(info.source, 'env');
+    assert.equal(info.revision, 0);
+  });
+
   test('省略的排布字段按画布规则补齐', () => {
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     box.apply({

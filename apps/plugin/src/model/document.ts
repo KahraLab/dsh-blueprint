@@ -169,7 +169,8 @@ const DEFAULT_FRAME_FILL = '#FFFFFF';
 /** Fill in fields that older documents may not have, and lift legacy `frame.layers` into `children`. */
 export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
   const normalizeFills = (fills: readonly FillStyle[] | undefined, legacy: unknown, fallback: string): FillStyle[] => {
-    if (Array.isArray(fills) && fills.length > 0) return fills.map((fill) => ({ ...fill, id: fill.id ?? nextId('fill') }));
+    // An explicit `[]` means "no paint". Only a missing value earns a default.
+    if (Array.isArray(fills)) return fills.map((fill) => ({ ...fill, id: fill.id ?? nextId('fill') }));
     if (typeof legacy === 'string' && legacy.length > 0 && legacy !== 'transparent') return [makeFill(legacy)];
     return [makeFill(fallback)];
   };

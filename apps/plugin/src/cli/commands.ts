@@ -7,7 +7,7 @@
 import { type SubCommandsDef, defineCommand } from 'citty';
 import { buildSchema } from '../protocol/schema';
 import { emit } from './output';
-import { findCommand, selectionCommand, viewCommand } from './commands/read';
+import { findCommand, selectionCommand, sessionCommand, viewCommand } from './commands/read';
 import { addCommand, applyCommand, moveCommand, removeCommand, setCommand } from './commands/write';
 
 export const schemaCommand = defineCommand({
@@ -20,6 +20,7 @@ export const schemaCommand = defineCommand({
 
 export const subCommands: SubCommandsDef = {
   view: viewCommand,
+  session: sessionCommand,
   selection: selectionCommand,
   find: findCommand,
   apply: applyCommand,

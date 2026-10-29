@@ -5,7 +5,7 @@
  * plain JSON payload, print it. The shapes live in `protocol/read.ts`.
  */
 import { defineCommand } from 'citty';
-import { readDocument } from '../../node/docfile';
+import { documentPath, readDocument } from '../../node/docfile';
 import { buildFind, buildSelection, buildView } from '../../protocol/read';
 import { emit } from '../output';
 import { SESSION_ARG, sessionOf } from '../session';
@@ -28,6 +28,23 @@ export const selectionCommand = defineCommand({
   run({ args }) {
     const session = sessionOf(args.session);
     emit(buildSelection(readDocument(session), session));
+  },
+});
+
+export const sessionCommand = defineCommand({
+  meta: { name: 'session', description: '当前用的是哪个会话：id、文档落在哪、第几版' },
+  args: { session: SESSION_ARG },
+  run({ args }) {
+    const session = sessionOf(args.session);
+    const stored = readDocument(session);
+    emit({
+      ok: true,
+      session,
+      document: documentPath(session),
+      revision: stored.revision,
+      source: args.session !== undefined ? 'flag' : process.env.DSH_SESSION_ID ? 'env' : 'none',
+      ...(session === null ? { hint: '没有会话 id：设 DSH_SESSION_ID，或者传 --session' } : {}),
+    });
   },
 });
 
