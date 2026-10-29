@@ -26,7 +26,7 @@ const ORDER = `怎么选命令
   · 用户指着画布说「这个」「它」→ 先 bp selection
   · 用户说出了名字 → bp find
   · 都不知道 → bp view
-  · 不知道在哪个原型里 → bp project list / bp session
+  · 不知道在哪个蓝图里 → bp blueprint list / bp session
 `;
 
 const RULES = `写进去的规矩
@@ -34,7 +34,7 @@ ${CORE_RULES.map((rule) => `  · ${rule}`).join('\n')}
 `;
 
 const main = defineCommand({
-  meta: { name: 'bp', description: '画布命令行：读写会话右侧栏里的原型画布' },
+  meta: { name: 'bp', description: '画布命令行：读写会话右侧栏里的蓝图画布' },
   subCommands,
   async run({ rawArgs }) {
     // citty runs the matched subcommand and then the parent's run; print the

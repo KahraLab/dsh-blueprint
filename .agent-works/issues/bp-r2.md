@@ -19,7 +19,7 @@ blocked_by: []
 - **craft.js**：React 页面编辑器，状态树 ≈ DOM 树，最贴近我们的模型。
 - **moveable**：只做拖拽/缩放/对齐手柄，可嵌进任何 DOM。
 - **GrapesJS**：老牌 Web builder，模型是组件树 + CSS，但体量大、样式是字符串。
-- **konva / fabric**：canvas 2D，与本项目模型不匹配。
+- **konva / fabric**：canvas 2D，与本蓝图模型不匹配。
 
 要评估的维度：能否表达「嵌套 + 自动布局 + 绝对定位」三种混合；命中测试与选中语义；多选与对齐吸附；撤销/重做；包体积（要内联进 `__ModuleLoader__` bundle，参考 documentpreview 7MB chunk 先例）；许可；React 18 兼容。
 
@@ -41,4 +41,4 @@ blocked_by: []
 
 **两条构建注意事项**：CSS 要转成字符串内联（运行时注入 `<style>`），`react` / `react-dom` 必须 alias 成 external，否则 moveable 的传递依赖会打进第二份 React。
 
-**事实修正**：tldraw 的渲染是 SVG，不是位图 canvas；它与本项目的冲突在文档模型，不在「canvas vs DOM」。
+**事实修正**：tldraw 的渲染是 SVG，不是位图 canvas；它与本蓝图的冲突在文档模型，不在「canvas vs DOM」。

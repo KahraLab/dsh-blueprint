@@ -20,7 +20,7 @@ export function buildSchema(): Record<string, unknown> {
       view: {
         usage: 'bp view [id]',
         output: {
-          all: '{ ok, revision, prototype: { frames, layers }, frames: [{ id, name, x, y, width, height, children }], layers }',
+          all: '{ ok, revision, blueprint: { frames, layers }, frames: [{ id, name, x, y, width, height, children }], layers }',
           frame: '{ ok, revision, scope: "frame", frame: { 完整字段, children } }',
           layer: '{ ok, revision, scope: "layer", kind, node, frameId, parentId, path }',
         },

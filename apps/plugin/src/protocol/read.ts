@@ -13,14 +13,14 @@ import type { StoredDocument } from '../node/docfile';
 import { readSelection } from '../node/selection';
 import { ProtocolError } from './errors';
 
-/** `bp view` — the prototype, one screen, or one element. */
+/** `bp view` — the blueprint, one screen, or one element. */
 export function buildView(stored: StoredDocument, id: string | undefined): Record<string, unknown> {
   const { document: doc } = stored;
 
   if (id !== undefined) {
     const found = locateNode(doc, id);
     if (!found) {
-      throw new ProtocolError('NOT_FOUND', `找不到 id 为 ${id} 的节点`, { hint: '先跑 bp view 看原型里有什么' });
+      throw new ProtocolError('NOT_FOUND', `找不到 id 为 ${id} 的节点`, { hint: '先跑 bp view 看蓝图里有什么' });
     }
     if (found.kind === 'frame') {
       return { ok: true, revision: stored.revision, scope: 'frame', kind: 'frame', frame: found.node };
@@ -41,7 +41,7 @@ export function buildView(stored: StoredDocument, id: string | undefined): Recor
   return {
     ok: true,
     revision: stored.revision,
-    prototype: { frames: counts.frames, layers: counts.layers },
+    blueprint: { frames: counts.frames, layers: counts.layers },
     frames: doc.frames.map(frameSummary),
     layers: doc.layers.map(layerSummary),
   };
@@ -94,7 +94,7 @@ export function buildFind(stored: StoredDocument, args: { name?: string; kind?: 
   }
   if (args.in !== undefined) {
     const container = locateNode(doc, args.in);
-    if (!container) throw new ProtocolError('NOT_FOUND', `找不到容器 ${args.in}`, { hint: '先跑 bp view 看原型里有什么' });
+    if (!container) throw new ProtocolError('NOT_FOUND', `找不到容器 ${args.in}`, { hint: '先跑 bp view 看蓝图里有什么' });
     filter.within = container;
   }
   if (filter.name === undefined && filter.kind === undefined && filter.within === undefined) {

@@ -2,8 +2,8 @@
  * Write commands: one batch (`apply`) and the four single-change shortcuts.
  *
  * They all end at `change` in the protocol layer, so there is one set of rules
- * for validation, refs, revisions and atomicity. Which project they write to is
- * resolved once, by `projectOf`.
+ * for validation, refs, revisions and atomicity. Which blueprint they write to is
+ * resolved once, by `blueprintOf`.
  */
 import { readFileSync } from 'node:fs';
 import { defineCommand } from 'citty';
@@ -17,21 +17,21 @@ import { ProtocolError } from '../../protocol/errors';
 import { splitIconId } from '../../model/icon';
 import { addPayload, numberOf, setPatch, type AddArgs, type SetArgs } from '../args';
 import { emit } from '../output';
-import { PROJECT_ARG, projectOf } from '../session';
+import { BLUEPRINT_ARG, blueprintOf } from '../session';
 
 export const applyCommand = defineCommand({
   meta: { name: 'apply', description: '一次提交一批修改：读 JSON，整批成功或整批不落盘' },
   args: {
     file: { type: 'string', description: '请求文件；不给就从标准输入读' },
-    project: PROJECT_ARG,
+    blueprint: BLUEPRINT_ARG,
   },
   async run({ args }) {
-    const project = projectOf(args.project);
+    const blueprint = blueprintOf(args.blueprint);
     const text = args.file === undefined ? await readStdin() : readFileSync(args.file, 'utf8');
-    const outcome = change(project.file, { request: parseJson(text) });
+    const outcome = change(blueprint.file, { request: parseJson(text) });
     emit({
       ok: true,
-      project: project.id,
+      blueprint: blueprint.id,
       revision: outcome.revision,
       ...(Object.keys(outcome.ids).length > 0 ? { ids: outcome.ids } : {}),
     });
@@ -72,19 +72,19 @@ export const addCommand = defineCommand({
     'font-size': { type: 'string', description: '字号' },
     'font-weight': { type: 'string', description: '字重' },
     index: { type: 'string', description: '放在第几个（从 0 数）' },
-    project: PROJECT_ARG,
+    blueprint: BLUEPRINT_ARG,
   },
   run({ args }) {
-    const project = projectOf(args.project);
-    const stored = readDocument(project.file);
+    const blueprint = blueprintOf(args.blueprint);
+    const stored = readDocument(blueprint.file);
     const parent = args.into === undefined || args.into === 'root' ? null : args.into;
     const index = args.index === undefined ? null : numberOf(args.index, 'index');
     const prepared = prepareOps(stored.document, [{ op: 'insert', parent, index, node: addPayload(args as AddArgs) }]);
 
     const created = prepared.ops[0];
     if (!created || created.op !== 'insert') throw new ProtocolError('INTERNAL', 'add 没有产出插入操作');
-    const outcome = change(project.file, { ops: prepared.ops, baseRevision: stored.revision });
-    emit({ ok: true, project: project.id, revision: outcome.revision, node: describeNode(created.node) });
+    const outcome = change(blueprint.file, { ops: prepared.ops, baseRevision: stored.revision });
+    emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, node: describeNode(created.node) });
   },
 });
 
@@ -120,10 +120,10 @@ export const setCommand = defineCommand({
     justify: { type: 'enum', options: ['start', 'center', 'end', 'between'], description: '主轴分布' },
     visible: { type: 'string', description: 'true 显示，false 隐藏' },
     locked: { type: 'string', description: 'true 锁定，false 解锁' },
-    project: PROJECT_ARG,
+    blueprint: BLUEPRINT_ARG,
   },
   run({ args }) {
-    const project = projectOf(args.project);
+    const blueprint = blueprintOf(args.blueprint);
     const patch = setPatch(args as SetArgs);
     if (Object.keys(patch).length === 0) {
       throw new ProtocolError('USAGE', '没说改什么', { hint: '看选项：bp help set' });
@@ -134,8 +134,8 @@ export const setCommand = defineCommand({
       patch.iconSet = parts.set;
       patch.iconName = parts.name;
     }
-    const outcome = change(project.file, { ops: [{ op: 'set', id: args.id, patch }] });
-    emit({ ok: true, project: project.id, revision: outcome.revision, id: args.id, fields: Object.keys(patch) });
+    const outcome = change(blueprint.file, { ops: [{ op: 'set', id: args.id, patch }] });
+    emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id, fields: Object.keys(patch) });
   },
 });
 
@@ -145,11 +145,11 @@ export const moveCommand = defineCommand({
     id: { type: 'positional', description: '搬哪个元素', required: true },
     into: { type: 'string', description: '搬到哪：画板 id、容器 id，或者 root 表示画布最外层' },
     index: { type: 'string', description: '放在第几个（从 0 数），不给就放最后' },
-    project: PROJECT_ARG,
+    blueprint: BLUEPRINT_ARG,
   },
   run({ args }) {
-    const project = projectOf(args.project);
-    const stored = readDocument(project.file);
+    const blueprint = blueprintOf(args.blueprint);
+    const stored = readDocument(blueprint.file);
     const found = locateNode(stored.document, args.id);
     if (!found) throw new ProtocolError('NOT_FOUND', `找不到 ${args.id}`, { hint: '先跑 bp view 看有哪些 id' });
     const index = args.index === undefined ? null : numberOf(args.index, 'index');
@@ -163,8 +163,8 @@ export const moveCommand = defineCommand({
       throw new ProtocolError('USAGE', '画板只能调顺序，不能搬进别的容器', { field: 'into' });
     }
     const parent = args.into === undefined ? (isFrame ? null : (parentOfLayer(stored.document, args.id) ?? null)) : args.into === 'root' ? null : args.into;
-    const outcome = change(project.file, { ops: [{ op: 'move', id: args.id, parent, index }], baseRevision: stored.revision });
-    emit({ ok: true, project: project.id, revision: outcome.revision, id: args.id });
+    const outcome = change(blueprint.file, { ops: [{ op: 'move', id: args.id, parent, index }], baseRevision: stored.revision });
+    emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id });
   },
 });
 
@@ -172,15 +172,15 @@ export const removeCommand = defineCommand({
   meta: { name: 'rm', description: '删掉一个元素，连同里面的子元素' },
   args: {
     id: { type: 'positional', description: '删哪个元素', required: true },
-    project: PROJECT_ARG,
+    blueprint: BLUEPRINT_ARG,
   },
   run({ args }) {
-    const project = projectOf(args.project);
-    const stored = readDocument(project.file);
+    const blueprint = blueprintOf(args.blueprint);
+    const stored = readDocument(blueprint.file);
     if (!locateNode(stored.document, args.id)) {
       throw new ProtocolError('NOT_FOUND', `找不到 ${args.id}`, { hint: '先跑 bp view 看有哪些 id' });
     }
-    const outcome = change(project.file, { ops: [{ op: 'remove', id: args.id }] });
-    emit({ ok: true, project: project.id, revision: outcome.revision, id: args.id });
+    const outcome = change(blueprint.file, { ops: [{ op: 'remove', id: args.id }] });
+    emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id });
   },
 });

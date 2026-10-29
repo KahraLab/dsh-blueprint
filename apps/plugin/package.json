@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Blueprint：DSH 右侧栏里的产品原型工作台",
+  "description": "Blueprint：DSH 右侧栏里的产品蓝图工作台",
   "exports": {
     ".": "./lib/host/index.js",
     "./client": "./lib/client.js",

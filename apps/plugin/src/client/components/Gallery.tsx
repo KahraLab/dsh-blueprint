@@ -1,7 +1,7 @@
 /**
- * The prototype gallery: what the panel shows before a document is open.
+ * The blueprint gallery: what the panel shows before a document is open.
  *
- * One card per project, with a live mini-render of its first screen. Selecting a
+ * One card per blueprint, with a live mini-render of its first screen. Selecting a
  * card opens the editor; the editor's header keeps only window chrome, so this is
  * where choosing a design file happens.
  */
@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import { Canvas } from './Canvas';
 
-export interface GalleryProject {
+export interface GalleryBlueprint {
   id: string;
   title: string;
   revision: number;
@@ -19,13 +19,13 @@ export interface GalleryProject {
 }
 
 export interface GalleryProps {
-  projects: readonly GalleryProject[];
-  /** First screen of each project, when it could be read. */
+  blueprints: readonly GalleryBlueprint[];
+  /** First screen of each blueprint, when it could be read. */
   previews: Readonly<Record<string, BlueprintDocument | null>>;
   current: string | null;
   loading: boolean;
   error: string | null;
-  onOpen(projectId: string): void;
+  onOpen(blueprintId: string): void;
   onNew(): void;
 }
 
@@ -33,7 +33,7 @@ export interface GalleryProps {
 const THUMB_HEIGHT = 128;
 const THUMB_WIDTH = 116;
 
-export function ProjectGallery({ projects, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
+export function BlueprintGallery({ blueprints, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
   const { t } = useTranslation();
   return (
     <div className="bp-gallery">
@@ -41,7 +41,7 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
         <div>
           <h2 className="bp-gallery-title">{t('panel.title')}</h2>
           <p className="bp-gallery-sub">
-            {loading ? t('gallery.loading') : t('gallery.count', { count: projects.length })}
+            {loading ? t('gallery.loading') : t('gallery.count', { count: blueprints.length })}
           </p>
         </div>
         <button type="button" className="bp-new" onClick={onNew}>
@@ -51,7 +51,7 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
 
       {error === null ? null : <p className="bp-gallery-error">{error}</p>}
 
-      {projects.length === 0 && loading ? null : projects.length === 0 ? (
+      {blueprints.length === 0 && loading ? null : blueprints.length === 0 ? (
         <div className="bp-gallery-empty">
           <p>{t('gallery.empty')}</p>
           <button type="button" className="bp-new" onClick={onNew}>
@@ -60,21 +60,21 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
         </div>
       ) : (
         <div className="bp-gallery-grid">
-          {projects.map((project) => (
+          {blueprints.map((blueprint) => (
             <button
-              key={project.id}
+              key={blueprint.id}
               type="button"
               className="bp-card"
-              data-current={project.id === current}
-              onClick={() => onOpen(project.id)}
-              title={project.title}
+              data-current={blueprint.id === current}
+              onClick={() => onOpen(blueprint.id)}
+              title={blueprint.title}
             >
               <span className="bp-card-thumb">
-                <CardPreview project={project} doc={previews[project.id] ?? null} />
+                <CardPreview blueprint={blueprint} doc={previews[blueprint.id] ?? null} />
               </span>
               <span className="bp-card-meta">
-                <span className="bp-card-title">{project.title}</span>
-                <span className="bp-card-sub">{project.id === current ? t('gallery.current') : updatedLabel(project, t)}</span>
+                <span className="bp-card-title">{blueprint.title}</span>
+                <span className="bp-card-sub">{blueprint.id === current ? t('gallery.current') : updatedLabel(blueprint, t)}</span>
               </span>
             </button>
           ))}
@@ -84,9 +84,9 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
   );
 }
 
-function CardPreview({ project, doc }: { project: GalleryProject; doc: BlueprintDocument | null }): ReactElement {
+function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: BlueprintDocument | null }): ReactElement {
   const { t } = useTranslation();
-  if (project.broken) return <span className="bp-card-note">{t('gallery.broken')}</span>;
+  if (blueprint.broken) return <span className="bp-card-note">{t('gallery.broken')}</span>;
   if (doc === null) return <span className="bp-card-note">{t('gallery.reading')}</span>;
 
   const frame = doc.frames[0];
@@ -123,9 +123,9 @@ function CardPreview({ project, doc }: { project: GalleryProject; doc: Blueprint
   );
 }
 
-function updatedLabel(project: GalleryProject, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (project.updatedAt === '') return t('gallery.neverSaved');
-  const date = new Date(project.updatedAt);
+function updatedLabel(blueprint: GalleryBlueprint, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (blueprint.updatedAt === '') return t('gallery.neverSaved');
+  const date = new Date(blueprint.updatedAt);
   if (Number.isNaN(date.getTime())) return '';
   return t('gallery.updated', { month: date.getMonth() + 1, day: date.getDate() });
 }

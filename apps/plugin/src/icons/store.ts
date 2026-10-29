@@ -80,7 +80,7 @@ function setBaseUrl(): string {
   return (process.env.BP_ICON_CDN ?? 'https://cdn.jsdelivr.net/npm/@iconify-json').replace(/\/+$/, '');
 }
 
-/** Where every download lives: one place shared by every project and session. */
+/** Where every download lives: one place shared by every blueprint and session. */
 export function iconRoot(): string {
   return process.env.BP_ICON_HOME ?? join(homedir(), '.dsh', 'blueprint', 'icons');
 }

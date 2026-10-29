@@ -17,10 +17,10 @@ import { isDeepStrictEqual } from 'node:util';
 import type { BlueprintDocument } from '../model/document';
 import { type DocumentOp, applyOps, validateDocument } from '../model/ops';
 import { writeJsonAtomic } from './atomic';
-import { DOCUMENT_SCHEMA, ProjectError, parseProjectDocument, type ProjectDocument } from './project';
+import { DOCUMENT_SCHEMA, BlueprintError, parseBlueprintFile, type BlueprintFile } from './blueprint';
 
 /** The document as the protocol layer reads it: identity, revision, tree. */
-export type StoredDocument = ProjectDocument;
+export type StoredDocument = BlueprintFile;
 
 const LOCK_STALE_MS = 5_000;
 const LOCK_WAIT_MS = 2_000;
@@ -28,15 +28,15 @@ const LOCK_POLL_MS = 10;
 
 // ---------------------------------------------------------------- reading
 
-export function readDocument(filePath: string): ProjectDocument {
+export function readDocument(filePath: string): BlueprintFile {
   let text: string;
   try {
     text = readFileSync(filePath, 'utf8');
   } catch {
-    throw new ProjectError(`文档不存在：${filePath}`, 'missing');
+    throw new BlueprintError(`文档不存在：${filePath}`, 'missing');
   }
-  const id = filePath.split('/').pop()?.replace(/\.blueprint\.json$/, '') ?? 'prototype';
-  return parseProjectDocument(text, filePath, id);
+  const id = filePath.split('/').pop()?.replace(/\.blueprint\.json$/, '') ?? 'blueprint';
+  return parseBlueprintFile(text, filePath, id);
 }
 
 // ---------------------------------------------------------------- lock
@@ -161,7 +161,7 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
       return { ok: true, revision: current.revision, document: current.document, conflict: false, error: null, failure: null, problems: [] };
     }
 
-    const stored: ProjectDocument = {
+    const stored: BlueprintFile = {
       ...current,
       schema: DOCUMENT_SCHEMA,
       revision: current.revision + 1,

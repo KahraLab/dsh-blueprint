@@ -2,7 +2,7 @@
  * The command line's contract, tested the way a model uses it: spawn the built
  * binary, read JSON, check the exit code.
  *
- * Each test gets its own HOME and its own workspace directory, so projects and
+ * Each test gets its own HOME and its own workspace directory, so blueprints and
  * session scratch files never touch the real ones and tests can run in any
  * order.
  */
@@ -47,8 +47,8 @@ function sandbox() {
     return { status: result.status, payload: parse(result.stderr) };
   };
 
-  const newProject = (id = 'login-page', title = '登录页') => ok(['project', 'new', '--id', id, '--title', title]);
-  const useProject = (id) => ok(['project', 'use', id]);
+  const newBlueprint = (id = 'login-page', title = '登录页') => ok(['blueprint', 'new', '--id', id, '--title', title]);
+  const useBlueprint = (id) => ok(['blueprint', 'use', id]);
   const apply = (request, extra = []) => ok(['apply', ...extra], JSON.stringify(request));
   const view = (id, extra = []) => ok(id === undefined ? ['view', ...extra] : ['view', id, ...extra]);
   const find = (args) => ok(['find', ...args]);
@@ -58,11 +58,11 @@ function sandbox() {
     return matches[0].id;
   };
 
-  const projectPath = (id) => join(workspace, '.dsh-blueprint', 'prototypes', id, `${id}.blueprint.json`);
-  const documentFile = (id = 'login-page') => readFileSync(projectPath(id), 'utf8');
+  const blueprintPath = (id) => join(workspace, '.dsh-blueprint', 'blueprints', id, `${id}.blueprint.json`);
+  const documentFile = (id = 'login-page') => readFileSync(blueprintPath(id), 'utf8');
   const writeDocument = (id, value) => {
-    mkdirSync(dirname(projectPath(id)), { recursive: true });
-    writeFileSync(projectPath(id), JSON.stringify(value));
+    mkdirSync(dirname(blueprintPath(id)), { recursive: true });
+    writeFileSync(blueprintPath(id), JSON.stringify(value));
   };
   const writeLegacyDocument = (document) => {
     mkdirSync(sessionDir, { recursive: true });
@@ -79,13 +79,13 @@ function sandbox() {
     run,
     ok,
     failed,
-    newProject,
-    useProject,
+    newBlueprint,
+    useBlueprint,
     apply,
     view,
     find,
     firstId,
-    projectPath,
+    blueprintPath,
     documentFile,
     writeDocument,
     writeLegacyDocument,
@@ -128,15 +128,15 @@ const LOGIN_SCREEN = {
 let box;
 beforeEach(() => {
   box = sandbox();
-  box.newProject();
+  box.newBlueprint();
 });
 afterEach(() => {
   box.cleanup();
 });
 
-describe('项目', () => {
-  test('新建的项目落在 .dsh-blueprint/prototypes 下，文件带格式版本号', () => {
-    assert.ok(existsSync(box.projectPath('login-page')));
+describe('蓝图', () => {
+  test('新建的蓝图落在 .dsh-blueprint/blueprints 下，文件带格式版本号', () => {
+    assert.ok(existsSync(box.blueprintPath('login-page')));
     const stored = JSON.parse(box.documentFile());
     assert.equal(stored.schema, 3);
     assert.equal(stored.id, 'login-page');
@@ -146,55 +146,83 @@ describe('项目', () => {
   });
 
   test('不给 id 时用 nanoid 生成短 id，标题可以不给', () => {
-    const created = box.ok(['project', 'new']);
-    assert.match(created.project.id, /^[a-z0-9]{10}$/);
-    assert.equal(created.project.title, '未命名蓝图');
-    assert.ok(existsSync(box.projectPath(created.project.id)));
+    const created = box.ok(['blueprint', 'new']);
+    assert.match(created.blueprint.id, /^[a-z0-9]{10}$/);
+    assert.equal(created.blueprint.title, '未命名蓝图');
+    assert.ok(existsSync(box.blueprintPath(created.blueprint.id)));
   });
 
-  test('列出项目，新建的项目是当前项目', () => {
-    const listed = box.ok(['project', 'list']);
+  test('列出蓝图，新建的蓝图是当前蓝图', () => {
+    const listed = box.ok(['blueprint', 'list']);
     assert.equal(listed.current, 'login-page');
-    assert.equal(listed.projects.length, 1);
-    assert.equal(listed.projects[0].title, '登录页');
-    assert.equal(listed.projects[0].broken, false);
+    assert.equal(listed.blueprints.length, 1);
+    assert.equal(listed.blueprints[0].title, '登录页');
+    assert.equal(listed.blueprints[0].broken, false);
   });
 
-  test('工作区里没有原型时说清楚怎么建', () => {
+  test('工作区里没有蓝图时说清楚怎么建', () => {
     const empty = sandbox();
     try {
       const { status, payload } = empty.failed(['view']);
       assert.equal(status, 4);
       assert.equal(payload.code, 'NOT_FOUND');
-      assert.match(payload.message, /还没有原型/);
-      assert.match(payload.hint, /project new/);
+      assert.match(payload.message, /还没有蓝图/);
+      assert.match(payload.hint, /blueprint new/);
     } finally {
       empty.cleanup();
     }
   });
 
-  test('多个原型时不说 --project 会报错，说了就改那一个', () => {
-    box.newProject('second-page', '第二页');
-    assert.equal(box.ok(['project', 'current']).project, 'second-page');
+  test('多个蓝图时不说 --blueprint 会报错，说了就改那一个', () => {
+    box.newBlueprint('second-page', '第二页');
+    assert.equal(box.ok(['blueprint', 'current']).blueprint, 'second-page');
 
-    // Drop the pointer: with two projects there is no safe default.
+    // Drop the pointer: with two blueprints there is no safe default.
     rmSync(join(box.workspace, '.dsh-blueprint', 'current.json'));
     const { status, payload } = box.failed(['view']);
     assert.equal(status, 2);
     assert.equal(payload.code, 'USAGE');
     assert.match(payload.message, /不止一个/);
 
-    const targeted = box.view(undefined, ['--project', 'login-page']);
+    const targeted = box.view(undefined, ['--blueprint', 'login-page']);
     assert.deepEqual(targeted.frames, []);
   });
 
-  test('两个原型的 revision 互不影响', () => {
-    box.newProject('second-page', '第二页');
-    const first = box.apply(LOGIN_SCREEN, ['--project', 'login-page']);
-    assert.equal(first.revision, 1);
-    assert.equal(first.project, 'login-page');
+  test('旧的 prototypes/ 目录会就地搬进 blueprints/，新旧混着也不丢', () => {
+    const legacyDir = join(box.workspace, '.dsh-blueprint', 'prototypes', 'old-one');
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(join(legacyDir, 'old-one.blueprint.json'), JSON.stringify({
+      schema: 3,
+      id: 'old-one',
+      title: '旧的蓝图',
+      createdAt: '2026-01-01T00:00:00Z',
+      revision: 2,
+      updatedAt: '2026-01-01T00:00:00Z',
+      updatedBy: 'cli',
+      document: { frames: [], layers: [] },
+    }));
 
-    const second = box.apply(LOGIN_SCREEN, ['--project', 'second-page']);
+    const listed = box.ok(['blueprint', 'list']);
+    assert.ok(listed.blueprints.some((item) => item.id === 'old-one'));
+    assert.ok(existsSync(join(box.workspace, '.dsh-blueprint', 'blueprints', 'old-one', 'old-one.blueprint.json')));
+    assert.equal(existsSync(join(box.workspace, '.dsh-blueprint', 'prototypes')), false);
+    // The blueprint that was already there is untouched.
+    assert.ok(listed.blueprints.some((item) => item.id === 'login-page'));
+  });
+
+  test('旧的 current.json 用 project 记指针时照样认得', () => {
+    box.newBlueprint('second-page', '第二页');
+    writeFileSync(join(box.workspace, '.dsh-blueprint', 'current.json'), JSON.stringify({ project: 'login-page' }));
+    assert.equal(box.ok(['blueprint', 'current']).blueprint, 'login-page');
+  });
+
+  test('两个蓝图的 revision 互不影响', () => {
+    box.newBlueprint('second-page', '第二页');
+    const first = box.apply(LOGIN_SCREEN, ['--blueprint', 'login-page']);
+    assert.equal(first.revision, 1);
+    assert.equal(first.blueprint, 'login-page');
+
+    const second = box.apply(LOGIN_SCREEN, ['--blueprint', 'second-page']);
     assert.equal(second.revision, 1);
 
     assert.equal(JSON.parse(box.documentFile('login-page')).revision, 1);
@@ -212,10 +240,10 @@ describe('项目', () => {
     assert.match(payload.message, /升级插件/);
   });
 
-  test('旧会话文档可以导入成项目', () => {
+  test('旧会话文档可以导入成蓝图', () => {
     box.writeLegacyDocument({ frames: [], layers: [] });
-    const imported = box.ok(['project', 'import', '--id', 'imported', '--title', '导入的原型']);
-    assert.equal(imported.project.id, 'imported');
+    const imported = box.ok(['blueprint', 'import', '--id', 'imported', '--title', '导入的蓝图']);
+    assert.equal(imported.blueprint.id, 'imported');
     assert.equal(imported.importedFrom, `session:${SESSION}`);
     const stored = JSON.parse(box.documentFile('imported'));
     assert.equal(stored.schema, 3);
@@ -224,13 +252,13 @@ describe('项目', () => {
 });
 
 describe('读取', () => {
-  test('空画布返回空原型和版本 0', () => {
+  test('空画布返回空蓝图和版本 0', () => {
     const payload = box.view();
     assert.equal(payload.ok, true);
     assert.equal(payload.revision, 0);
     assert.deepEqual(payload.frames, []);
     assert.deepEqual(payload.layers, []);
-    assert.deepEqual(payload.prototype, { frames: 0, layers: 0 });
+    assert.deepEqual(payload.blueprint, { frames: 0, layers: 0 });
   });
 
   test('单屏视图返回整棵树，单元素视图返回上下文', () => {
@@ -315,7 +343,7 @@ describe('批量写入', () => {
   test('整屏一次插入，批内引用换成真实 id', () => {
     const payload = box.apply(LOGIN_SCREEN);
     assert.equal(payload.revision, 1);
-    assert.equal(payload.project, 'login-page');
+    assert.equal(payload.blueprint, 'login-page');
     assert.equal(Object.keys(payload.ids).length, 3);
     assert.ok(payload.ids.login.startsWith('frame-'));
     assert.ok(payload.ids.submit.startsWith('layer-'));
@@ -451,12 +479,12 @@ describe('协议契约', () => {
     assert.deepEqual(node.fills, [], 'explicit [] must stay transparent after a reload');
   });
 
-  test('session 命令报出会话、工作区和当前项目', () => {
+  test('session 命令报出会话、工作区和当前蓝图', () => {
     const info = box.ok(['session']);
     assert.equal(info.session, SESSION);
     assert.equal(realpathSync(info.workspace), realpathSync(box.workspace));
-    assert.equal(info.project, 'login-page');
-    assert.ok(info.document.endsWith(join('prototypes', 'login-page', 'login-page.blueprint.json')));
+    assert.equal(info.blueprint, 'login-page');
+    assert.ok(info.document.endsWith(join('blueprints', 'login-page', 'login-page.blueprint.json')));
     assert.equal(info.revision, 0);
   });
 
@@ -574,7 +602,7 @@ describe('输出契约', () => {
       ['find', '--name', '登录'],
       ['schema'],
       ['session'],
-      ['project', 'list'],
+      ['blueprint', 'list'],
       ['add', 'rect', '--name', '新按钮', '--into', frameId],
     ];
     for (const args of commands) {
@@ -589,7 +617,7 @@ describe('输出契约', () => {
     const result = box.run([]);
     assert.equal(result.status, 0);
     assert.match(result.stdout, /COMMANDS/, 'the command list comes from citty');
-    assert.match(result.stdout, /project/, 'commands are listed');
+    assert.match(result.stdout, /blueprint/, 'commands are listed');
     assert.match(result.stdout, /一次 apply 要么全成/, 'the workflow rules follow');
   });
 

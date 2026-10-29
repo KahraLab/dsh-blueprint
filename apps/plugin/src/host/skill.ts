@@ -14,13 +14,13 @@ export const SKILL_NAME = 'dsh-blueprint-canvas';
 export function skillFor(command: string): SkillRegistration {
   return {
     name: SKILL_NAME,
-    description: '操作会话右侧栏里的原型画布：按用户的指点找到元素，一次提交一批修改；读取和写入都是 JSON。用户提到原型、画布、界面、屏幕、页面、按钮时先看这里。',
-    whenToUse: '用户要在原型画布上新增或修改界面，或者问「画布上现在是什么样」「我选中了什么」。',
+    description: '操作会话右侧栏里的蓝图画布：按用户的指点找到元素，一次提交一批修改；读取和写入都是 JSON。用户提到蓝图、画布、界面、屏幕、页面、按钮时先看这里。',
+    whenToUse: '用户要在蓝图画布上新增或修改界面，或者问「画布上现在是什么样」「我选中了什么」。',
     source: 'bundled',
     invocation: { modelInvocable: true, userInvocable: true },
     content: `# 画布
 
-会话右侧栏里有一块原型画布（DSH Blueprint）。用户在上面拖拽，你在命令行里改，改的是同一份文档。
+会话右侧栏里有一块蓝图画布（DSH Blueprint）。用户在上面拖拽，你在命令行里改，改的是同一份文档。
 
 ## 命令在哪
 
@@ -36,13 +36,13 @@ export function skillFor(command: string): SkillRegistration {
 
     ${command} help apply
 
-## 改的是哪个原型
+## 改的是哪个蓝图
 
-一份原型就是一个项目，存在工作区的 .dsh-blueprint/prototypes/<id>/<id>.blueprint.json。命令默认改「当前项目」，也就是用户在面板里打开的那个。不知道是哪个：
+一份蓝图对应工作区里的一个目录：.dsh-blueprint/blueprints/<id>/<id>.blueprint.json。命令默认改「当前蓝图」，也就是用户在面板里打开的那一份。不知道是哪个：
 
-    ${command} project list      # 有哪些原型、当前是哪个
+    ${command} blueprint list      # 有哪些蓝图、当前是哪个
 
-只有一个原型时会自动用它；有多个又没选时命令会报错，让你加 --project 或者先 project use。
+只有一个蓝图时会自动用它；有多个又没选时命令会报错，让你加 --blueprint，或者先 ${command} blueprint use 选定当前蓝图。
 
 ## 每一步怎么做
 
@@ -50,7 +50,7 @@ export function skillFor(command: string): SkillRegistration {
 
 - 用户指着画布说「这个」「把它改大」→ 跑 ${command} selection，拿 frameId 和 layerId。
 - 用户说出了名字 → 跑 ${command} find --name 登录按钮。
-- 都没有 → 先 ${command} view 看原型；要看整屏再用 ${command} view <画板id>。
+- 都没有 → 先 ${command} view 看蓝图；要看整屏再用 ${command} view <画板id>。
 
 然后带上读到的 revision，一次提交完。一批修改写成 { "baseRevision": N, "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply。只有一处小改动时可以用 add / set / move / rm 的快捷写法，它们内部走同一条写入路径。
 

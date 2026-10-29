@@ -233,7 +233,7 @@ function rememberHistoryScope(url: string): void {
 
 /**
  * Adopt a document the user did not type. Tracking is paused so loading does not
- * become an undo step; a different project (or an external write) clears history
+ * become an undo step; a different blueprint (or an external write) clears history
  * instead of letting one canvas undo another writer's change.
  */
 function adoptDocument(doc: BlueprintDocument, clearHistory: boolean, url: string): void {

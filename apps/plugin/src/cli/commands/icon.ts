@@ -2,7 +2,7 @@
  * Icon library commands: what sets are available, download one, find an icon,
  * read its drawing.
  *
- * The library is global (`~/.dsh/blueprint/icons/`), not per project: an icon is
+ * The library is global (`~/.dsh/blueprint/icons/`), not per blueprint: an icon is
  * material the user collected once and can drop into any blueprint.
  */
 import { defineCommand } from 'citty';

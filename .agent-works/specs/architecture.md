@@ -23,7 +23,7 @@
 后台暴露一条统一的修改入口：
 
 ```
-apply(projectId, ops, baseRevision) → { revision, appliedAt }
+apply(blueprintId, ops, baseRevision) → { revision, appliedAt }
 ```
 
 模型改文档、用户拖图层、导入设计语言，全部走这一个人口。谁先谁后由后台排队，不并发写。
@@ -34,14 +34,14 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 
 | 路由 | 作用 |
 |---|---|
-| `GET /blueprint/projects` | 列出原型 |
-| `POST /blueprint/projects` | 新建原型 |
-| `GET /blueprint/projects/:id` | 读文档全量 + 当前 revision |
-| `POST /blueprint/projects/:id/patch` | 应用补丁（带 `baseRevision`） |
-| `POST /blueprint/projects/:id/snapshot` | 手动快照，可命名 |
-| `GET /blueprint/projects/:id/history` | 快照列表 |
-| `POST /blueprint/projects/:id/restore` | 回到某个快照（先给当前状态拍一张） |
-| `POST /blueprint/projects/:id/assets` | 上传图片，返回文件引用 |
+| `GET /blueprint/list` | 列出蓝图 |
+| `POST /blueprint/list` | 新建蓝图 |
+| `GET /blueprint/doc?blueprint=:id` | 读文档全量 + 当前 revision |
+| `POST /blueprint/doc` | 应用补丁（带 `baseRevision`） |
+| `POST /blueprint/doc/snapshot` | 手动快照，可命名 |
+| `GET /blueprint/doc/history` | 快照列表 |
+| `POST /blueprint/doc/restore` | 回到某个快照（先给当前状态拍一张） |
+| `POST /blueprint/doc/assets` | 上传图片，返回文件引用 |
 | `GET /blueprint/icons` | 图标目录与已下载集合 |
 | `POST /blueprint/icons` | 下载一个图标集 |
 | `GET /blueprint/icons/set?prefix=` | 一份集合的完整数据 |
@@ -54,13 +54,13 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 
 ```
 <workspace>/.dsh-blueprint/
-├── current.json          # 面板当前打开哪个原型
+├── current.json          # 面板当前打开哪个蓝图
 ├── design-languages/
 │   └── harbor/
 │       ├── DESIGN.md
 │       └── history/
 │           └── 1.md
-└── prototypes/
+└── blueprints/
     └── checkout/
         ├── checkout.blueprint.json
         ├── assets/
@@ -71,11 +71,12 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
             └── 0001-2026-10-28T13-40-12.json
 ```
 
-- **没有总索引文件**。项目列表就是目录列表，`<id>.blueprint.json` 里存标题、创建时间这些元信息。少一个要和目录对账的文件。
+- 早期工作区里的 `prototypes/` 目录在第一次读取时并进 `blueprints/`，不需要手动搬；`current.json` 里旧键 `project` 也照样认。
+- **没有总索引文件**。蓝图列表就是目录列表，`<id>.blueprint.json` 里存标题、创建时间这些元信息。少一个要和目录对账的文件。
 - **文件名是 `<目录名>.blueprint.json`**，目录名就是 id，文件跟着目录走。单个文件拷出去也认得出这是蓝图文档。
 - **目录名就是 id**，创建后不再改。改标题只改文件里的 `title`，不动目录——避免因为改名让 git 历史断掉、让引用失效。
-- id 只允许小写字母、数字、连字符，防止拼路径时出问题。新建原型时由 nanoid 生成 10 位小写短 id，标题默认「未命名蓝图」，用户之后改标题不动 id。
-- **当前项目记在 `current.json`**，画布切换原型时更新。命令行按「显式 `--project` → 当前项目 → 唯一原型」定位，不靠猜。
+- id 只允许小写字母、数字、连字符，防止拼路径时出问题。新建蓝图时由 nanoid 生成 10 位小写短 id，标题默认「未命名蓝图」，用户之后改标题不动 id。
+- **当前蓝图记在 `current.json`**，画布切换蓝图时更新。命令行按「显式 `--blueprint` → 当前蓝图 → 唯一蓝图」定位，不靠猜。
 - **文件带格式版本号**。读到比插件新的版本时拒绝打开，并说明是插件旧了；不按旧规则猜新字段。
 
 ## `<id>.blueprint.json` 的骨架
@@ -104,7 +105,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 - **用户可手动命名一张**，标 `manual:<名字>`，永久保留。
 - 自动快照保留最近 100 张，超出的按时间删。手动的一张不删。
 - 恢复快照时，先把当前状态拍一张，再载入旧版——恢复本身也可撤销。
-- 快照是整个文档的完整副本，不是 diff。原型文件不大，简单比聪明可靠。
+- 快照是整个文档的完整副本，不是 diff。蓝图文件不大，简单比聪明可靠。
 
 `history/index.json` 只记元信息：序号、时间、原因、文件名。快照内容各自独立成文件。
 
@@ -116,7 +117,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 
 ## 图标素材
 
-- 图标集是用户自己攒的素材，不是插件的代码：下载到全局 `~/.dsh/blueprint/icons/`，所有工作区和原型共用；插件本体不打包任何图标。
+- 图标集是用户自己攒的素材，不是插件的代码：下载到全局 `~/.dsh/blueprint/icons/`，所有工作区和蓝图共用；插件本体不打包任何图标。
 - 三份文件：`catalog.json`（有哪些集合、许可、总数，一周缓存）、`sets/<集合>.json`（完整数据，来自 `@iconify-json/<集合>`）、`sets/<集合>.index.json`（只有名字，搜索用）。
 - 文档里只写 `iconSet` + `iconName`。写入时后台从库里取图、清洗掉脚本与事件属性，再补进节点的 `svg`——所以文档自身能渲染、能交接，换台没下载过该集合的机器也不会空。
 - 选择器按需取：先目录，再选中集合的名字，再整份数据；网格只渲染看得见的格子。没下载的集合不预取。
@@ -131,7 +132,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 ## 热更新与重启
 
 - 文档永远从后台重新拉。界面不持有「离线副本」。
-- 界面状态（选中的屏幕、画布缩放、面板开合）存 `localStorage`，按项目 id 分开。
+- 界面状态（选中的屏幕、画布缩放、面板开合）存 `localStorage`，按蓝图 id 分开。
 - 文字编辑不攒草稿：输入停顿 300ms 就提交补丁。热更新最多丢这 300ms。
 - 面板被卸载重挂时，重新拉文档、恢复界面状态，接着干。
 

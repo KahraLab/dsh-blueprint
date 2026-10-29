@@ -25,7 +25,7 @@ blocked_by: [bp-g1]
 
 2026-10-29 定稿。完整协议与示例见 `.agent-works/specs/ai-editing-protocol.md`。
 
-- **读写都是 JSON**：`view` 按原型、单屏、单元素控制范围；新增 `selection` 与 `find`；不捆绑 jq。
+- **读写都是 JSON**：`view` 按蓝图、单屏、单元素控制范围；新增 `selection` 与 `find`；不捆绑 jq。
 - **所有写入统一 `apply`**：保留 `add / set / move / rm` 作为快捷写法，底层仍只有五种文档操作，不另做 DSL。
 - **id 与名字分工**：id 是稳定身份；AI 创建节点时必须填写语义化 `name`，名字用于识别和搜索，不用于写入寻址。
 - **整屏一次生成**：`insert` 可携带完整子树；批内 `ref` 引用由后台换成真实 id，不存进文档。

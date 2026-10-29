@@ -14,7 +14,7 @@ updated: 2026-10-29
 
 验收标准：
 
-- `bp view` 的全部输出都是合法 JSON，并按原型、单屏、单元素三种范围返回；不再默认倒出人读文本树。
+- `bp view` 的全部输出都是合法 JSON，并按蓝图、单屏、单元素三种范围返回；不再默认倒出人读文本树。
 - 新增 `bp selection` 与 `bp find`，选择、查找结果带 id、语义名、所在屏幕和路径。
 - 新增 `bp apply`；现有 `add / set / move / rm` 与画布写入复用同一套应用、校验和 revision 冲突检测。
 - `insert` 支持完整子树；批内 `ref` 能解析成真实 id 并在成功结果里返回映射，`ref` 不落盘。
@@ -27,7 +27,7 @@ updated: 2026-10-29
 
 2026-10-29 落地。`bp` 的读写命令面与协议一致，写入只有一个入口。
 
-- **读取**：`bp view` 全部输出 JSON，按原型、单屏、单元素三种范围；找不到 id 返回 `NOT_FOUND`。新增 `bp selection` 与 `bp find`，结果带 id、语义名、所在屏幕和路径。
+- **读取**：`bp view` 全部输出 JSON，按蓝图、单屏、单元素三种范围；找不到 id 返回 `NOT_FOUND`。新增 `bp selection` 与 `bp find`，结果带 id、语义名、所在屏幕和路径。
 - **写入**：新增 `bp apply`，一次一批、整批原子；`add / set / move / rm` 构造同样的操作走同一个 `change` 入口，共用校验、revision 冲突检测和落盘。
 - **批内引用**：`insert` 节点带 `ref`，同一批里用 `@名字` 引用；后台换成真实 id 并在结果的 `ids` 里返回映射，`ref` 不写进文档。批内引用先行构建，所以后置操作也能指向前面的插入。
 - **契约单一来源**：字段规则只有一份（`src/model/fields.ts`），画布校验、命令行校验和 `bp schema` 的 JSON Schema 都从它派生；契约本身用 zod 定义，未知字段整条拒绝。`bp schema` 返回 `jsonSchema`（生成）加行为说明（版本、命名、退出码）。

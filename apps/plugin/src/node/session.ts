@@ -2,7 +2,7 @@
  * Where a session's canvas lives.
  *
  * Documents used to be stored per Session under the user's DSH data directory.
- * Project storage replaced that, but a handful of per-Session things stay: which
+ * Blueprint storage replaced that, but a handful of per-Session things stay: which
  * node the user selected, and which Session a panel belongs to.
  */
 import { homedir } from 'node:os';

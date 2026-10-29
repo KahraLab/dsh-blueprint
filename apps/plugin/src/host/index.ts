@@ -3,14 +3,14 @@ import type { FetchRoute, PluginContext, SessionHandle } from '../types/dsh.js';
 import { fetchCatalog, installSet, installedSets, isInstalled, readIndex, readSet } from '../icons/store.js';
 import { changeDocument, readDocument } from '../node/docfile.js';
 import {
-  ProjectError,
-  createProject,
-  listProjects,
-  projectFile,
-  readCurrentProject,
+  BlueprintError,
+  createBlueprint,
+  listBlueprints,
+  blueprintFile,
+  readCurrentBlueprint,
   workspaceRoot,
-  writeCurrentProject,
-} from '../node/project.js';
+  writeCurrentBlueprint,
+} from '../node/blueprint.js';
 import { resolveSessionId } from '../node/session.js';
 import { writeSelection, type StoredSelection } from '../node/selection.js';
 import { skillFor } from './skill.js';
@@ -18,23 +18,23 @@ import { skillFor } from './skill.js';
 /**
  * Host half.
  *
- * Owns the project files inside the Session's workspace:
+ * Owns the blueprint files inside the Session's workspace:
  *
  *   <workspace>/.dsh-blueprint/current.json
- *   <workspace>/.dsh-blueprint/prototypes/<id>/<id>.blueprint.json
+ *   <workspace>/.dsh-blueprint/blueprints/<id>/<id>.blueprint.json
  *   ~/.dsh/dsh-blueprints/<sessionId>/selection.json
  *
  * Routes:
- *   - the project list, so the panel can show and create prototypes;
- *   - the current project pointer, so the command line knows which canvas the
+ *   - the blueprint list, so the panel can show and create blueprints;
+ *   - the current blueprint pointer, so the command line knows which canvas the
  *     user is looking at;
- *   - document read/write for one project, through the same code path the `bp`
+ *   - document read/write for one blueprint, through the same code path the `bp`
  *     command line uses;
  *   - the selection report the canvas sends, which `bp selection` answers from.
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
-const PROJECTS_ENDPOINT = '/api/blueprint/projects';
+const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
@@ -50,7 +50,7 @@ function workspaceOf(scope: PluginContext, sessionId: string | null): string {
   return scope.workingDirectory.defaultDirectory;
 }
 
-function statusOf(error: ProjectError): number {
+function statusOf(error: BlueprintError): number {
   if (error.kind === 'missing') return 404;
   if (error.kind === 'exists') return 409;
   if (error.kind === 'id') return 400;
@@ -58,7 +58,7 @@ function statusOf(error: ProjectError): number {
 }
 
 function failure(error: unknown): Response {
-  if (error instanceof ProjectError) {
+  if (error instanceof BlueprintError) {
     return Response.json({ ok: false, error: error.message, code: error.kind }, { status: statusOf(error) });
   }
   return Response.json({ ok: false, error: message(error), code: 'internal' }, { status: 500 });
@@ -74,9 +74,9 @@ function jsonBody<T>(request: Request): Promise<T> {
 
 // ---------------------------------------------------------------- routes
 
-function createProjectRoute(scope: PluginContext): FetchRoute {
+function createBlueprintRoute(scope: PluginContext): FetchRoute {
   return {
-    path: PROJECTS_ENDPOINT,
+    path: BLUEPRINTS_ENDPOINT,
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
 
@@ -85,7 +85,7 @@ function createProjectRoute(scope: PluginContext): FetchRoute {
       const root = workspaceOf(scope, sessionId);
 
       if (request.method === 'GET') {
-        return Response.json({ ok: true, projects: listProjects(root), current: readCurrentProject(root) });
+        return Response.json({ ok: true, blueprints: listBlueprints(root), current: readCurrentBlueprint(root) });
       }
 
       let body: { title?: unknown; id?: unknown };
@@ -95,11 +95,11 @@ function createProjectRoute(scope: PluginContext): FetchRoute {
         return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
       }
       try {
-        const project = createProject(root, {
+        const blueprint = createBlueprint(root, {
           ...(typeof body.title === 'string' ? { title: body.title } : {}),
           ...(typeof body.id === 'string' ? { id: body.id } : {}),
         });
-        return Response.json({ ok: true, project: { id: project.id, title: project.title, revision: project.revision } });
+        return Response.json({ ok: true, blueprint: { id: blueprint.id, title: blueprint.title, revision: blueprint.revision } });
       } catch (error) {
         return failure(error);
       }
@@ -116,20 +116,20 @@ function createCurrentRoute(scope: PluginContext): FetchRoute {
     async fetch(request) {
       const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
       const root = workspaceOf(scope, sessionId);
-      let body: { project?: unknown };
+      let body: { blueprint?: unknown };
       try {
         body = await jsonBody<typeof body>(request);
       } catch {
         return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
       }
-      if (typeof body.project !== 'string') {
-        return Response.json({ ok: false, error: 'project 要写项目 id' }, { status: 400 });
+      if (typeof body.blueprint !== 'string') {
+        return Response.json({ ok: false, error: 'blueprint 要写蓝图 id' }, { status: 400 });
       }
       try {
-        // Fails when the project is missing, so the pointer cannot dangle.
-        readDocument(projectFile(root, body.project));
-        writeCurrentProject(root, body.project);
-        return Response.json({ ok: true, project: body.project });
+        // Fails when the blueprint is missing, so the pointer cannot dangle.
+        readDocument(blueprintFile(root, body.blueprint));
+        writeCurrentBlueprint(root, body.blueprint);
+        return Response.json({ ok: true, blueprint: body.blueprint });
       } catch (error) {
         return failure(error);
       }
@@ -147,11 +147,11 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
       const url = new URL(request.url);
       const sessionId = resolveSessionId(url.searchParams.get('session'));
       const root = workspaceOf(scope, sessionId);
-      const project = url.searchParams.get('project');
-      if (!project) {
-        return Response.json({ ok: false, error: '缺少 project 参数', code: 'id' }, { status: 400 });
+      const blueprint = url.searchParams.get('blueprint');
+      if (!blueprint) {
+        return Response.json({ ok: false, error: '缺少 blueprint 参数', code: 'id' }, { status: 400 });
       }
-      const file = projectFile(root, project);
+      const file = blueprintFile(root, blueprint);
 
       if (request.method === 'GET') {
         try {
@@ -161,7 +161,7 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
             document: stored.document,
             updatedBy: stored.updatedBy,
             updatedAt: stored.updatedAt,
-            project: { id: stored.id, title: stored.title },
+            blueprint: { id: stored.id, title: stored.title },
           });
         } catch (error) {
           return failure(error);
@@ -185,7 +185,7 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
         const status = result.ok ? 200 : result.conflict ? 409 : 400;
         return Response.json(result, { status });
       } catch (error) {
-        if (error instanceof ProjectError) return failure(error);
+        if (error instanceof BlueprintError) return failure(error);
         return Response.json({ ok: false, error: message(error), conflict: false, revision: 0 }, { status: 500 });
       }
     },
@@ -235,7 +235,7 @@ function toSelection(value: unknown): StoredSelection | null {
 
 /**
  * The global icon library, as the panel sees it. Icons are material shared by
- * every project: the panel lists what is downloaded, downloads a set on demand,
+ * every blueprint: the panel lists what is downloaded, downloads a set on demand,
  * and reads one set's names (or full drawings) only when the picker asks.
  */
 function createIconsRoute(): FetchRoute {
@@ -324,7 +324,7 @@ function register(ctx: PluginContext, label: string, create: () => FetchRoute): 
 
 export function apply(ctx: PluginContext): void {
   ctx.inject(['connection', 'sessions', 'workingDirectory'], (scope) => {
-    register(scope, 'projects', () => createProjectRoute(scope));
+    register(scope, 'blueprints', () => createBlueprintRoute(scope));
     register(scope, 'current', () => createCurrentRoute(scope));
     register(scope, 'document', () => createDocumentRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());

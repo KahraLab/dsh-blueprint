@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Poin
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type ShapeKind, type Viewport, type ViewportInfo } from './components/Canvas';
 import { useTranslation } from 'react-i18next';
-import { ProjectGallery } from './components/Gallery';
+import { BlueprintGallery } from './components/Gallery';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
 import { ShapeIcon, ShapeMenu, shapeLabel } from './components/ShapeMenu';
@@ -39,11 +39,11 @@ const INSPECTOR_MAX_WIDTH = 340;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
-const PROJECTS_ENDPOINT = '/api/blueprint/projects';
+const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 
-type ProjectEntry = import('./components/Gallery').GalleryProject;
+type BlueprintEntry = import('./components/Gallery').GalleryBlueprint;
 const VIEWPORT_KEY = 'blueprint.viewport';
 
 /** World point at the middle of the visible canvas, used to place new frames. */
@@ -85,7 +85,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const { t, i18n } = useTranslation();
   const sessionId = tabSessionId ?? null;
   const query = sessionId ? `session=${encodeURIComponent(sessionId)}` : '';
-  const projectsUrl = query === '' ? PROJECTS_ENDPOINT : `${PROJECTS_ENDPOINT}?${query}`;
+  const blueprintsUrl = query === '' ? BLUEPRINTS_ENDPOINT : `${BLUEPRINTS_ENDPOINT}?${query}`;
   const currentUrl = query === '' ? CURRENT_ENDPOINT : `${CURRENT_ENDPOINT}?${query}`;
   const selectionUrl = query === '' ? SELECTION_ENDPOINT : `${SELECTION_ENDPOINT}?${query}`;
   const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
@@ -99,9 +99,9 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   }, [viewportKey]);
 
   const [now, setNow] = useState(() => new Date());
-  const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectError, setProjectError] = useState<string | null>(null);
+  const [blueprints, setBlueprints] = useState<BlueprintEntry[] | null>(null);
+  const [blueprintId, setBlueprintId] = useState<string | null>(null);
+  const [blueprintError, setBlueprintError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, BlueprintDocument | null>>({});
   const [screen, setScreen] = useState<'gallery' | 'editor'>('gallery');
   const initialised = useRef(false);
@@ -138,16 +138,16 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const reorderLayer = useBlueprint((state) => state.reorderLayer);
   const reorderFrame = useBlueprint((state) => state.reorderFrame);
 
-  const docUrl = projectId === null
+  const docUrl = blueprintId === null
     ? null
-    : `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}project=${encodeURIComponent(projectId)}`;
+    : `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}blueprint=${encodeURIComponent(blueprintId)}`;
 
   const reportCurrent = useCallback(async (id: string): Promise<void> => {
     try {
       await fetch(currentUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ project: id }),
+        body: JSON.stringify({ blueprint: id }),
       });
     } catch {
       // The pointer is a convenience for the command line; the next switch retries.
@@ -155,28 +155,28 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   }, [currentUrl]);
 
   const documentUrlOf = useCallback((id: string): string => (
-    `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}project=${encodeURIComponent(id)}`
+    `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}blueprint=${encodeURIComponent(id)}`
   ), [query]);
 
-  /** The project list plus one screen per project, for the gallery cards. */
+  /** The blueprint list plus one screen per blueprint, for the gallery cards. */
   const loadGallery = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch(projectsUrl, { headers: { accept: 'application/json' } });
-      const data = (await response.json()) as { ok?: boolean; projects?: ProjectEntry[]; current?: string | null; error?: string };
+      const response = await fetch(blueprintsUrl, { headers: { accept: 'application/json' } });
+      const data = (await response.json()) as { ok?: boolean; blueprints?: BlueprintEntry[]; current?: string | null; error?: string };
       if (data?.ok !== true) {
-        setProjectError(data?.error ?? t('gallery.loadFailed'));
-        setProjects([]);
+        setBlueprintError(data?.error ?? t('gallery.loadFailed'));
+        setBlueprints([]);
         return;
       }
-      const list = data.projects ?? [];
-      setProjects(list);
-      setProjectError(null);
+      const list = data.blueprints ?? [];
+      setBlueprints(list);
+      setBlueprintError(null);
 
       if (!initialised.current) {
         initialised.current = true;
         const current = data.current ?? null;
         const chosen = current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null;
-        setProjectId(chosen);
+        setBlueprintId(chosen);
         if (chosen !== null && chosen !== current) void reportCurrent(chosen);
       }
 
@@ -191,44 +191,44 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       }));
       setPreviews(Object.fromEntries(entries));
     } catch (error) {
-      setProjectError(error instanceof Error ? error.message : String(error));
-      setProjects([]);
+      setBlueprintError(error instanceof Error ? error.message : String(error));
+      setBlueprints([]);
     }
-  }, [projectsUrl, documentUrlOf, reportCurrent, t]);
+  }, [blueprintsUrl, documentUrlOf, reportCurrent, t]);
 
   // Refresh the gallery whenever it is shown, so previews track edits.
   useEffect(() => {
     if (screen === 'gallery') void loadGallery();
   }, [screen, loadGallery]);
 
-  const openProject = useCallback((id: string): void => {
-    setProjectId(id);
+  const openBlueprint = useCallback((id: string): void => {
+    setBlueprintId(id);
     setScreen('editor');
     void reportCurrent(id);
   }, [reportCurrent]);
 
-  const createProjectNow = useCallback(async (): Promise<void> => {
+  const createBlueprintNow = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch(projectsUrl, {
+      const response = await fetch(blueprintsUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ title: t('untitled') }),
       });
-      const data = (await response.json()) as { ok?: boolean; project?: { id: string; title: string; revision: number }; error?: string };
-      if (data?.ok !== true || !data.project) {
-        setProjectError(data?.error ?? t('gallery.createFailed'));
+      const data = (await response.json()) as { ok?: boolean; blueprint?: { id: string; title: string; revision: number }; error?: string };
+      if (data?.ok !== true || !data.blueprint) {
+        setBlueprintError(data?.error ?? t('gallery.createFailed'));
         return;
       }
-      const entry: ProjectEntry = { id: data.project.id, title: data.project.title, revision: data.project.revision, updatedAt: '', broken: false };
-      setProjects((previous) => [...(previous ?? []), entry]);
-      setProjectError(null);
-      openProject(entry.id);
+      const entry: BlueprintEntry = { id: data.blueprint.id, title: data.blueprint.title, revision: data.blueprint.revision, updatedAt: '', broken: false };
+      setBlueprints((previous) => [...(previous ?? []), entry]);
+      setBlueprintError(null);
+      openBlueprint(entry.id);
     } catch (error) {
-      setProjectError(error instanceof Error ? error.message : String(error));
+      setBlueprintError(error instanceof Error ? error.message : String(error));
     }
-  }, [projectsUrl, openProject, t]);
+  }, [blueprintsUrl, openBlueprint, t]);
 
-  // One effect per open project: read its document, then keep writing it back.
+  // One effect per open blueprint: read its document, then keep writing it back.
   useEffect(() => {
     if (docUrl === null) return;
     void loadDocument(docUrl);
@@ -316,14 +316,14 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     return (
       <div className="bp-root">
         <style>{css}</style>
-        <ProjectGallery
-          projects={projects ?? []}
+        <BlueprintGallery
+          blueprints={blueprints ?? []}
           previews={previews}
-          current={projectId}
-          loading={projects === null}
-          error={projectError}
-          onOpen={openProject}
-          onNew={() => void createProjectNow()}
+          current={blueprintId}
+          loading={blueprints === null}
+          error={blueprintError}
+          onOpen={openBlueprint}
+          onNew={() => void createBlueprintNow()}
         />
       </div>
     );
@@ -373,8 +373,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       </header>
 
       <div className="bp-main">
-        {projectId === null ? (
-          <div className="bp-placeholder">{t('editor.noProject')}</div>
+        {blueprintId === null ? (
+          <div className="bp-placeholder">{t('editor.noBlueprint')}</div>
         ) : tab === 'canvas' ? (
           <>
             <Canvas
@@ -596,8 +596,8 @@ export function apply(ctx: PluginContext): void {
 
   ctx.effect(
     () => ctx.locale.register(NS, {
-      zh: { panel: '蓝图', description: '与 AI 协作完成产品原型设计' },
-      en: { panel: 'Blueprint', description: 'Design product prototypes with AI' },
+      zh: { panel: '蓝图', description: '与 AI 协作完成产品蓝图设计' },
+      en: { panel: 'Blueprint', description: 'Design product blueprints with AI' },
     }),
     'blueprint:locale',
   );

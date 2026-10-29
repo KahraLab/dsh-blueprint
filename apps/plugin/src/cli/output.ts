@@ -6,7 +6,7 @@
  * parse the output without pattern matching.
  */
 import { IconError } from '../icons/store';
-import { ProjectError } from '../node/project';
+import { BlueprintError } from '../node/blueprint';
 import { EXIT_CODES, ProtocolError, isProtocolError } from '../protocol/errors';
 
 export function emit(payload: Record<string, unknown>): void {
@@ -31,7 +31,7 @@ function asProtocolError(error: unknown): ProtocolError {
     const code = error.kind === 'usage' ? 'USAGE' : error.kind === 'missing' ? 'NOT_FOUND' : 'INTERNAL';
     return new ProtocolError(code, error.message, { hint: 'bp icon catalog 看有哪些集合，bp icon install <集合> 下载' });
   }
-  if (error instanceof ProjectError) {
+  if (error instanceof BlueprintError) {
     const code = error.kind === 'missing' ? 'NOT_FOUND' : error.kind === 'id' ? 'USAGE' : 'VALIDATION_FAILED';
     return new ProtocolError(code, error.message);
   }

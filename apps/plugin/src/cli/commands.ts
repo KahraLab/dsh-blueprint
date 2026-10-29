@@ -9,7 +9,7 @@ import { buildSchema } from '../protocol/schema';
 import { emit } from './output';
 import { findCommand, selectionCommand, sessionCommand, viewCommand } from './commands/read';
 import { addCommand, applyCommand, moveCommand, removeCommand, setCommand } from './commands/write';
-import { projectCommand } from './commands/project';
+import { blueprintCommand } from './commands/blueprint';
 import { iconCommand } from './commands/icon';
 
 export const schemaCommand = defineCommand({
@@ -21,7 +21,7 @@ export const schemaCommand = defineCommand({
 });
 
 export const subCommands: SubCommandsDef = {
-  project: projectCommand,
+  blueprint: blueprintCommand,
   icon: iconCommand,
   view: viewCommand,
   session: sessionCommand,

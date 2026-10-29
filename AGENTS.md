@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台：一边和 AI 聊，一边在画布上把整个产品的流程做成能点、能改、高保真的原型，做完交给编码 Agent 实现。
+DSH Blueprint 是一个装在 DeepSeek Harness 里的产品蓝图工作台：一边和 AI 聊，一边在画布上把整个产品的流程做成能点、能改、高保真的蓝图，做完交给编码 Agent 实现。
 
 完整说明在 [.agent-works/OVERVIEW.md](.agent-works/OVERVIEW.md)。
 
@@ -12,7 +12,7 @@ DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台：一
 
 | 想知道什么 | 读哪里 |
 |---|---|
-| 项目要做成什么样、为什么做 | `.agent-works/OVERVIEW.md` |
+| 蓝图要做成什么样、为什么做 | `.agent-works/OVERVIEW.md` |
 | 做到哪一步、下一步做什么 | `.agent-works/issues/bp-map.md`（总看板） |
 | 某个词是什么意思 | `.agent-works/GLOSSARY.md` |
 | 某块已经定稿的规则 | `.agent-works/specs/` |
@@ -24,16 +24,15 @@ DSH Blueprint 是一个装在 DeepSeek Harness 里的产品原型工作台：一
 ```
 dsh-blueprint/
 ├── AGENTS.md              # 你正在读的这一页
-├── README.md              # 给路过的人看的一屏介绍
 ├── .agent-works/          # 给 Agent 的全部资料，随仓库走
-│   ├── OVERVIEW.md        # 项目是什么、目标是什么
+│   ├── OVERVIEW.md        # 蓝图是什么、目标是什么
 │   ├── GLOSSARY.md        # 领域术语
 │   ├── specs/             # 已定稿的规格
 │   └── issues/            # 路线图、票、总看板
 ├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
 │   ├── src/protocol/      # AI 面对的读写契约：校验、构建、JSON Schema
 │   ├── src/model/         # 文档模型：元素树、字段规则、五种文档操作
-│   └── src/node/          # 项目与文档落盘：布局、版本号、原子写
+│   └── src/node/          # 蓝图与文档落盘：布局、版本号、原子写
 └── .tmp/                  # 过程资料，不进版本库
 ```
 
