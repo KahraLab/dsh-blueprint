@@ -29,8 +29,9 @@ export interface ChangeOutcome {
   ids: Record<string, string>;
 }
 
-export function change(sessionId: string | null, input: ChangeInput): ChangeOutcome {
-  const stored = readDocument(sessionId);
+/** Apply a change to one blueprint document file. */
+export function change(filePath: string, input: ChangeInput): ChangeOutcome {
+  const stored = readDocument(filePath);
 
   let ops: readonly DocumentOp[];
   let ids: Record<string, string> = {};
@@ -49,7 +50,7 @@ export function change(sessionId: string | null, input: ChangeInput): ChangeOutc
     throw new ProtocolError('INTERNAL', 'change 既没有 request 也没有 ops');
   }
 
-  const result = changeDocument(sessionId, {
+  const result = changeDocument(filePath, {
     baseRevision: baseRevision ?? stored.revision,
     ops,
     by: 'cli',

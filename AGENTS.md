@@ -32,7 +32,8 @@ dsh-blueprint/
 │   └── issues/            # 路线图、票、总看板
 ├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
 │   ├── src/protocol/      # AI 面对的读写契约：校验、构建、JSON Schema
-│   └── src/model/         # 文档模型：元素树、字段规则、五种文档操作
+│   ├── src/model/         # 文档模型：元素树、字段规则、五种文档操作
+│   └── src/node/          # 项目与文档落盘：布局、版本号、原子写
 └── .tmp/                  # 过程资料，不进版本库
 ```
 

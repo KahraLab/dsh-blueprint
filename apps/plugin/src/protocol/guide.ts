@@ -13,4 +13,5 @@ export const CORE_RULES: readonly string[] = [
   '只做布局的容器写 fills: []，否则会带上默认底色。',
   'baseRevision 对不上就重新读，命令不会自动重试。',
   '一次 apply 就是一个撤销单元。',
+  '改的是哪份原型由「当前项目」决定；不是它就用 --project，或者 bp project use 切过去。',
 ];

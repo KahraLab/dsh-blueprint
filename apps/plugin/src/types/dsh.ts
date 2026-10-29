@@ -73,8 +73,19 @@ export interface ConnectionService {
   };
 }
 
+/** The part of a Session the working directory service needs. */
+export interface SessionHandle {
+  readonly cwd: string;
+}
+
+export interface SessionsService {
+  get(id: string): SessionHandle | undefined;
+}
+
 export interface WorkingDirectoryService {
   readonly defaultDirectory: string;
+  /** The directory this Session actually works in. */
+  get(session: SessionHandle): string;
 }
 
 export interface SkillRegistration {
@@ -100,7 +111,8 @@ export interface PluginContext {
   sidebarRight: SidebarRightService;
   sidebarRightTabs: SidebarRightTabsService;
   connection: ConnectionService;
+  sessions: SessionsService;
+  workingDirectory: WorkingDirectoryService;
   skills: SkillsService;
   fs: FsService;
-  workingDirectory: WorkingDirectoryService;
 }

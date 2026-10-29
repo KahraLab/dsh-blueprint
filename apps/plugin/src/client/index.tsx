@@ -32,7 +32,17 @@ const INSPECTOR_MAX_WIDTH = 340;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
+const PROJECTS_ENDPOINT = '/api/blueprint/projects';
+const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
+
+interface ProjectEntry {
+  id: string;
+  title: string;
+  revision: number;
+  updatedAt: string;
+  broken: boolean;
+}
 const VIEWPORT_KEY = 'blueprint.viewport';
 
 /** World point at the middle of the visible canvas, used to place new frames. */
@@ -72,8 +82,10 @@ interface PanelProps {
 
 function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const sessionId = tabSessionId ?? null;
-  const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
-  const selectionUrl = sessionId ? `${SELECTION_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : SELECTION_ENDPOINT;
+  const query = sessionId ? `session=${encodeURIComponent(sessionId)}` : '';
+  const projectsUrl = query === '' ? PROJECTS_ENDPOINT : `${PROJECTS_ENDPOINT}?${query}`;
+  const currentUrl = query === '' ? CURRENT_ENDPOINT : `${CURRENT_ENDPOINT}?${query}`;
+  const selectionUrl = query === '' ? SELECTION_ENDPOINT : `${SELECTION_ENDPOINT}?${query}`;
   const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
   const [initialViewport] = useState<Viewport | undefined>(() => readViewport(viewportKey));
   const saveViewport = useCallback((next: Viewport): void => {
@@ -84,6 +96,11 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }
   }, [viewportKey]);
 
+  const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
@@ -116,9 +133,83 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const reorderLayer = useBlueprint((state) => state.reorderLayer);
   const reorderFrame = useBlueprint((state) => state.reorderFrame);
 
-  // One effect for the whole session: read the document, then keep writing it
-  // back. The debounce and the fetch live in the store, away from the render path.
+  const docUrl = projectId === null
+    ? null
+    : `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}project=${encodeURIComponent(projectId)}`;
+
+  const reportCurrent = useCallback(async (id: string): Promise<void> => {
+    try {
+      await fetch(currentUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ project: id }),
+      });
+    } catch {
+      // The pointer is a convenience for the command line; the next switch retries.
+    }
+  }, [currentUrl]);
+
+  // Which prototypes exist, and which one this panel was looking at last time.
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(projectsUrl, { headers: { accept: 'application/json' } });
+        const data = (await response.json()) as { ok?: boolean; projects?: ProjectEntry[]; current?: string | null; error?: string };
+        if (cancelled) return;
+        if (data?.ok !== true) {
+          setProjectError(data?.error ?? '读不到原型列表');
+          setProjects([]);
+          return;
+        }
+        const list = data.projects ?? [];
+        setProjects(list);
+        const current = data.current ?? null;
+        const chosen = current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null;
+        setProjectId(chosen);
+        if (chosen !== null && chosen !== current) void reportCurrent(chosen);
+      } catch (error) {
+        if (cancelled) return;
+        setProjectError(error instanceof Error ? error.message : String(error));
+        setProjects([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectsUrl, reportCurrent]);
+
+  const openProject = useCallback((id: string): void => {
+    setProjectId(id);
+    void reportCurrent(id);
+  }, [reportCurrent]);
+
+  const createProjectNow = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch(projectsUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: newTitle.trim() === '' ? '未命名原型' : newTitle.trim() }),
+      });
+      const data = (await response.json()) as { ok?: boolean; project?: { id: string; title: string; revision: number }; error?: string };
+      if (data?.ok !== true || !data.project) {
+        setProjectError(data?.error ?? '没建成');
+        return;
+      }
+      const entry: ProjectEntry = { id: data.project.id, title: data.project.title, revision: data.project.revision, updatedAt: '', broken: false };
+      setProjects((previous) => [...(previous ?? []), entry]);
+      setProjectError(null);
+      setCreating(false);
+      setNewTitle('');
+      openProject(entry.id);
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : String(error));
+    }
+  }, [projectsUrl, newTitle, openProject]);
+
+  // One effect per open project: read its document, then keep writing it back.
+  useEffect(() => {
+    if (docUrl === null) return;
     void loadDocument(docUrl);
     const stopSession = startSession(docUrl, selectionUrl);
     const stopKeys = installKeys();
@@ -194,6 +285,29 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <header className="bp-head">
         <div className="bp-head-left">
+          <select
+            className="bp-project"
+            aria-label="当前原型"
+            value={projectId ?? ''}
+            onChange={(event) => openProject(event.target.value)}
+            style={{ maxWidth: 120, font: '12px inherit', background: 'transparent', color: 'inherit', border: '1px solid rgba(127,127,127,0.35)', borderRadius: 6, padding: '2px 4px' }}
+          >
+            {(projects ?? []).map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.title}
+              </option>
+            ))}
+            {projectId === null ? <option value="" disabled>还没有原型</option> : null}
+          </select>
+          <button
+            type="button"
+            className="bp-icon"
+            title="新建原型"
+            aria-label="新建原型"
+            onClick={() => setCreating(true)}
+          >
+            ＋
+          </button>
           <button
             type="button"
             className="bp-icon"
@@ -228,7 +342,18 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       </header>
 
       <div className="bp-main">
-        {tab === 'canvas' ? (
+        {projectId === null ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              {projects === null ? '正在读取原型…' : (projectError ?? '这个工作区还没有原型')}
+            </div>
+            {projects === null ? null : (
+              <button type="button" className="bp-btn" onClick={() => setCreating(true)} style={{ padding: '6px 12px' }}>
+                新建原型
+              </button>
+            )}
+          </div>
+        ) : tab === 'canvas' ? (
           <>
             <Canvas
               viewportRef={canvasViewport}
@@ -411,6 +536,30 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
           </aside>
         )}
       </div>
+
+      {creating ? (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div style={{ background: '#1f1f1f', color: '#f2f2f2', padding: 16, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, width: 240, boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 13 }}>新建原型</div>
+            <input
+              autoFocus
+              value={newTitle}
+              placeholder="标题，比如 登录页"
+              onChange={(event) => setNewTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void createProjectNow();
+                if (event.key === 'Escape') setCreating(false);
+              }}
+              style={{ font: '13px inherit', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setCreating(false)}>取消</button>
+              <button type="button" onClick={() => void createProjectNow()}>创建</button>
+            </div>
+            {projectError ? <div style={{ fontSize: 11, color: '#f97066' }}>{projectError}</div> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

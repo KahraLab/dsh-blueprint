@@ -5,6 +5,7 @@
  * on stderr with a non-zero exit code. Nothing else is printed, so a model can
  * parse the output without pattern matching.
  */
+import { ProjectError } from '../node/project';
 import { EXIT_CODES, ProtocolError, isProtocolError } from '../protocol/errors';
 
 export function emit(payload: Record<string, unknown>): void {
@@ -25,6 +26,10 @@ export function report(error: unknown): number {
  */
 function asProtocolError(error: unknown): ProtocolError {
   if (isProtocolError(error)) return error;
+  if (error instanceof ProjectError) {
+    const code = error.kind === 'missing' ? 'NOT_FOUND' : error.kind === 'id' ? 'USAGE' : 'VALIDATION_FAILED';
+    return new ProtocolError(code, error.message);
+  }
 
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && code.startsWith('E') && error instanceof Error) {

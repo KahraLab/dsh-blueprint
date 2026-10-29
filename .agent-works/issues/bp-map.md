@@ -70,6 +70,7 @@ updated: 2026-10-29
 - patch 闭环手感原型（原票已撤）: 不单独做 mock。真实编辑器已跑通点选、改动、画面刷新；剩下没答的改动动效，移到 Not yet specified。
 - [AI 编辑协议](bp-g2.md): 读写统一 JSON，写入统一 `apply`；新增选择与查找；AI 必须起语义名；批内 `ref` 换成真实 id；冲突重读；一次 `apply` 一个撤销单元。
 - [AI 读写协议落地](bp-t1.md): 命令面按协议落地，写入只有一个 `change` 入口；字段规则单表驱动画布校验与 `bp schema` 的 JSON Schema；选择状态存在文档旁、不占 revision；`replace` 不再把屏内元素换到画布外层。
+- [项目与存储](bp-t3.md): 工作区 `.dsh-blueprint/` 是唯一存储，原型一个目录一份 `<id>.blueprint.json`；文件带格式版本号，读到更新版本就拒绝；`current.json` 记当前项目，命令行与画布靠它对齐；旧会话文档一次性导入。
 
 ## Not yet specified
 

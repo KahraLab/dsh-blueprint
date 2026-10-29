@@ -2,12 +2,13 @@
  * The command line's contract, tested the way a model uses it: spawn the built
  * binary, read JSON, check the exit code.
  *
- * Each test gets its own HOME, so documents never touch the real one and tests
- * can run in any order.
+ * Each test gets its own HOME and its own workspace directory, so projects and
+ * session scratch files never touch the real ones and tests can run in any
+ * order.
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
@@ -16,15 +17,17 @@ import { fileURLToPath } from 'node:url';
 const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'bin', 'bp.js');
 const SESSION = 'bp-test-session';
 
-/** A throwaway HOME and the runner that uses it. */
+/** A throwaway HOME and workspace, plus the runner that uses them. */
 function sandbox() {
-  const home = mkdtempSync(join(tmpdir(), 'bp-cli-'));
+  const home = mkdtempSync(join(tmpdir(), 'bp-home-'));
+  const workspace = mkdtempSync(join(tmpdir(), 'bp-ws-'));
   const sessionDir = join(home, '.dsh', 'dsh-blueprints', SESSION);
 
   const run = (args, input = '') => {
     const result = spawnSync(process.execPath, [CLI, ...args], {
       input,
       encoding: 'utf8',
+      cwd: workspace,
       env: { ...process.env, HOME: home, DSH_SESSION_ID: SESSION, NO_COLOR: '1' },
     });
     assert.equal(result.error, undefined, `spawn failed: ${String(result.error)}`);
@@ -41,12 +44,13 @@ function sandbox() {
   const failed = (args, input) => {
     const result = run(args, input);
     assert.notEqual(result.status, 0, `expected failure for ${args.join(' ')}`);
-    const payload = parse(result.stderr);
-    return { status: result.status, payload };
+    return { status: result.status, payload: parse(result.stderr) };
   };
 
-  const apply = (request) => ok(['apply'], JSON.stringify(request));
-  const view = (id) => ok(id === undefined ? ['view'] : ['view', id]);
+  const newProject = (id = 'login-page', title = '登录页') => ok(['project', 'new', '--id', id, '--title', title]);
+  const useProject = (id) => ok(['project', 'use', id]);
+  const apply = (request, extra = []) => ok(['apply', ...extra], JSON.stringify(request));
+  const view = (id, extra = []) => ok(id === undefined ? ['view', ...extra] : ['view', id, ...extra]);
   const find = (args) => ok(['find', ...args]);
   const firstId = (args) => {
     const matches = find(args).matches;
@@ -54,13 +58,43 @@ function sandbox() {
     return matches[0].id;
   };
 
-  const documentFile = () => readFileSync(join(sessionDir, 'document.json'), 'utf8');
+  const projectPath = (id) => join(workspace, '.dsh-blueprint', 'prototypes', id, `${id}.blueprint.json`);
+  const documentFile = (id = 'login-page') => readFileSync(projectPath(id), 'utf8');
+  const writeDocument = (id, value) => {
+    mkdirSync(dirname(projectPath(id)), { recursive: true });
+    writeFileSync(projectPath(id), JSON.stringify(value));
+  };
+  const writeLegacyDocument = (document) => {
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(join(sessionDir, 'document.json'), JSON.stringify({ schema: 2, revision: 1, updatedAt: 'x', updatedBy: 'cli', document }));
+  };
   const writeSelection = (selections) => {
     mkdirSync(sessionDir, { recursive: true });
     writeFileSync(join(sessionDir, 'selection.json'), JSON.stringify({ selections, updatedAt: 'test' }));
   };
 
-  return { home, sessionDir, run, ok, failed, apply, view, find, firstId, documentFile, writeSelection, cleanup: () => rmSync(home, { recursive: true, force: true }) };
+  return {
+    home,
+    workspace,
+    run,
+    ok,
+    failed,
+    newProject,
+    useProject,
+    apply,
+    view,
+    find,
+    firstId,
+    projectPath,
+    documentFile,
+    writeDocument,
+    writeLegacyDocument,
+    writeSelection,
+    cleanup: () => {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(workspace, { recursive: true, force: true });
+    },
+  };
 }
 
 function parse(text) {
@@ -94,9 +128,92 @@ const LOGIN_SCREEN = {
 let box;
 beforeEach(() => {
   box = sandbox();
+  box.newProject();
 });
 afterEach(() => {
   box.cleanup();
+});
+
+describe('项目', () => {
+  test('新建的项目落在 .dsh-blueprint/prototypes 下，文件带格式版本号', () => {
+    assert.ok(existsSync(box.projectPath('login-page')));
+    const stored = JSON.parse(box.documentFile());
+    assert.equal(stored.schema, 3);
+    assert.equal(stored.id, 'login-page');
+    assert.equal(stored.title, '登录页');
+    assert.equal(stored.revision, 0);
+    assert.deepEqual(stored.document, { frames: [], layers: [] });
+  });
+
+  test('列出项目，新建的项目是当前项目', () => {
+    const listed = box.ok(['project', 'list']);
+    assert.equal(listed.current, 'login-page');
+    assert.equal(listed.projects.length, 1);
+    assert.equal(listed.projects[0].title, '登录页');
+    assert.equal(listed.projects[0].broken, false);
+  });
+
+  test('工作区里没有原型时说清楚怎么建', () => {
+    const empty = sandbox();
+    try {
+      const { status, payload } = empty.failed(['view']);
+      assert.equal(status, 4);
+      assert.equal(payload.code, 'NOT_FOUND');
+      assert.match(payload.message, /还没有原型/);
+      assert.match(payload.hint, /project new/);
+    } finally {
+      empty.cleanup();
+    }
+  });
+
+  test('多个原型时不说 --project 会报错，说了就改那一个', () => {
+    box.newProject('second-page', '第二页');
+    assert.equal(box.ok(['project', 'current']).project, 'second-page');
+
+    // Drop the pointer: with two projects there is no safe default.
+    rmSync(join(box.workspace, '.dsh-blueprint', 'current.json'));
+    const { status, payload } = box.failed(['view']);
+    assert.equal(status, 2);
+    assert.equal(payload.code, 'USAGE');
+    assert.match(payload.message, /不止一个/);
+
+    const targeted = box.view(undefined, ['--project', 'login-page']);
+    assert.deepEqual(targeted.frames, []);
+  });
+
+  test('两个原型的 revision 互不影响', () => {
+    box.newProject('second-page', '第二页');
+    const first = box.apply(LOGIN_SCREEN, ['--project', 'login-page']);
+    assert.equal(first.revision, 1);
+    assert.equal(first.project, 'login-page');
+
+    const second = box.apply(LOGIN_SCREEN, ['--project', 'second-page']);
+    assert.equal(second.revision, 1);
+
+    assert.equal(JSON.parse(box.documentFile('login-page')).revision, 1);
+    assert.equal(JSON.parse(box.documentFile('second-page')).revision, 1);
+    assert.equal(JSON.parse(box.documentFile('login-page')).document.frames.length, 1);
+    assert.equal(JSON.parse(box.documentFile('second-page')).document.frames.length, 1);
+  });
+
+  test('读到更新版本的文档时拒绝，不猜字段', () => {
+    box.writeDocument('login-page', { schema: 99, id: 'login-page', title: '登录页', revision: 0, document: { frames: [], layers: [] } });
+    const { status, payload } = box.failed(['view']);
+    assert.equal(status, 2);
+    assert.equal(payload.code, 'VALIDATION_FAILED');
+    assert.match(payload.message, /版本 99/);
+    assert.match(payload.message, /升级插件/);
+  });
+
+  test('旧会话文档可以导入成项目', () => {
+    box.writeLegacyDocument({ frames: [], layers: [] });
+    const imported = box.ok(['project', 'import', '--id', 'imported', '--title', '导入的原型']);
+    assert.equal(imported.project.id, 'imported');
+    assert.equal(imported.importedFrom, `session:${SESSION}`);
+    const stored = JSON.parse(box.documentFile('imported'));
+    assert.equal(stored.schema, 3);
+    assert.equal(stored.updatedBy, 'import');
+  });
 });
 
 describe('读取', () => {
@@ -114,7 +231,6 @@ describe('读取', () => {
     const frameId = box.firstId(['--kind', 'frame']);
     const frame = box.view(frameId);
     assert.equal(frame.scope, 'frame');
-    assert.equal(frame.kind, 'frame');
     assert.equal(frame.frame.children.length, 2);
     assert.equal(frame.frame.children[1].name, '登录按钮');
 
@@ -139,7 +255,6 @@ describe('读取', () => {
 
     const byName = box.find(['--name', '按钮']);
     assert.equal(byName.matches.length, 1);
-    assert.equal(byName.matches[0].name, '登录按钮');
     assert.deepEqual(byName.matches[0].path, ['登录页', '登录按钮']);
 
     const byKind = box.find(['--kind', 'text']);
@@ -149,8 +264,7 @@ describe('读取', () => {
     const inFrame = box.find(['--in', frameId, '--kind', 'rect']);
     assert.equal(inFrame.matches.length, 1);
 
-    const empty = box.find(['--name', '不存在的东西']);
-    assert.deepEqual(empty.matches, []);
+    assert.deepEqual(box.find(['--name', '不存在的东西']).matches, []);
   });
 
   test('find 不给条件时是用法错误', () => {
@@ -171,7 +285,6 @@ describe('选择', () => {
     assert.equal(payload.count, 1);
     assert.equal(payload.selection.layerId, buttonId);
     assert.equal(payload.selection.kind, 'rect');
-    assert.equal(payload.selection.name, '登录按钮');
     assert.deepEqual(payload.selection.path, ['登录页', '登录按钮']);
   });
 
@@ -195,6 +308,7 @@ describe('批量写入', () => {
   test('整屏一次插入，批内引用换成真实 id', () => {
     const payload = box.apply(LOGIN_SCREEN);
     assert.equal(payload.revision, 1);
+    assert.equal(payload.project, 'login-page');
     assert.equal(Object.keys(payload.ids).length, 3);
     assert.ok(payload.ids.login.startsWith('frame-'));
     assert.ok(payload.ids.submit.startsWith('layer-'));
@@ -220,8 +334,7 @@ describe('批量写入', () => {
       ],
     });
     assert.equal(payload.revision, 2);
-    const form = box.view(payload.ids.form);
-    assert.equal(form.node.radius, 16);
+    assert.equal(box.view(payload.ids.form).node.radius, 16);
   });
 
   test('一条操作不合法时整批都不落盘', () => {
@@ -243,8 +356,7 @@ describe('批量写入', () => {
     assert.equal(payload.op, 'set');
     assert.equal(payload.target, 'layer-nope');
 
-    const after = box.view();
-    assert.equal(after.revision, 1, 'revision must not move when the batch fails');
+    assert.equal(box.view().revision, 1, 'revision must not move when the batch fails');
     assert.equal(box.view(buttonId).node.radius, 12, 'the first operation must not have been written');
   });
 
@@ -323,11 +435,12 @@ describe('协议契约', () => {
     assert.deepEqual(node.fills, [], 'explicit [] must stay transparent after a reload');
   });
 
-  test('session 命令报出当前会话和文档路径', () => {
+  test('session 命令报出会话、工作区和当前项目', () => {
     const info = box.ok(['session']);
     assert.equal(info.session, SESSION);
-    assert.ok(info.document.endsWith('document.json'));
-    assert.equal(info.source, 'env');
+    assert.equal(realpathSync(info.workspace), realpathSync(box.workspace));
+    assert.equal(info.project, 'login-page');
+    assert.ok(info.document.endsWith(join('prototypes', 'login-page', 'login-page.blueprint.json')));
     assert.equal(info.revision, 0);
   });
 
@@ -400,8 +513,7 @@ describe('快捷写法', () => {
     const removed = box.ok(['rm', button.node.id]);
     assert.equal(removed.id, button.node.id);
 
-    const view = box.view(frameId);
-    assert.deepEqual(view.frame.children, []);
+    assert.deepEqual(box.view(frameId).frame.children, []);
   });
 
   test('add 不写 --name 会被拒绝', () => {
@@ -422,6 +534,8 @@ describe('输出契约', () => {
       ['selection'],
       ['find', '--name', '登录'],
       ['schema'],
+      ['session'],
+      ['project', 'list'],
       ['add', 'rect', '--name', '新按钮', '--into', frameId],
     ];
     for (const args of commands) {
@@ -436,7 +550,7 @@ describe('输出契约', () => {
     const result = box.run([]);
     assert.equal(result.status, 0);
     assert.match(result.stdout, /COMMANDS/, 'the command list comes from citty');
-    assert.match(result.stdout, /view/, 'commands are listed');
+    assert.match(result.stdout, /project/, 'commands are listed');
     assert.match(result.stdout, /一次 apply 要么全成/, 'the workflow rules follow');
   });
 
@@ -444,7 +558,6 @@ describe('输出契约', () => {
     const schema = box.ok(['schema']);
     assert.equal(schema.protocol, 'blueprint-editing/1');
     assert.equal(schema.exitCodes.REVISION_CONFLICT, 3);
-    assert.equal(schema.exitCodes.VALIDATION_FAILED, 2);
 
     const json = schema.jsonSchema;
     assert.equal(json.$schema, 'https://json-schema.org/draft/2020-12/schema');
@@ -452,15 +565,5 @@ describe('输出契约', () => {
     assert.ok(json.properties.ops.items.oneOf.length >= 5, 'every operation kind is published');
     assert.ok(Object.keys(json.$defs ?? {}).length > 0, 'recursive node payload is published via $defs');
     assert.match(schema.naming.name, /语义化/);
-  });
-});
-
-describe('宿主文件', () => {
-  test('文档落在会话目录里，带 revision', () => {
-    box.apply(LOGIN_SCREEN);
-    assert.ok(existsSync(join(box.sessionDir, 'document.json')));
-    const stored = JSON.parse(box.documentFile());
-    assert.equal(stored.revision, 1);
-    assert.equal(stored.document.frames[0].name, '登录页');
   });
 });

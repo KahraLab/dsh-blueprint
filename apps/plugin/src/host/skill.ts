@@ -36,6 +36,14 @@ export function skillFor(command: string): SkillRegistration {
 
     ${command} help apply
 
+## 改的是哪个原型
+
+一份原型就是一个项目，存在工作区的 .dsh-blueprint/prototypes/<id>/<id>.blueprint.json。命令默认改「当前项目」，也就是用户在面板里打开的那个。不知道是哪个：
+
+    ${command} project list      # 有哪些原型、当前是哪个
+
+只有一个原型时会自动用它；有多个又没选时命令会报错，让你加 --project 或者先 project use。
+
 ## 每一步怎么做
 
 先弄清楚改谁。

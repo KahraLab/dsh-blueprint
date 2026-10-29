@@ -26,6 +26,7 @@ const ORDER = `怎么选命令
   · 用户指着画布说「这个」「它」→ 先 bp selection
   · 用户说出了名字 → bp find
   · 都不知道 → bp view
+  · 不知道在哪个原型里 → bp project list / bp session
 `;
 
 const RULES = `写进去的规矩

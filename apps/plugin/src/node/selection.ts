@@ -7,7 +7,7 @@
  */
 import { mkdirSync, readFileSync } from 'node:fs';
 import { writeJsonAtomic } from './atomic';
-import { sessionDir } from './docfile';
+import { sessionDir } from './session';
 
 export interface StoredSelection {
   frameId: string | null;

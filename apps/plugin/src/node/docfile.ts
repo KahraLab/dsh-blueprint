@@ -1,105 +1,40 @@
 /**
- * One document on disk, shared by three writers.
+ * Reading and changing one blueprint document file.
  *
- * The canvas writes what the user drags, the command line writes what a model
- * asks for, and both go through this file. Two things make that safe:
+ * The file is the meeting point: the canvas writes what the user dragged, the
+ * command line writes what a model asked for, and both go through here. Two
+ * things make that safe:
  *
- *   - the file carries a revision number, and a write states the revision it
- *     expects, so a slow writer cannot silently overwrite a fast one;
+ *   - the file carries a revision, and a write states the revision it expected,
+ *     so a slow writer cannot silently overwrite a fast one;
  *   - every write takes a lock file, writes a temp file and renames it, so a
  *     reader never sees half a document.
- *
- * The document itself stays inside an envelope so the revision and the document
- * are always in one file and can never disagree.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { type BlueprintDocument, normalizeDocument } from '../model/document.js';
-import { type DocumentOp, applyOps, validateDocument } from '../model/ops.js';
-import { writeJsonAtomic } from './atomic.js';
+import { dirname } from 'node:path';
+import type { BlueprintDocument } from '../model/document';
+import { type DocumentOp, applyOps, validateDocument } from '../model/ops';
+import { writeJsonAtomic } from './atomic';
+import { DOCUMENT_SCHEMA, ProjectError, parseProjectDocument, type ProjectDocument } from './project';
 
-export interface StoredDocument {
-  schema: 2;
-  revision: number;
-  updatedAt: string;
-  /** Who produced this revision: `canvas`, `cli`, or a model tool name. */
-  updatedBy: string;
-  document: BlueprintDocument;
-}
+/** The document as the protocol layer reads it: identity, revision, tree. */
+export type StoredDocument = ProjectDocument;
 
-const ROOT_DIR = `${homedir()}/.dsh/dsh-blueprints`;
-const SESSION_PATTERN = /^[A-Za-z0-9_-]+$/;
 const LOCK_STALE_MS = 5_000;
 const LOCK_WAIT_MS = 2_000;
 const LOCK_POLL_MS = 10;
 
-export function sessionDir(sessionId: string | null): string {
-  const key = sessionId && SESSION_PATTERN.test(sessionId) ? sessionId : '_unknown';
-  return `${ROOT_DIR}/${key}`;
-}
+// ---------------------------------------------------------------- reading
 
-export function documentPath(sessionId: string | null): string {
-  const dir = sessionDir(sessionId);
-  mkdirSync(dir, { recursive: true });
-  return `${dir}/document.json`;
-}
-
-/** Which session the browser half and the command line both mean. */
-export function resolveSessionId(explicit?: string | null): string | null {
-  if (explicit) return explicit;
-  return process.env.DSH_SESSION_ID ?? null;
-}
-
-function emptyDocument(): StoredDocument {
-  return {
-    schema: 2,
-    revision: 0,
-    updatedAt: new Date(0).toISOString(),
-    updatedBy: 'none',
-    document: normalizeDocument({ frames: [], layers: [] }),
-  };
-}
-
-/** Read the file, lifting an older bare document into the envelope. */
-export function readDocument(sessionId: string | null): StoredDocument {
-  const path = documentPath(sessionId);
+export function readDocument(filePath: string): ProjectDocument {
   let text: string;
   try {
-    text = readFileSync(path, 'utf8');
+    text = readFileSync(filePath, 'utf8');
   } catch {
-    return emptyDocument();
+    throw new ProjectError(`文档不存在：${filePath}`, 'missing');
   }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(`${path} 不是能读的 JSON`);
-  }
-  return lift(parsed, path);
-}
-
-function lift(parsed: unknown, path: string): StoredDocument {
-  if (!parsed || typeof parsed !== 'object') throw new Error(`${path} 内容不像一份文档`);
-  const raw = parsed as Record<string, unknown>;
-
-  // Envelope.
-  if (raw.document && typeof raw.document === 'object') {
-    return {
-      schema: 2,
-      revision: typeof raw.revision === 'number' ? raw.revision : 0,
-      updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date(0).toISOString(),
-      updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : 'unknown',
-      document: normalizeDocument(raw.document as BlueprintDocument),
-    };
-  }
-
-  // Older file: the document itself.
-  if (Array.isArray(raw.frames)) {
-    return { schema: 2, revision: 0, updatedAt: new Date(0).toISOString(), updatedBy: 'legacy', document: normalizeDocument(raw as unknown as BlueprintDocument) };
-  }
-
-  throw new Error(`${path} 里既没有 document 也没有 frames`);
+  const id = filePath.split('/').pop()?.replace(/\.blueprint\.json$/, '') ?? 'prototype';
+  return parseProjectDocument(text, filePath, id);
 }
 
 // ---------------------------------------------------------------- lock
@@ -148,7 +83,7 @@ function sleep(ms: number): void {
 // ---------------------------------------------------------------- writes
 
 export interface ChangeRequest {
-  /** The revision this change was written against. `null` skips the check (first write). */
+  /** The revision this change was written against. `null` skips the check. */
   baseRevision: number | null;
   ops?: readonly DocumentOp[];
   /** Whole document, only for the canvas safety net when a diff cannot be applied. */
@@ -172,14 +107,13 @@ export interface ChangeResult {
 }
 
 /** Read, change, validate, write — under the lock, all or nothing. */
-export function changeDocument(sessionId: string | null, request: ChangeRequest): ChangeResult {
-  const dir = sessionDir(sessionId);
+export function changeDocument(filePath: string, request: ChangeRequest): ChangeResult {
+  const dir = dirname(filePath);
   mkdirSync(dir, { recursive: true });
-  const path = `${dir}/document.json`;
   const release = acquireLock(dir);
 
   try {
-    const current = readDocument(sessionId);
+    const current = readDocument(filePath);
     if (request.baseRevision !== null && request.baseRevision !== current.revision) {
       return { ok: false, revision: current.revision, document: current.document, conflict: true, error: '文件已经被别处改过了', failure: null, problems: [] };
     }
@@ -200,7 +134,7 @@ export function changeDocument(sessionId: string | null, request: ChangeRequest)
       }
       next = applied.doc;
     } else if (request.document) {
-      next = normalizeDocument(request.document);
+      next = request.document;
     } else {
       return { ok: false, revision: current.revision, document: current.document, conflict: false, error: '既没有 ops 也没有 document', failure: null, problems: [] };
     }
@@ -218,14 +152,15 @@ export function changeDocument(sessionId: string | null, request: ChangeRequest)
       };
     }
 
-    const stored: StoredDocument = {
-      schema: 2,
+    const stored: ProjectDocument = {
+      ...current,
+      schema: DOCUMENT_SCHEMA,
       revision: current.revision + 1,
       updatedAt: new Date().toISOString(),
       updatedBy: request.by,
       document: next,
     };
-    writeJsonAtomic(path, stored);
+    writeJsonAtomic(filePath, stored);
     return { ok: true, revision: stored.revision, document: next, conflict: false, error: null, failure: null, problems: [] };
   } finally {
     release();

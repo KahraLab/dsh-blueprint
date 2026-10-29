@@ -50,6 +50,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 
 ```
 <workspace>/.dsh-blueprint/
+├── current.json          # 面板当前打开哪个原型
 ├── design-languages/
 │   └── harbor/
 │       ├── DESIGN.md
@@ -70,23 +71,28 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 - **文件名是 `<目录名>.blueprint.json`**，目录名就是 id，文件跟着目录走。单个文件拷出去也认得出这是蓝图文档。
 - **目录名就是 id**，创建后不再改。改标题只改文件里的 `title`，不动目录——避免因为改名让 git 历史断掉、让引用失效。
 - id 只允许小写字母、数字、连字符，防止拼路径时出问题。
+- **当前项目记在 `current.json`**，画布切换原型时更新。命令行按「显式 `--project` → 当前项目 → 唯一原型」定位，不靠猜。
+- **文件带格式版本号**。读到比插件新的版本时拒绝打开，并说明是插件旧了；不按旧规则猜新字段。
 
 ## `<id>.blueprint.json` 的骨架
 
 ```json
 {
-  "schema": 1,
+  "schema": 3,
   "id": "checkout",
   "title": "结算流程",
   "createdAt": "2026-10-28T13:40:12Z",
-  "designLanguage": { "name": "harbor", "version": 1 },
   "revision": 12,
-  "screens": [],
-  "flows": []
+  "updatedAt": "2026-10-28T14:02:10Z",
+  "updatedBy": "cli",
+  "document": { "frames": [], "layers": [] }
 }
 ```
 
-图层的样式、布局、补丁操作的细节在「元素树与样式的表达方式」里，这里只定外壳。
+- `schema` 是文件格式版本，当前为 3。
+- `revision` 是每次成功写入后递增的版本号，写入方带 `baseRevision` 做冲突检测。
+- `document` 就是元素树（屏幕=画板，图层带盒模型与排布）；它的字段细节在「元素树与样式的表达方式」里。
+- 设计语言引用、流程层字段随各自里程碑加入；在那之前文件里没有它们，读的时候不假设存在。
 
 ## 历史快照
 
