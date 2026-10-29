@@ -11,11 +11,11 @@
  * `model/fields.ts`, the same table the canvas is checked against.
  */
 import * as z from 'zod';
-import { ALIGNS, DIRECTIONS, FRAME_FIELDS, JUSTIFIES, LAYER_FIELDS, LAYER_KINDS, NODE_FIELDS, type FieldSpec } from '../model/fields';
+import { ALIGNS, DERIVED_FIELDS, DIRECTIONS, FRAME_FIELDS, JUSTIFIES, LAYER_FIELDS, LAYER_KINDS, NODE_FIELDS, type FieldSpec } from '../model/fields';
 import { ProtocolError } from './errors';
 
 /** Names the canvas makes up: 画板1, 矩形2, … A model has to do better. */
-const AUTO_NAME = /^(画板|矩形|文字|椭圆|直线|箭头|多边形|星形|frame|rect|text|ellipse|line|arrow|polygon|star)\s*\d*$/i;
+const AUTO_NAME = /^(画板|矩形|文字|椭圆|直线|箭头|多边形|星形|图标|frame|rect|text|ellipse|line|arrow|polygon|star|icon)\s*\d*$/i;
 
 /** Batch-local names, as used by `ref` and `@name`. */
 const REF_NAME = /^[A-Za-z0-9_-]+$/;
@@ -66,7 +66,9 @@ function layoutShape(): z.ZodType {
 function optionalFields(names: readonly string[]): Record<string, z.ZodType> {
   const shape: Record<string, z.ZodType> = {};
   for (const name of names) {
-    if (name === 'kind') continue;
+    // `kind` picks the constructor and the derived fields are filled by the
+    // host from what the caller named; neither is something a payload sets.
+    if (name === 'kind' || DERIVED_FIELDS.includes(name)) continue;
     const spec = NODE_FIELDS[name];
     if (!spec) continue;
     shape[name] = zodFor(spec).optional();

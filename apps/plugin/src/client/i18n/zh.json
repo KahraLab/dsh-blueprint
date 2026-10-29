@@ -31,5 +31,20 @@
   "tools.shapeAria": "形状：{{name}}",
   "resize.inspector": "调整属性栏宽度",
   "resize.layers": "调整图层栏宽度",
-  "gallery.createFailed": "没建成"
+  "gallery.createFailed": "没建成",
+  "tools.icon": "图标",
+  "iconPicker.title": "图标",
+  "iconPicker.search": "搜索图标，比如 search、arrow-left",
+  "iconPicker.close": "关闭",
+  "iconPicker.loading": "正在读取图标库…",
+  "iconPicker.installed": "已下载",
+  "iconPicker.allSets": "全部图标集",
+  "iconPicker.download": "下载这个图标集",
+  "iconPicker.downloading": "下载中…",
+  "iconPicker.totalIcons": "{{count}} 个图标",
+  "iconPicker.count": "{{count}} 个",
+  "iconPicker.noSet": "左边选一个图标集开始",
+  "iconPicker.noMatch": "没有匹配「{{query}}」的图标",
+  "iconPicker.failed": "读不到图标库",
+  "iconPicker.results": "{{count}} 个结果"
 }

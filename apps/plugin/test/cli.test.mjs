@@ -7,7 +7,7 @@
  * order.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -23,26 +23,26 @@ function sandbox() {
   const workspace = mkdtempSync(join(tmpdir(), 'bp-ws-'));
   const sessionDir = join(home, '.dsh', 'dsh-blueprints', SESSION);
 
-  const run = (args, input = '') => {
+  const run = (args, input = '', extraEnv = {}) => {
     const result = spawnSync(process.execPath, [CLI, ...args], {
       input,
       encoding: 'utf8',
       cwd: workspace,
-      env: { ...process.env, HOME: home, DSH_SESSION_ID: SESSION, NO_COLOR: '1' },
+      env: { ...process.env, HOME: home, DSH_SESSION_ID: SESSION, NO_COLOR: '1', ...extraEnv },
     });
     assert.equal(result.error, undefined, `spawn failed: ${String(result.error)}`);
     return result;
   };
 
-  const ok = (args, input) => {
-    const result = run(args, input);
+  const ok = (args, input, extraEnv) => {
+    const result = run(args, input, extraEnv);
     assert.equal(result.status, 0, `expected success for ${args.join(' ')}, stderr: ${result.stderr}`);
     assert.equal(result.stderr, '', 'a successful command writes nothing to stderr');
     return parse(result.stdout);
   };
 
-  const failed = (args, input) => {
-    const result = run(args, input);
+  const failed = (args, input, extraEnv) => {
+    const result = run(args, input, extraEnv);
     assert.notEqual(result.status, 0, `expected failure for ${args.join(' ')}`);
     return { status: result.status, payload: parse(result.stderr) };
   };
@@ -604,5 +604,146 @@ describe('输出契约', () => {
     assert.ok(json.properties.ops.items.oneOf.length >= 5, 'every operation kind is published');
     assert.ok(Object.keys(json.$defs ?? {}).length > 0, 'recursive node payload is published via $defs');
     assert.match(schema.naming.name, /语义化/);
+  });
+});
+
+/**
+ * A tiny icon server in its own process. It has to be a separate process: the
+ * tests drive the command line with `spawnSync`, which would block the parent's
+ * event loop and the child would wait forever for an answer.
+ */
+async function iconFixture() {
+  const set = {
+    prefix: 'lucide',
+    width: 24,
+    height: 24,
+    icons: {
+      search: { body: '<g fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></g>' },
+      'arrow-left': { body: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>' },
+    },
+    aliases: { 'search-alias': { parent: 'search' } },
+  };
+  const code = `
+    const { createServer } = require('node:http');
+    const set = ${JSON.stringify(set)};
+    const server = createServer((request, response) => {
+      response.setHeader('content-type', 'application/json');
+      if (request.url === '/catalog') {
+        response.end(JSON.stringify({ lucide: { name: 'Lucide', total: 2, category: 'UI 24px', license: { title: 'ISC' } } }));
+        return;
+      }
+      if (request.url === '/@iconify-json/lucide/icons.json') {
+        response.end(JSON.stringify(set));
+        return;
+      }
+      response.statusCode = 404;
+      response.end('{}');
+    });
+    server.listen(0, '127.0.0.1', () => process.stdout.write(String(server.address().port)));
+  `;
+  const child = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve, reject) => {
+    let text = '';
+    child.stdout.on('data', (chunk) => {
+      text += chunk;
+      const match = /^\d+/.exec(text);
+      if (match) resolve(Number(match[0]));
+    });
+    child.on('error', reject);
+    child.on('exit', (code) => reject(new Error(`icon fixture exited with ${code}`)));
+  });
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise((resolve) => {
+      child.removeAllListeners('exit');
+      child.once('exit', () => resolve());
+      child.kill();
+    }),
+  };
+}
+
+describe('图标', () => {
+  let fixture;
+  let env;
+  beforeEach(async () => {
+    fixture = await iconFixture();
+    env = { BP_ICON_CATALOG: `${fixture.url}/catalog`, BP_ICON_CDN: `${fixture.url}/@iconify-json` };
+  });
+  afterEach(async () => {
+    await fixture.close();
+  });
+
+  test('目录列出有哪些集合，还没下载的标出来', () => {
+    const payload = box.ok(['icon', 'catalog'], '', env);
+    assert.equal(payload.sets.length, 1);
+    assert.equal(payload.sets[0].prefix, 'lucide');
+    assert.equal(payload.sets[0].installed, false);
+    assert.equal(payload.installed.length, 0);
+  });
+
+  test('下载把集合存到 ~/.dsh/blueprint/icons，搜索和取 SVG 都能用', () => {
+    const installed = box.ok(['icon', 'install', 'lucide'], '', env);
+    assert.equal(installed.total, 2);
+    assert.ok(existsSync(join(box.home, '.dsh', 'blueprint', 'icons', 'sets', 'lucide.json')));
+
+    const found = box.ok(['icon', 'search', 'arrow'], '', env);
+    assert.equal(found.matches[0].id, 'lucide/arrow-left');
+
+    const icon = box.ok(['icon', 'get', 'lucide/search'], '', env);
+    assert.match(icon.svg, /^<svg xmlns/);
+    assert.match(icon.svg, /<circle/);
+    assert.equal(icon.width, 24);
+
+    // Aliases resolve to the icon they point at.
+    assert.match(box.ok(['icon', 'get', 'lucide/search-alias'], '', env).svg, /<circle/);
+  });
+
+  test('add 建图标节点，SVG 跟着文档一起存', () => {
+    box.ok(['icon', 'install', 'lucide'], '', env);
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    const created = box.ok(['add', 'icon', '--icon', 'lucide/search', '--name', '搜索图标', '--into', frameId], '', env);
+    assert.equal(created.node.kind, 'icon');
+
+    const stored = JSON.parse(box.documentFile());
+    const icons = stored.document.frames[0].children.filter((child) => child.kind === 'icon');
+    assert.equal(icons.length, 1);
+    assert.match(icons[0].svg, /<svg xmlns/);
+    assert.equal(icons[0].iconSet, 'lucide');
+    assert.equal(icons[0].iconName, 'search');
+
+    // The drawing is in the document, so view does not need the set.
+    const view = box.view(created.node.id);
+    assert.equal(view.node.kind, 'icon');
+    assert.match(view.node.svg, /<circle/);
+  });
+
+  test('apply 只写集合和名字，画布渲染用的 SVG 由后台补上', () => {
+    box.ok(['icon', 'install', 'lucide'], '', env);
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    const payload = box.apply({
+      baseRevision: 1,
+      ops: [{ op: 'insert', parent: frameId, node: { kind: 'icon', iconSet: 'lucide', iconName: 'arrow-left', name: '返回', x: 16, y: 16 } }],
+    });
+    assert.equal(payload.revision, 2);
+    const iconId = box.firstId(['--name', '返回']);
+    assert.match(box.view(iconId).node.svg, /<path d="M19 12H5"\/>/);
+  });
+
+  test('没下载的集合说明怎么下，不会写出半截图标', () => {
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    const { status, payload } = box.failed(['add', 'icon', '--icon', 'tabler/x', '--name', '不存在的图标', '--into', frameId], '', env);
+    assert.equal(status, 4);
+    assert.equal(payload.code, 'NOT_FOUND');
+    assert.match(payload.hint, /bp icon install/);
+
+    // Nothing was written: the batch never reached the document.
+    assert.equal(box.view().frames[0].children.length, 2);
+  });
+
+  test('图标要写清楚名字，写错的集合名会被拒绝', () => {
+    const { status, payload } = box.failed(['icon', 'install', '../etc'], '', env);
+    assert.equal(status, 2);
+    assert.equal(payload.code, 'USAGE');
+    assert.match(payload.message, /小写字母/);
   });
 });

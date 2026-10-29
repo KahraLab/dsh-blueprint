@@ -8,6 +8,11 @@ import {
   addFrameRect,
   addLayer,
   createDocument,
+  createLayer,
+  findFrame,
+  findLayer,
+  insertLayer,
+  makeFill,
   moveLayer,
   normalizeDocument,
   removeSelection,
@@ -51,6 +56,7 @@ interface BlueprintState {
   createFrame(rect: { x: number; y: number; width: number; height: number }): void;
   createFrameNear(center: { x: number; y: number }): void;
   createLayer(request: NewLayerRequest): void;
+  insertIcon(icon: { set: string; name: string; svg: string; width: number; height: number }, fallback: { x: number; y: number }): void;
   moveLayerTo(frameId: string | null, layerId: string, target: InsertTarget, point: { x: number; y: number } | null): void;
   updateFrame(frameId: string, patch: RectPatch): void;
   updateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
@@ -102,6 +108,53 @@ export const useBlueprint = create<BlueprintState>()(
       doc: result.doc,
       selections: [{ kind: 'layer', frameId: request.frameId, layerId: result.layer.id }],
       editing: request.kind === 'text' ? { frameId: request.frameId, layerId: result.layer.id } : get().editing,
+      tool: 'move',
+    });
+  },
+
+  insertIcon: (icon, fallback) => {
+    const { doc, selections } = get();
+    const single = selections.length === 1 ? selections[0] : null;
+    let frameId: string | null = null;
+    let parentId: string | null = null;
+    let point = fallback;
+
+    if (single?.kind === 'frame') {
+      const frame = findFrame(doc, single.frameId);
+      if (frame) {
+        frameId = frame.id;
+        point = { x: Math.round((frame.width - icon.width) / 2), y: Math.round((frame.height - icon.height) / 2) };
+      }
+    } else if (single?.kind === 'layer' && single.layerId) {
+      const layer = findLayer(doc, single.frameId, single.layerId);
+      if (layer) {
+        frameId = single.frameId;
+        parentId = layer.layout ? layer.id : null;
+        point = { x: Math.round(layer.x + 8), y: Math.round(layer.y + 8) };
+      }
+    } else {
+      // Nothing is selected: drop it where the user is looking, if a screen is there.
+      const frame = doc.frames.find((item) => item.visible && fallback.x >= item.x && fallback.x <= item.x + item.width && fallback.y >= item.y && fallback.y <= item.y + item.height);
+      if (frame) {
+        frameId = frame.id;
+        point = { x: Math.round(fallback.x - frame.x - icon.width / 2), y: Math.round(fallback.y - frame.y - icon.height / 2) };
+      }
+    }
+
+    const layer = createLayer('icon', {
+      name: icon.name,
+      x: point.x,
+      y: point.y,
+      width: Math.max(1, Math.round(icon.width)),
+      height: Math.max(1, Math.round(icon.height)),
+      fills: [makeFill('#101828')],
+      iconSet: icon.set,
+      iconName: icon.name,
+      svg: icon.svg,
+    });
+    set({
+      doc: insertLayer(doc, { frameId, parentId, beforeId: null }, layer),
+      selections: [{ kind: 'layer', frameId, layerId: layer.id }],
       tool: 'move',
     });
   },

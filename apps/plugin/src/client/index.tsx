@@ -6,6 +6,7 @@ import { ProjectGallery } from './components/Gallery';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
 import { ShapeIcon, ShapeMenu, shapeLabel } from './components/ShapeMenu';
+import { IconPicker, type PickedIcon } from './components/IconPicker';
 import {
   CaretIcon,
   FrameIcon,
@@ -14,6 +15,7 @@ import {
   LockIcon,
   MarkIcon,
   MinimizeUiIcon,
+  IconToolGlyph,
   PointerIcon,
   RectIcon,
   TextIcon,
@@ -104,6 +106,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const [screen, setScreen] = useState<'gallery' | 'editor'>('gallery');
   const initialised = useRef(false);
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
   const [inspectorWidth, setInspectorWidth] = useState(200);
@@ -450,6 +453,18 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 <FrameIcon />
               </button>
 
+              <button
+                type="button"
+                className="bp-tool"
+                data-on={iconPickerOpen}
+                title={t('tools.icon')}
+                aria-label={t('tools.icon')}
+                aria-pressed={iconPickerOpen}
+                onClick={() => setIconPickerOpen(true)}
+              >
+                <IconToolGlyph />
+              </button>
+
               <div className="bp-tool-group">
                 <button
                   type="button"
@@ -556,6 +571,15 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         )}
       </div>
 
+      {iconPickerOpen ? (
+        <IconPicker
+          onClose={() => setIconPickerOpen(false)}
+          onPick={(icon: PickedIcon) => {
+            useBlueprint.getState().insertIcon(icon, canvasCentre(canvasViewport.current));
+            setIconPickerOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

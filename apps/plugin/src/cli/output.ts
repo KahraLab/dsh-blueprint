@@ -5,6 +5,7 @@
  * on stderr with a non-zero exit code. Nothing else is printed, so a model can
  * parse the output without pattern matching.
  */
+import { IconError } from '../icons/store';
 import { ProjectError } from '../node/project';
 import { EXIT_CODES, ProtocolError, isProtocolError } from '../protocol/errors';
 
@@ -26,6 +27,10 @@ export function report(error: unknown): number {
  */
 function asProtocolError(error: unknown): ProtocolError {
   if (isProtocolError(error)) return error;
+  if (error instanceof IconError) {
+    const code = error.kind === 'usage' ? 'USAGE' : error.kind === 'missing' ? 'NOT_FOUND' : 'INTERNAL';
+    return new ProtocolError(code, error.message, { hint: 'bp icon catalog 看有哪些集合，bp icon install <集合> 下载' });
+  }
   if (error instanceof ProjectError) {
     const code = error.kind === 'missing' ? 'NOT_FOUND' : error.kind === 'id' ? 'USAGE' : 'VALIDATION_FAILED';
     return new ProtocolError(code, error.message);

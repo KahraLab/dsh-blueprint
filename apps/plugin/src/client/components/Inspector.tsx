@@ -289,6 +289,13 @@ export function Inspector({
     <aside className="bp-inspector" aria-label="属性" style={{ width }}>
       <div className="bp-inspector-head">{isFrame ? frame!.name : layer?.name ?? '图层'}</div>
 
+      {!isFrame && layer?.kind === 'icon' ? (
+        <section className="bp-inspector-section">
+          <h5>图标</h5>
+          <div className="bp-inspector-note">{layer.iconSet}/{layer.iconName}</div>
+        </section>
+      ) : null}
+
       {inFlow ? null : (
         <section className="bp-inspector-section">
           <h5>位置</h5>

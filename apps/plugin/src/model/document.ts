@@ -7,7 +7,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${counter}`;
 }
 
-export type LayerKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text';
+export type LayerKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'icon';
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
@@ -73,6 +73,12 @@ export interface Layer {
   verticalAlign: VerticalAlign;
   visible: boolean;
   locked: boolean;
+  /** Which icon set the drawing came from, e.g. `lucide`; empty on other kinds. */
+  iconSet: string;
+  /** The icon's name inside that set, e.g. `search`. */
+  iconName: string;
+  /** The drawing itself, so the document renders without the set installed. */
+  svg: string;
 }
 
 /** A screen. Its size is always authored, and it arranges its children the same way a layer does. */
@@ -126,7 +132,10 @@ type LayerFields =
   | 'textAlign'
   | 'verticalAlign'
   | 'visible'
-  | 'locked';
+  | 'locked'
+  | 'iconSet'
+  | 'iconName'
+  | 'svg';
 
 export type RectPatch = Partial<Pick<Frame, FrameFields>>;
 export type LayerRectPatch = Partial<Pick<Layer, LayerFields>>;
@@ -154,16 +163,21 @@ const TEXT_DEFAULTS = { width: 200, height: 32, radius: 0 } as const;
 /** Shapes that are drawn rather than boxed keep a thin, grabbable box. */
 const LINE_DEFAULTS = { width: 160, height: 16, radius: 0 } as const;
 const FIGURE_DEFAULTS = { width: 120, height: 120, radius: 0 } as const;
+/** Icons are drawn at their own viewBox size, 24 px by iconify convention. */
+const ICON_DEFAULTS = { width: 24, height: 24, radius: 0 } as const;
 
 function defaultsFor(kind: LayerKind): { width: number; height: number; radius: number } {
   if (kind === 'text') return TEXT_DEFAULTS;
   if (kind === 'line' || kind === 'arrow') return LINE_DEFAULTS;
   if (kind === 'polygon' || kind === 'star') return FIGURE_DEFAULTS;
+  if (kind === 'icon') return ICON_DEFAULTS;
   return RECT_DEFAULTS;
 }
 
 const DEFAULT_SHAPE_FILL = '#D9D9D9';
 const DEFAULT_TEXT_FILL = '#101828';
+/** An icon is a glyph: it starts out dark, and its fill is its ink. */
+const DEFAULT_ICON_FILL = '#101828';
 const DEFAULT_FRAME_FILL = '#FFFFFF';
 
 /** Fill in fields that older documents may not have, and lift legacy `frame.layers` into `children`. */
@@ -200,7 +214,7 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       sizeH: layer.sizeH ?? (isText ? 'hug' : 'fixed'),
       children: (layer.children ?? raw.layers ?? []).map(normalizeLayer),
       layout: normalizeLayout(layer.layout),
-      fills: normalizeFills(layer.fills, raw.fill, isText ? DEFAULT_TEXT_FILL : DEFAULT_SHAPE_FILL),
+      fills: normalizeFills(layer.fills, raw.fill, isText ? DEFAULT_TEXT_FILL : layer.kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL),
       opacity: layer.opacity ?? 1,
       fontFamily: layer.fontFamily ?? 'Figtree',
       fontSize: layer.fontSize ?? 14,
@@ -211,6 +225,9 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       verticalAlign: layer.verticalAlign ?? 'top',
       visible: layer.visible ?? true,
       locked: layer.locked ?? false,
+      iconSet: layer.iconSet ?? '',
+      iconName: layer.iconName ?? '',
+      svg: layer.svg ?? '',
     };
   };
 
@@ -628,6 +645,7 @@ const LAYER_NAMES: Record<LayerKind, string> = {
   polygon: '多边形',
   star: '星形',
   text: '文本',
+  icon: '图标',
 };
 
 function collectNames(layers: readonly Layer[], into: string[]): string[] {
@@ -664,7 +682,7 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
     sizeH: isText ? 'hug' : 'fixed',
     children: [],
     layout: null,
-    fills: [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : DEFAULT_SHAPE_FILL))],
+    fills: [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL))],
     radius: defaults.radius,
     opacity: 1,
     text: '',
@@ -677,6 +695,9 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
     verticalAlign: 'top',
     visible: true,
     locked: false,
+    iconSet: '',
+    iconName: '',
+    svg: '',
   };
 }
 

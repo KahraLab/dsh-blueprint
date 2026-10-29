@@ -56,6 +56,15 @@ export function skillFor(command: string): SkillRegistration {
 
 最后用一两句话告诉用户改了什么。成功后不用再 view；只有结果不确定、冲突之后要重读，或者下一步需要更多文档内容时才再读。
 
+## 图标
+
+图标不是画出来的，是引用：节点写 kind: "icon"，再加 iconSet 和 iconName，后台会把那张图拷进文档。渲染和导出都靠文档自己，不需要再联网。
+
+    ${command} icon search 搜索          # 找名字，比如 lucide/search
+    ${command} icon install lucide      # 集合没下载过时先下到 ~/.dsh/blueprint/icons/
+
+插入时节点写成 { "kind": "icon", "iconSet": "lucide", "iconName": "search", "name": "搜索图标" }；单条可以用 ${command} add icon --icon lucide/search --name 搜索图标 --into <画板id>。颜色取 fills（线条用 currentColor），尺寸取 width/height，常见 16、20、24。不要自己拼 SVG，也不要写 svg 字段：协议不接受它，后台按集合和名字补。
+
 ## 规矩
 
 - id 只能从命令输出里抄。自己编的 id 会被拒绝。

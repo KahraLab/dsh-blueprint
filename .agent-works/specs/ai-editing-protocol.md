@@ -107,6 +107,16 @@ AI 创建节点时必须填写能说明用途的名字，例如「登录页」�
 
 `fills` 写成 `[]` 表示透明。省略 `fills` 才取默认底色（形状 `#D9D9D9`、文字 `#101828`）：只用来做排布的容器必须显式写空数组，否则会带上一块默认灰底。
 
+### 图标
+
+图标节点是 `kind: "icon"`，写 `iconSet` 和 `iconName`（例如 `lucide` 与 `search`），不写 SVG：后台从全局图标库取那张图、清洗后补进节点的 `svg`。`svg` 是派生字段，协议不接受它。
+
+```json
+{ "kind": "icon", "iconSet": "lucide", "iconName": "search", "name": "搜索图标", "x": 24, "y": 120, "width": 24, "height": 24 }
+```
+
+找名字用 `bp icon search 搜索`；集合没下载过就 `bp icon install <集合>`（存在 `~/.dsh/blueprint/icons/`，之后断网也能用）。图标的颜色取 `fills` 的第一层（线条用 `currentColor`），尺寸取节点的宽高。
+
 ### 批内临时引用
 
 新节点可以带 `ref`，同一批操作里用 `@名字` 引用它：

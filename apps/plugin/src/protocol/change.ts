@@ -6,8 +6,9 @@
  * request, building nodes, resolving batch-local refs, checking the revision,
  * and writing the file atomically. Failures leave the document untouched.
  */
-import type { BlueprintDocument } from '../model/document';
+import type { BlueprintDocument, Layer, Node } from '../model/document';
 import type { DocumentOp } from '../model/ops';
+import { IconError, materializeIcon } from '../icons/store';
 import { locateNode } from '../model/tree';
 import { changeDocument, readDocument } from '../node/docfile';
 import { prepareOps } from './build';
@@ -52,7 +53,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
 
   const result = changeDocument(filePath, {
     baseRevision: baseRevision ?? stored.revision,
-    ops,
+    ops: withIconDrawings(stored.document, ops),
     by: 'cli',
   });
 
@@ -78,6 +79,47 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
   }
 
   return { revision: result.revision, ids };
+}
+
+/**
+ * An icon node names its drawing (`iconSet` + `iconName`); the drawing itself is
+ * filled in here from the global library, so a caller never pastes SVG and the
+ * document still renders on a machine that never downloaded the set.
+ */
+function withIconDrawings(doc: BlueprintDocument, ops: readonly DocumentOp[]): readonly DocumentOp[] {
+  return ops.map((op) => {
+    if (op.op === 'insert' || op.op === 'replace') {
+      const node = op.node;
+      if (!isIcon(node)) return op;
+      return { ...op, node: { ...node, svg: drawingFor(node.iconSet, node.iconName) } };
+    }
+    if (op.op === 'set' && (typeof op.patch.iconSet === 'string' || typeof op.patch.iconName === 'string')) {
+      const found = locateNode(doc, op.id);
+      const current = found && isIcon(found.node) ? found.node : null;
+      if (!current) return op;
+      const set = typeof op.patch.iconSet === 'string' ? op.patch.iconSet : current.iconSet;
+      const name = typeof op.patch.iconName === 'string' ? op.patch.iconName : current.iconName;
+      return { ...op, patch: { ...op.patch, svg: drawingFor(set, name) } };
+    }
+    return op;
+  });
+}
+
+function isIcon(node: Node): node is Layer & { kind: 'icon' } {
+  return 'kind' in node && node.kind === 'icon';
+}
+
+function drawingFor(set: string, name: string): string {
+  try {
+    return materializeIcon(set, name).svg;
+  } catch (error) {
+    if (error instanceof IconError) {
+      throw new ProtocolError(error.kind === 'usage' ? 'USAGE' : 'NOT_FOUND', error.message, {
+        hint: '先下载图标集：bp icon install lucide；再确认名字：bp icon search 搜索',
+      });
+    }
+    throw error;
+  }
 }
 
 /**

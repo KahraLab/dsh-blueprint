@@ -60,6 +60,11 @@ export function buildSchema(): Record<string, unknown> {
       transparent: 'fills 写成 [] 表示透明。不写 fills 才取默认底色；只给区域做布局容器时要写 []。',
       layout: 'layout 只写 direction 时：gap 8、padding 0、align stretch、justify start。',
     },
+    icons: {
+      node: 'kind 写 "icon"，再写 iconSet 和 iconName，比如 { "kind": "icon", "iconSet": "lucide", "iconName": "search" }。svg 由后台从集合里补上，不要自己写，协议也不接受。',
+      find: '先 bp icon search 搜索 找名字；集合没下载过就 bp icon install lucide，下到 ~/.dsh/blueprint/icons/，之后断网也能用。',
+      paint: '图标是绘制出来的字形：颜色取 fills（线条用 currentColor），尺寸取 width/height，常见 16、20、24。',
+    },
     errors: {
       USAGE: '命令或请求的用法不对',
       VALIDATION_FAILED: '操作没通过检查，带 index（第几条操作，从 0 数）和 field',

@@ -10,6 +10,7 @@ import { emit } from './output';
 import { findCommand, selectionCommand, sessionCommand, viewCommand } from './commands/read';
 import { addCommand, applyCommand, moveCommand, removeCommand, setCommand } from './commands/write';
 import { projectCommand } from './commands/project';
+import { iconCommand } from './commands/icon';
 
 export const schemaCommand = defineCommand({
   meta: { name: 'schema', description: '字段、操作、错误码和退出码的完整说明（JSON Schema + 行为说明）' },
@@ -21,6 +22,7 @@ export const schemaCommand = defineCommand({
 
 export const subCommands: SubCommandsDef = {
   project: projectCommand,
+  icon: iconCommand,
   view: viewCommand,
   session: sessionCommand,
   selection: selectionCommand,

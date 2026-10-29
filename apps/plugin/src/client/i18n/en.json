@@ -31,5 +31,20 @@
   "tools.shapeAria": "Shape: {{name}}",
   "resize.inspector": "Resize properties panel",
   "resize.layers": "Resize layers panel",
-  "gallery.createFailed": "Could not create it"
+  "gallery.createFailed": "Could not create it",
+  "tools.icon": "Icon",
+  "iconPicker.title": "Icons",
+  "iconPicker.search": "Search icons, e.g. search, arrow-left",
+  "iconPicker.close": "Close",
+  "iconPicker.loading": "Reading the icon library…",
+  "iconPicker.installed": "Downloaded",
+  "iconPicker.allSets": "All icon sets",
+  "iconPicker.download": "Download this set",
+  "iconPicker.downloading": "Downloading…",
+  "iconPicker.totalIcons": "{{count}} icons",
+  "iconPicker.count": "{{count}}",
+  "iconPicker.noSet": "Pick an icon set on the left",
+  "iconPicker.noMatch": "No icon matches “{{query}}”",
+  "iconPicker.failed": "Cannot read the icon library",
+  "iconPicker.results": "{{count}} results"
 }

@@ -6,6 +6,7 @@
  * Values are not validated here beyond "is it the right shape of flag" — the
  * contract checks the payload, exactly as it does for `apply`.
  */
+import { splitIconId } from '../model/icon';
 import { ProtocolError } from '../protocol/errors';
 
 export function numberOf(raw: string | undefined, name: string): number | undefined {
@@ -52,9 +53,10 @@ export interface AddArgs {
   size?: string;
   'font-size'?: string;
   'font-weight'?: string;
+  icon?: string;
 }
 
-const LAYER_KINDS = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text'];
+const LAYER_KINDS = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon'];
 
 /** Turn `add` flags into the node payload `apply` would receive. */
 export function addPayload(args: AddArgs): Record<string, unknown> {
@@ -66,6 +68,17 @@ export function addPayload(args: AddArgs): Record<string, unknown> {
     payload.kind = args.kind;
   }
   if (args.name !== undefined) payload.name = args.name;
+  if (args.kind === 'icon') {
+    const parts = args.icon === undefined ? null : splitIconId(args.icon);
+    if (!parts) {
+      throw new ProtocolError('USAGE', '图标要写 --icon 集合/名字，比如 --icon lucide/search', {
+        field: 'icon',
+        hint: '先 bp icon search 搜索 找名字，没下载过就 bp icon install lucide',
+      });
+    }
+    payload.iconSet = parts.set;
+    payload.iconName = parts.name;
+  }
   if (args.text !== undefined) payload.text = args.text;
   if (args.fill !== undefined) payload.fills = [args.fill];
   const radius = numberOf(args.radius, 'radius');

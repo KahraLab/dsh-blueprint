@@ -14,6 +14,7 @@ import { readDocument } from '../../node/docfile';
 import { prepareOps } from '../../protocol/build';
 import { change } from '../../protocol/change';
 import { ProtocolError } from '../../protocol/errors';
+import { splitIconId } from '../../model/icon';
 import { addPayload, numberOf, setPatch, type AddArgs, type SetArgs } from '../args';
 import { emit } from '../output';
 import { PROJECT_ARG, projectOf } from '../session';
@@ -58,13 +59,14 @@ function parseJson(text: string): unknown {
 export const addCommand = defineCommand({
   meta: { name: 'add', description: '新建一个画板或元素；必须用 --name 说明它是什么' },
   args: {
-    kind: { type: 'positional', description: '种类：frame（画板） rect text ellipse line arrow polygon star', required: true },
+    kind: { type: 'positional', description: '种类：frame（画板） rect text ellipse line arrow polygon star icon', required: true },
     name: { type: 'string', description: '语义化名字，比如「登录页」「登录按钮」' },
     into: { type: 'string', description: '放进哪块画板或哪个容器；不给就放在画布最外层' },
     at: { type: 'string', valueHint: 'x,y', description: '左上角位置，比如 24,120' },
     size: { type: 'string', valueHint: 'w,h', description: '宽高，比如 342,48' },
     text: { type: 'string', description: '文字内容，只有 text 用' },
-    fill: { type: 'string', valueHint: '#RRGGBB', description: '底色' },
+    fill: { type: 'string', valueHint: '#RRGGBB', description: '底色；图标这里是线条颜色' },
+    icon: { type: 'string', valueHint: '集合/名字', description: '图标，写成 lucide/search；先 bp icon search 找名字' },
     radius: { type: 'string', description: '圆角' },
     opacity: { type: 'string', description: '不透明度 0 到 1' },
     'font-size': { type: 'string', description: '字号' },
@@ -109,6 +111,7 @@ export const setCommand = defineCommand({
     'letter-spacing': { type: 'string', description: '字间距' },
     'text-align': { type: 'enum', options: ['left', 'center', 'right'], description: '文字水平对齐' },
     'vertical-align': { type: 'enum', options: ['top', 'middle', 'bottom'], description: '文字垂直对齐' },
+    icon: { type: 'string', valueHint: '集合/名字', description: '换一个图标，写成 lucide/search' },
     'size-mode': { type: 'enum', options: ['fixed', 'hug', 'fill'], description: '宽高模式，两个轴一起改' },
     layout: { type: 'enum', options: ['free', 'row', 'column'], description: '排布方式，free 是自由摆放' },
     gap: { type: 'string', description: '排布间距' },
@@ -124,6 +127,12 @@ export const setCommand = defineCommand({
     const patch = setPatch(args as SetArgs);
     if (Object.keys(patch).length === 0) {
       throw new ProtocolError('USAGE', '没说改什么', { hint: '看选项：bp help set' });
+    }
+    if (args.icon !== undefined) {
+      const parts = splitIconId(args.icon);
+      if (!parts) throw new ProtocolError('USAGE', '图标要写成 集合/名字，比如 lucide/search', { field: 'icon' });
+      patch.iconSet = parts.set;
+      patch.iconName = parts.name;
     }
     const outcome = change(project.file, { ops: [{ op: 'set', id: args.id, patch }] });
     emit({ ok: true, project: project.id, revision: outcome.revision, id: args.id, fields: Object.keys(patch) });

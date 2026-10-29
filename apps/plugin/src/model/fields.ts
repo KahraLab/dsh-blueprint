@@ -43,7 +43,7 @@ export const NODE_FIELDS: Readonly<Record<string, FieldSpec>> = {
   visible: { kind: 'boolean' },
   locked: { kind: 'boolean' },
   layout: { kind: 'layout' },
-  kind: { kind: 'enum', values: ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text'], assignable: false },
+  kind: { kind: 'enum', values: ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon'], assignable: false },
   sizeW: { kind: 'enum', values: ['fixed', 'hug', 'fill'] },
   sizeH: { kind: 'enum', values: ['fixed', 'hug', 'fill'] },
   radius: { kind: 'number', min: 0 },
@@ -55,6 +55,12 @@ export const NODE_FIELDS: Readonly<Record<string, FieldSpec>> = {
   letterSpacing: { kind: 'number' },
   textAlign: { kind: 'enum', values: ['left', 'center', 'right'] },
   verticalAlign: { kind: 'enum', values: ['top', 'middle', 'bottom'] },
+  /** Which icon set the drawing came from: `lucide`, `tabler`, … */
+  iconSet: { kind: 'string' },
+  /** The icon's own name inside that set: `search`, `arrow-left`, … */
+  iconName: { kind: 'string' },
+  /** The drawing, filled in by the system from the icon set; never authored by hand. */
+  svg: { kind: 'string' },
 };
 
 /** Screens have no `kind`, no sizing mode and no text fields. */
@@ -83,9 +89,19 @@ export const LAYER_FIELDS: readonly string[] = [
   'verticalAlign',
   'visible',
   'locked',
+  'iconSet',
+  'iconName',
+  'svg',
 ];
 
-export const LAYER_KINDS: readonly LayerKind[] = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text'];
+/**
+ * Fields the system derives. A caller naming the icon (`iconSet` + `iconName`)
+ * is how an icon gets its drawing; sending the drawing itself is not a thing the
+ * contract accepts, so the SVG cannot arrive unsanitised.
+ */
+export const DERIVED_FIELDS: readonly string[] = ['svg'];
+
+export const LAYER_KINDS: readonly LayerKind[] = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon'];
 export const SIZE_MODES: readonly SizeMode[] = ['fixed', 'hug', 'fill'];
 export const TEXT_ALIGNS: readonly TextAlign[] = ['left', 'center', 'right'];
 export const VERTICAL_ALIGNS: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];

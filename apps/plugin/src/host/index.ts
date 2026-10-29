@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext, SessionHandle } from '../types/dsh.js';
+import { fetchCatalog, installSet, installedSets, isInstalled, readIndex, readSet } from '../icons/store.js';
 import { changeDocument, readDocument } from '../node/docfile.js';
 import {
   ProjectError,
@@ -36,6 +37,9 @@ const DOC_ENDPOINT = '/api/blueprint/doc';
 const PROJECTS_ENDPOINT = '/api/blueprint/projects';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
+const ICONS_ENDPOINT = '/api/blueprint/icons';
+const ICON_SET_ENDPOINT = '/api/blueprint/icons/set';
+const ICON_INDEX_ENDPOINT = '/api/blueprint/icons/index';
 
 /** The workspace the current Session works in; the default directory otherwise. */
 function workspaceOf(scope: PluginContext, sessionId: string | null): string {
@@ -229,6 +233,72 @@ function toSelection(value: unknown): StoredSelection | null {
   return { frameId, layerId };
 }
 
+/**
+ * The global icon library, as the panel sees it. Icons are material shared by
+ * every project: the panel lists what is downloaded, downloads a set on demand,
+ * and reads one set's names (or full drawings) only when the picker asks.
+ */
+function createIconsRoute(): FetchRoute {
+  return {
+    path: ICONS_ENDPOINT,
+    methods: ['GET', 'POST'],
+    requestBody: 'buffered',
+
+    async fetch(request) {
+      if (request.method === 'GET') {
+        try {
+          const catalog = await fetchCatalog();
+          return Response.json({
+            ok: true,
+            root: catalog.fetchedAt,
+            installed: installedSets(),
+            sets: Object.values(catalog.collections).map((info) => ({
+              prefix: info.prefix,
+              name: info.name,
+              total: info.total,
+              category: info.category,
+              license: info.license?.title,
+              installed: isInstalled(info.prefix),
+              samples: info.samples,
+            })),
+          });
+        } catch (error) {
+          return failure(error);
+        }
+      }
+
+      let body: { prefix?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
+      }
+      if (typeof body.prefix !== 'string') {
+        return Response.json({ ok: false, error: 'prefix 要写图标集名字' }, { status: 400 });
+      }
+      try {
+        return Response.json({ ok: true, set: await installSet(body.prefix) });
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  };
+}
+
+function createIconContentRoute(path: string, read: (prefix: string) => unknown, label: string): FetchRoute {
+  return {
+    path,
+    methods: ['GET'],
+    async fetch(request) {
+      const prefix = new URL(request.url).searchParams.get('prefix');
+      if (!prefix) return Response.json({ ok: false, error: '缺少 prefix 参数' }, { status: 400 });
+      const data = read(prefix);
+      if (!data) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
+      return Response.json({ ok: true, [label]: data });
+    },
+  };
+}
+
 // ---------------------------------------------------------------- wiring
 
 function register(ctx: PluginContext, label: string, create: () => FetchRoute): void {
@@ -258,6 +328,9 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'current', () => createCurrentRoute(scope));
     register(scope, 'document', () => createDocumentRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
+    register(scope, 'icons', () => createIconsRoute());
+    register(scope, 'icon-set', () => createIconContentRoute(ICON_SET_ENDPOINT, (prefix) => readSet(prefix), 'set'));
+    register(scope, 'icon-index', () => createIconContentRoute(ICON_INDEX_ENDPOINT, (prefix) => readIndex(prefix), 'index'));
   });
 
   ctx.inject(['skills'], (scope) => {

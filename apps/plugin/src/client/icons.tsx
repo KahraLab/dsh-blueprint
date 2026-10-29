@@ -37,6 +37,7 @@ import Square from 'lucide-react/icons/square';
 import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
 import Plus from 'lucide-react/icons/plus';
 import Type from 'lucide-react/icons/type';
+import Shapes from 'lucide-react/icons/shapes';
 import type { ReactElement } from 'react';
 
 interface IconProps {
@@ -245,4 +246,9 @@ export function BackIcon({ size = 15 }: IconProps): ReactElement {
       <path d="M10.5 3.5 6 8l4.5 4.5" />
     </svg>
   );
+}
+
+/** Toolbar glyph for "icons": the tool that is a set of drawn shapes. */
+export function IconToolGlyph({ size = 15 }: { size?: number }): ReactElement {
+  return <Shapes size={size} strokeWidth={1.8} />;
 }

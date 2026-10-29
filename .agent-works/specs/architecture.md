@@ -42,6 +42,10 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 | `GET /blueprint/projects/:id/history` | 快照列表 |
 | `POST /blueprint/projects/:id/restore` | 回到某个快照（先给当前状态拍一张） |
 | `POST /blueprint/projects/:id/assets` | 上传图片，返回文件引用 |
+| `GET /blueprint/icons` | 图标目录与已下载集合 |
+| `POST /blueprint/icons` | 下载一个图标集 |
+| `GET /blueprint/icons/set?prefix=` | 一份集合的完整数据 |
+| `GET /blueprint/icons/index?prefix=` | 一份集合的名字索引 |
 | `* /blueprint/languages/...` | 设计语言的同构路由 |
 
 `baseRevision` 对不上时，后台拒掉这次补丁并回最新文档。界面拿到最新版后重放自己的改动；重放不了就提示冲突，不猜。
@@ -109,6 +113,14 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 - 上传的图片复制进 `assets/`，文件名用内容哈希加扩展名，同样的图不会存两份。
 - `assets.json` 记来源：`{ "7f3a9c.png": { "from": "/Users/.../login.png", "addedAt": "..." } }`。来源只是备注，不参与渲染。
 - 文档里只引用文件名，不写绝对路径。整个目录拷走就能用。
+
+## 图标素材
+
+- 图标集是用户自己攒的素材，不是插件的代码：下载到全局 `~/.dsh/blueprint/icons/`，所有工作区和原型共用；插件本体不打包任何图标。
+- 三份文件：`catalog.json`（有哪些集合、许可、总数，一周缓存）、`sets/<集合>.json`（完整数据，来自 `@iconify-json/<集合>`）、`sets/<集合>.index.json`（只有名字，搜索用）。
+- 文档里只写 `iconSet` + `iconName`。写入时后台从库里取图、清洗掉脚本与事件属性，再补进节点的 `svg`——所以文档自身能渲染、能交接，换台没下载过该集合的机器也不会空。
+- 选择器按需取：先目录，再选中集合的名字，再整份数据；网格只渲染看得见的格子。没下载的集合不预取。
+- 目录与下载地址可用环境变量覆盖，离线或测试时不碰网络。
 
 ## 写盘方式
 

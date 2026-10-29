@@ -439,6 +439,8 @@ function visualStyle(layer: Layer): CSSProperties {
       borderRadius: boxed ? layer.radius : undefined,
       background: boxed ? fillBackground(layer.fills) : 'transparent',
       opacity: layer.opacity,
+      // An icon is a drawing, so its fill is ink: the SVG paints with currentColor.
+      ...(layer.kind === 'icon' ? { color: topFillColor(layer.fills) } : {}),
     };
   }
   return {
@@ -1519,7 +1521,13 @@ export function Canvas({
           )
         ) : (
           <>
-            <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />
+            {layer.kind === 'icon' ? (
+              // The drawing travels inside the document, so no set has to be
+              // installed for the canvas to show it.
+              <span className="bp-icon-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: layer.svg }} />
+            ) : (
+              <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />
+            )}
             {layer.children.map((child) => renderLayer(child, frameId, layer.layout))}
           </>
         )}
