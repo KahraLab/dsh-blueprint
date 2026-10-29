@@ -1452,9 +1452,35 @@
 .bp-ip-sets {
   width: 196px;
   flex: none;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 8px 6px;
   border-right: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+}
+.bp-ip-filter {
+  flex: none;
+  margin: 2px 2px 6px;
+  appearance: none;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  background: var(--dsw-alias-bg-base, #1b1b1b);
+  color: var(--dsw-alias-label-primary, #eaeaea);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.bp-ip-filter::placeholder {
+  color: var(--dsw-alias-label-tertiary, #7c7c7c);
+}
+.bp-ip-filter:focus {
+  border-color: var(--dsw-alias-accent, #4FC3F7);
+}
+.bp-ip-set-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .bp-ip-group {
   font-size: 10px;
@@ -1467,8 +1493,7 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 7px;
   appearance: none;
   border: 0;
   background: transparent;
@@ -1486,7 +1511,19 @@
   background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.1));
   color: var(--dsw-alias-label-primary, #f0f0f0);
 }
+.bp-ip-set-state {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-label-tertiary, #6f6f6f);
+}
+.bp-ip-set[data-installed='true'] .bp-ip-set-state {
+  background: var(--dsw-alias-accent, #4FC3F7);
+  border-color: transparent;
+}
 .bp-ip-set-name {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

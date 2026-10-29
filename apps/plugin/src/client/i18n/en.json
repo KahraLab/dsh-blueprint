@@ -37,8 +37,6 @@
   "iconPicker.search": "Search icons, e.g. search, arrow-left",
   "iconPicker.close": "Close",
   "iconPicker.loading": "Reading the icon library…",
-  "iconPicker.installed": "Downloaded",
-  "iconPicker.allSets": "All icon sets",
   "iconPicker.download": "Download this set",
   "iconPicker.downloading": "Downloading…",
   "iconPicker.totalIcons": "{{count}} icons",
@@ -46,5 +44,10 @@
   "iconPicker.noSet": "Pick an icon set on the left",
   "iconPicker.noMatch": "No icon matches “{{query}}”",
   "iconPicker.failed": "Cannot read the icon library",
-  "iconPicker.results": "{{count}} results"
+  "iconPicker.results": "{{count}} results",
+  "iconPicker.filterSets": "Filter icon sets",
+  "iconPicker.noSets": "No icon set matches “{{query}}”",
+  "iconPicker.sets": "Icon sets",
+  "iconPicker.downloaded": "Downloaded",
+  "iconPicker.notDownloaded": "Not downloaded"
 }

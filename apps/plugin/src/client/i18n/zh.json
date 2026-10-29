@@ -37,8 +37,6 @@
   "iconPicker.search": "搜索图标，比如 search、arrow-left",
   "iconPicker.close": "关闭",
   "iconPicker.loading": "正在读取图标库…",
-  "iconPicker.installed": "已下载",
-  "iconPicker.allSets": "全部图标集",
   "iconPicker.download": "下载这个图标集",
   "iconPicker.downloading": "下载中…",
   "iconPicker.totalIcons": "{{count}} 个图标",
@@ -46,5 +44,10 @@
   "iconPicker.noSet": "左边选一个图标集开始",
   "iconPicker.noMatch": "没有匹配「{{query}}」的图标",
   "iconPicker.failed": "读不到图标库",
-  "iconPicker.results": "{{count}} 个结果"
+  "iconPicker.results": "{{count}} 个结果",
+  "iconPicker.filterSets": "筛选图标集",
+  "iconPicker.noSets": "没有名字匹配「{{query}}」的图标集",
+  "iconPicker.sets": "图标集",
+  "iconPicker.downloaded": "已下载",
+  "iconPicker.notDownloaded": "未下载"
 }

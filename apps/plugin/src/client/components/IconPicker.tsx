@@ -14,6 +14,7 @@ import {
   loadIndex,
   loadLibrary,
   loadSet,
+  type CatalogSet,
   type IconIndexData,
   type IconLibrary,
 } from '../iconLibrary';
@@ -43,6 +44,7 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
   const [library, setLibrary] = useState<IconLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [setFilter, setSetFilter] = useState('');
   const [activeSet, setActiveSet] = useState<string | null>(null);
   const [indexes, setIndexes] = useState<Record<string, IconIndexData>>({});
   const [sets, setSets] = useState<Record<string, IconSetData>>({});
@@ -188,6 +190,16 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
     }
   }, []);
 
+  // One list, not two sections: downloaded sets first, each row carries its own
+  // state. The filter above is about set names; the icon search is about icons.
+  const railWord = setFilter.trim().toLowerCase();
+  const railSets = useMemo((): CatalogSet[] => {
+    const all = library?.sets ?? [];
+    const matches = (item: CatalogSet): boolean => railWord === '' || `${item.name} ${item.prefix} ${item.category ?? ''}`.toLowerCase().includes(railWord);
+    return [...all.filter((item) => item.installed), ...all.filter((item) => !item.installed)]
+      .filter(matches);
+  }, [library, railWord]);
+
   const activeInfo = library?.sets.find((item) => item.prefix === activeSet);
   const activeInstalled = activeSet !== null && installedPrefixes.includes(activeSet);
   const activeIndex = activeSet ? indexes[activeSet] : undefined;
@@ -210,35 +222,35 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
 
         <div className="bp-ip-body">
           <aside className="bp-ip-sets">
-            <div className="bp-ip-group">{t('iconPicker.installed')}</div>
-            {library === null ? <div className="bp-ip-hint">{t('iconPicker.loading')}</div> : null}
-            {(library?.installed ?? []).map((item) => (
-              <button
-                key={item.prefix}
-                type="button"
-                className="bp-ip-set"
-                data-on={activeSet === item.prefix}
-                onClick={() => { setActiveSet(item.prefix); setQuery(''); }}
-              >
-                <span className="bp-ip-set-name">{item.name}</span>
-                <span className="bp-ip-set-total">{item.total}</span>
-              </button>
-            ))}
-            <div className="bp-ip-group">{t('iconPicker.allSets')}</div>
-            {(library?.sets ?? [])
-              .filter((item) => !item.installed)
-              .map((item) => (
+            <input
+              className="bp-ip-filter"
+              value={setFilter}
+              placeholder={t('iconPicker.filterSets')}
+              aria-label={t('iconPicker.filterSets')}
+              onChange={(event) => setSetFilter(event.target.value)}
+            />
+            <div className="bp-ip-set-list">
+              {library === null ? <div className="bp-ip-hint">{t('iconPicker.loading')}</div> : null}
+              {railSets.length > 0 ? <div className="bp-ip-group">{t('iconPicker.sets')}</div> : null}
+              {railSets.map((item) => (
                 <button
                   key={item.prefix}
                   type="button"
                   className="bp-ip-set"
                   data-on={activeSet === item.prefix}
+                  data-installed={item.installed || undefined}
+                  title={`${item.name} · ${item.installed ? t('iconPicker.downloaded') : t('iconPicker.notDownloaded')}`}
                   onClick={() => { setActiveSet(item.prefix); setQuery(''); }}
                 >
+                  <span className="bp-ip-set-state" aria-hidden="true" />
                   <span className="bp-ip-set-name">{item.name}</span>
                   <span className="bp-ip-set-total">{item.total}</span>
                 </button>
               ))}
+              {library !== null && railSets.length === 0 ? (
+                <div className="bp-ip-hint">{t('iconPicker.noSets', { query: setFilter.trim() })}</div>
+              ) : null}
+            </div>
           </aside>
 
           <div className="bp-ip-main">
