@@ -1326,6 +1326,7 @@
   align-items: center;
   justify-content: center;
   height: 152px;
+  padding: 12px 10px;
   background: #ededed;
   overflow: hidden;
 }

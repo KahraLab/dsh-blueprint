@@ -29,7 +29,9 @@ export interface GalleryProps {
   onNew(): void;
 }
 
-const THUMB_LIMIT = 160;
+/** The preview lives inside the card with breathing room, not edge to edge. */
+const THUMB_HEIGHT = 128;
+const THUMB_WIDTH = 116;
 
 export function ProjectGallery({ projects, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
   const { t } = useTranslation();
@@ -90,7 +92,7 @@ function CardPreview({ project, doc }: { project: GalleryProject; doc: Blueprint
   const frame = doc.frames[0];
   if (!frame) return <span className="bp-card-note">{t('gallery.blank')}</span>;
 
-  const scale = Math.min(0.2, THUMB_LIMIT / Math.max(frame.height, 1), (THUMB_LIMIT * 0.8) / Math.max(frame.width, 1));
+  const scale = Math.min(0.18, THUMB_HEIGHT / Math.max(frame.height, 1), THUMB_WIDTH / Math.max(frame.width, 1));
   return (
     <span
       className="bp-thumb"
