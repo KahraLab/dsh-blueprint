@@ -5,7 +5,7 @@
  * then the pointer the panel last wrote, then the only blueprint if there is just
  * one. Anything ambiguous is an error that says how to make it unambiguous.
  */
-import { listBlueprints, blueprintExists, blueprintFile, readCurrentBlueprint, workspaceRoot } from '../node/blueprint';
+import { listBlueprints, blueprintExists, blueprintFile, readBlueprintPointer, workspaceRoot } from '../node/blueprint';
 import { resolveSessionId } from '../node/session';
 import { ProtocolError } from '../protocol/errors';
 
@@ -38,7 +38,7 @@ export function resolveBlueprintId(root: string, explicit: string | undefined): 
     return explicit;
   }
 
-  const current = readCurrentBlueprint(root);
+  const current = readBlueprintPointer(root, resolveSessionId());
   if (current !== null && blueprintExists(root, current)) return current;
 
   const blueprints = listBlueprints(root).map((blueprint) => blueprint.id);

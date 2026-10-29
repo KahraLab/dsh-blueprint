@@ -7,7 +7,7 @@
  */
 import { defineCommand } from 'citty';
 import { readDocument } from '../../node/docfile';
-import { blueprintFile, readCurrentBlueprint, workspaceRoot } from '../../node/blueprint';
+import { blueprintFile, readBlueprintPointer, workspaceRoot } from '../../node/blueprint';
 import { buildFind, buildSelection, buildView } from '../../protocol/read';
 import { emit } from '../output';
 import { BLUEPRINT_ARG, SESSION_ARG, blueprintOf, sessionOf } from '../session';
@@ -49,12 +49,12 @@ export const findCommand = defineCommand({
 });
 
 export const sessionCommand = defineCommand({
-  meta: { name: 'session', description: '当前会话、工作区、以及正在看哪个蓝图' },
+  meta: { name: 'session', description: '当前会话、工作区、以及命令默认改哪份蓝图' },
   args: { session: SESSION_ARG },
   run({ args }) {
     const session = sessionOf(args.session);
     const workspace = workspaceRoot(process.cwd());
-    const current = readCurrentBlueprint(workspace);
+    const current = readBlueprintPointer(workspace, session);
     let revision: number | null = null;
     if (current !== null) {
       try {

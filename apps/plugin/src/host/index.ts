@@ -1,3 +1,5 @@
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext, SessionHandle } from '../types/dsh.js';
 import { fetchCatalog, installSet, installedSets, isInstalled, readIndex, readSet } from '../icons/store.js';
@@ -7,9 +9,9 @@ import {
   createBlueprint,
   listBlueprints,
   blueprintFile,
-  readCurrentBlueprint,
+  readBlueprintPointer,
   workspaceRoot,
-  writeCurrentBlueprint,
+  writeBlueprintPointer,
 } from '../node/blueprint.js';
 import { resolveSessionId } from '../node/session.js';
 import { writeSelection, type StoredSelection } from '../node/selection.js';
@@ -20,17 +22,20 @@ import { skillFor } from './skill.js';
  *
  * Owns the blueprint files inside the Session's workspace:
  *
- *   <workspace>/.dsh-blueprint/current.json
+ *   <workspace>/.dsh-blueprint/workspace.json
  *   <workspace>/.dsh-blueprint/blueprints/<id>/<id>.blueprint.json
+ *   ~/.dsh/dsh-blueprints/<sessionId>/blueprint.json
  *   ~/.dsh/dsh-blueprints/<sessionId>/selection.json
  *
  * Routes:
- *   - the blueprint list, so the panel can show and create blueprints;
- *   - the current blueprint pointer, so the command line knows which canvas the
- *     user is looking at;
+ *   - the blueprint list, so the Dashboard and editor can show and create them;
+ *   - the blueprint pointer, so each Session returns to its own blueprint and the
+ *     command line knows the workspace default;
  *   - document read/write for one blueprint, through the same code path the `bp`
  *     command line uses;
  *   - the selection report the canvas sends, which `bp selection` answers from.
+ * Central pages have no Session, so they address a workspace with `workspace=`;
+ * Session-scoped tabs use `session=`.
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
@@ -39,11 +44,28 @@ const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
 
-/** The workspace the current Session works in; the default directory otherwise. */
-function workspaceOf(scope: PluginContext, sessionId: string | null): string {
+/** Whether a path is an existing directory, without throwing for a bad path. */
+function isDirectory(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The workspace this request acts on: the Session's directory, then the explicit
+ * path the central pages pass, then the default directory.
+ */
+function workspaceOf(scope: PluginContext, sessionId: string | null, requested: string | null): string {
   if (sessionId) {
     const session: SessionHandle | undefined = scope.sessions.get(sessionId);
     if (session) return scope.workingDirectory.get(session);
+  }
+  if (requested !== null && requested !== '') {
+    const path = resolve(requested);
+    if (!isDirectory(path)) throw new BlueprintError(`工作区不存在：${path}`, 'missing');
+    return path;
   }
   return scope.workingDirectory.defaultDirectory;
 }
@@ -79,11 +101,17 @@ function createBlueprintRoute(scope: PluginContext): FetchRoute {
     requestBody: 'buffered',
 
     async fetch(request) {
-      const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
-      const root = workspaceOf(scope, sessionId);
+      const url = new URL(request.url);
+      const sessionId = resolveSessionId(url.searchParams.get('session'));
+      let root: string;
+      try {
+        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
+      } catch (error) {
+        return failure(error);
+      }
 
       if (request.method === 'GET') {
-        return Response.json({ ok: true, blueprints: listBlueprints(root), current: readCurrentBlueprint(root) });
+        return Response.json({ ok: true, blueprints: listBlueprints(root), current: readBlueprintPointer(root, sessionId) });
       }
 
       let body: { title?: unknown; id?: unknown };
@@ -96,6 +124,7 @@ function createBlueprintRoute(scope: PluginContext): FetchRoute {
         const blueprint = createBlueprint(root, {
           ...(typeof body.title === 'string' ? { title: body.title } : {}),
           ...(typeof body.id === 'string' ? { id: body.id } : {}),
+          sessionId,
         });
         return Response.json({ ok: true, blueprint: { id: blueprint.id, title: blueprint.title, revision: blueprint.revision } });
       } catch (error) {
@@ -112,8 +141,14 @@ function createCurrentRoute(scope: PluginContext): FetchRoute {
     requestBody: 'buffered',
 
     async fetch(request) {
-      const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
-      const root = workspaceOf(scope, sessionId);
+      const url = new URL(request.url);
+      const sessionId = resolveSessionId(url.searchParams.get('session'));
+      let root: string;
+      try {
+        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
+      } catch (error) {
+        return failure(error);
+      }
       let body: { blueprint?: unknown };
       try {
         body = await jsonBody<typeof body>(request);
@@ -126,7 +161,7 @@ function createCurrentRoute(scope: PluginContext): FetchRoute {
       try {
         // Fails when the blueprint is missing, so the pointer cannot dangle.
         readDocument(blueprintFile(root, body.blueprint));
-        writeCurrentBlueprint(root, body.blueprint);
+        writeBlueprintPointer(root, body.blueprint, sessionId);
         return Response.json({ ok: true, blueprint: body.blueprint });
       } catch (error) {
         return failure(error);
@@ -144,7 +179,12 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
     async fetch(request) {
       const url = new URL(request.url);
       const sessionId = resolveSessionId(url.searchParams.get('session'));
-      const root = workspaceOf(scope, sessionId);
+      let root: string;
+      try {
+        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
+      } catch (error) {
+        return failure(error);
+      }
       const blueprint = url.searchParams.get('blueprint');
       if (!blueprint) {
         return Response.json({ ok: false, error: '缺少 blueprint 参数', code: 'id' }, { status: 400 });

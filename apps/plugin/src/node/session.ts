@@ -10,10 +10,14 @@ import { homedir } from 'node:os';
 const ROOT_DIR = `${homedir()}/.dsh/dsh-blueprints`;
 const SESSION_PATTERN = /^[A-Za-z0-9_-]+$/;
 
+/** Whether an id is safe to use as a Session directory name. */
+export function isSessionId(value: string | null | undefined): value is string {
+  return typeof value === 'string' && SESSION_PATTERN.test(value);
+}
+
 /** A Session's private scratch directory, outside the workspace. */
 export function sessionDir(sessionId: string | null): string {
-  const key = sessionId && SESSION_PATTERN.test(sessionId) ? sessionId : '_unknown';
-  return `${ROOT_DIR}/${key}`;
+  return `${ROOT_DIR}/${isSessionId(sessionId) ? sessionId : '_unknown'}`;
 }
 
 /** Which session the browser half and the command line both mean. */

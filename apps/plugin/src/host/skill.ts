@@ -38,7 +38,7 @@ export function skillFor(command: string): SkillRegistration {
 
 ## 改的是哪个蓝图
 
-一份蓝图对应工作区里的一个目录：.dsh-blueprint/blueprints/<id>/<id>.blueprint.json。命令默认改「当前蓝图」，也就是用户在面板里打开的那一份。不知道是哪个：
+一份蓝图对应工作区里的一个目录：.dsh-blueprint/blueprints/<id>/<id>.blueprint.json。命令默认改「当前蓝图」：面板里打开蓝图会把它切过去，bp blueprint use 也能切。不知道是哪个：
 
     ${command} blueprint list      # 有哪些蓝图、当前是哪个
 

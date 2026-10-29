@@ -8,8 +8,8 @@ import {
   importSessionBlueprint,
   listBlueprints,
   blueprintFile,
-  readCurrentBlueprint,
-  writeCurrentBlueprint,
+  readBlueprintPointer,
+  writeBlueprintPointer,
   workspaceRoot,
 } from '../../node/blueprint';
 import { ProtocolError } from '../../protocol/errors';
@@ -21,11 +21,11 @@ function root(): string {
 }
 
 export const blueprintListCommand = defineCommand({
-  meta: { name: 'list', description: '列出工作区里的蓝图，以及当前打开的是哪一份' },
+  meta: { name: 'list', description: '列出工作区里的蓝图，以及命令默认改哪一份' },
   args: {},
   run() {
     const workspace = root();
-    emit({ ok: true, workspace, blueprints: listBlueprints(workspace), current: readCurrentBlueprint(workspace) });
+    emit({ ok: true, workspace, blueprints: listBlueprints(workspace), current: readBlueprintPointer(workspace, sessionOf(undefined)) });
   },
 });
 
@@ -37,7 +37,7 @@ export const blueprintNewCommand = defineCommand({
   },
   run({ args }) {
     const workspace = root();
-    const blueprint = createBlueprint(workspace, { title: args.title, id: args.id });
+    const blueprint = createBlueprint(workspace, { title: args.title, id: args.id, sessionId: sessionOf(undefined) });
     emit({
       ok: true,
       workspace,
@@ -60,7 +60,7 @@ export const blueprintUseCommand = defineCommand({
     if (!blueprint) {
       throw new ProtocolError('NOT_FOUND', `找不到蓝图「${args.id}」`, { hint: 'bp blueprint list 看有哪些' });
     }
-    writeCurrentBlueprint(workspace, blueprint.id);
+    writeBlueprintPointer(workspace, blueprint.id, sessionOf(undefined));
     emit({ ok: true, blueprint: blueprint.id, title: blueprint.title, document: blueprintFile(workspace, blueprint.id) });
   },
 });
@@ -70,7 +70,7 @@ export const blueprintCurrentCommand = defineCommand({
   args: {},
   run() {
     const workspace = root();
-    const current = readCurrentBlueprint(workspace);
+    const current = readBlueprintPointer(workspace, sessionOf(undefined));
     emit({
       ok: true,
       workspace,
@@ -120,6 +120,6 @@ export const blueprintCommand = defineCommand({
     const named = rawArgs.find((token) => !token.startsWith('-'));
     if (named && blueprintSubCommands[named]) return;
     const workspace = root();
-    emit({ ok: true, workspace, blueprints: listBlueprints(workspace), current: readCurrentBlueprint(workspace) });
+    emit({ ok: true, workspace, blueprints: listBlueprints(workspace), current: readBlueprintPointer(workspace, sessionOf(undefined)) });
   },
 });

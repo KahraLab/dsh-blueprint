@@ -14,5 +14,5 @@ export const CORE_RULES: readonly string[] = [
   'baseRevision 对不上就重新读，命令不会自动重试。',
   '一次 apply 就是一个撤销单元。',
   '图标节点写 iconSet + iconName，svg 由后台补；集合没下载先 bp icon install。',
-  '改的是哪份蓝图由「当前打开的那一份」决定；不是它就用 --blueprint，或者 bp blueprint use 切过去。',
+  '不给 --blueprint 时改的是「当前蓝图」：面板打开蓝图会切过去，bp blueprint use 也能切。',
 ];

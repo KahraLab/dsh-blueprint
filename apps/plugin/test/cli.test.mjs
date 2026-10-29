@@ -86,6 +86,7 @@ function sandbox() {
     find,
     firstId,
     blueprintPath,
+    sessionDir,
     documentFile,
     writeDocument,
     writeLegacyDocument,
@@ -158,6 +159,21 @@ describe('蓝图', () => {
     assert.equal(listed.blueprints.length, 1);
     assert.equal(listed.blueprints[0].title, '登录页');
     assert.equal(listed.blueprints[0].broken, false);
+    assert.equal(JSON.parse(readFileSync(join(box.sessionDir, 'blueprint.json'), 'utf8')).blueprint, 'login-page');
+  });
+
+  test('会话自己的蓝图压过工作区默认值', () => {
+    box.newBlueprint('second-page', '第二页');
+    // Move the workspace default away from the Session's choice.
+    writeFileSync(
+      join(box.workspace, '.dsh-blueprint', 'workspace.json'),
+      JSON.stringify({ lastOpened: { id: 'login-page', openedAt: '2026-01-01T00:00:00Z' } }),
+    );
+    writeFileSync(join(box.sessionDir, 'blueprint.json'), JSON.stringify({ blueprint: 'second-page' }));
+    assert.equal(box.ok(['blueprint', 'current']).blueprint, 'second-page');
+
+    rmSync(join(box.sessionDir, 'blueprint.json'));
+    assert.equal(box.ok(['blueprint', 'current']).blueprint, 'login-page');
   });
 
   test('工作区里没有蓝图时说清楚怎么建', () => {
@@ -177,8 +193,9 @@ describe('蓝图', () => {
     box.newBlueprint('second-page', '第二页');
     assert.equal(box.ok(['blueprint', 'current']).blueprint, 'second-page');
 
-    // Drop the pointer: with two blueprints there is no safe default.
-    rmSync(join(box.workspace, '.dsh-blueprint', 'current.json'));
+    // Drop both pointers: with two blueprints there is no safe default.
+    rmSync(join(box.workspace, '.dsh-blueprint', 'workspace.json'));
+    rmSync(join(box.sessionDir, 'blueprint.json'), { force: true });
     const { status, payload } = box.failed(['view']);
     assert.equal(status, 2);
     assert.equal(payload.code, 'USAGE');
@@ -210,9 +227,26 @@ describe('蓝图', () => {
     assert.ok(listed.blueprints.some((item) => item.id === 'login-page'));
   });
 
-  test('旧的 current.json 用 project 记指针时照样认得', () => {
+  test('旧的指针文件照样认得，工作区文件一动旧名就退休', () => {
     box.newBlueprint('second-page', '第二页');
+    // No Session pointer either: the legacy workspace file is the only thing left.
+    rmSync(join(box.sessionDir, 'blueprint.json'), { force: true });
+    rmSync(join(box.workspace, '.dsh-blueprint', 'workspace.json'));
     writeFileSync(join(box.workspace, '.dsh-blueprint', 'current.json'), JSON.stringify({ project: 'login-page' }));
+    assert.equal(box.ok(['blueprint', 'current']).blueprint, 'login-page');
+
+    box.ok(['blueprint', 'use', 'second-page']);
+    const stored = JSON.parse(readFileSync(join(box.workspace, '.dsh-blueprint', 'workspace.json'), 'utf8'));
+    assert.equal(stored.lastOpened.id, 'second-page');
+    assert.match(stored.lastOpened.openedAt, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(existsSync(join(box.workspace, '.dsh-blueprint', 'current.json')), false);
+  });
+
+  test('上一版 pointer.json 的文件名和形状也能读', () => {
+    box.newBlueprint('second-page', '第二页');
+    rmSync(join(box.sessionDir, 'blueprint.json'), { force: true });
+    rmSync(join(box.workspace, '.dsh-blueprint', 'workspace.json'));
+    writeFileSync(join(box.workspace, '.dsh-blueprint', 'pointer.json'), JSON.stringify({ blueprint: 'login-page' }));
     assert.equal(box.ok(['blueprint', 'current']).blueprint, 'login-page');
   });
 

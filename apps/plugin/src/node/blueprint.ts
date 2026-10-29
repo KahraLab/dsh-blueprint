@@ -9,12 +9,12 @@
  * refused instead of guessed at: the alternative is silently misreading node
  * fields we do not know yet.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, rmdirSync } from 'node:fs';
 import { customAlphabet } from 'nanoid';
 import { dirname, join, resolve } from 'node:path';
 import { type BlueprintDocument, createDocument, normalizeDocument } from '../model/document';
 import { writeJsonAtomic } from './atomic';
-import { sessionDir } from './session';
+import { isSessionId, sessionDir } from './session';
 
 export const BLUEPRINT_DIR = '.dsh-blueprint';
 export const DOCUMENT_SCHEMA = 3;
@@ -121,9 +121,13 @@ export function blueprintFile(root: string, id: string): string {
   return join(blueprintDir(root, id), `${id}.blueprint.json`);
 }
 
-export function currentFile(root: string): string {
-  return join(dataDir(root), 'current.json');
+/** This workspace's own file: the blueprint its commands act on by default. */
+export function workspaceFile(root: string): string {
+  return join(dataDir(root), 'workspace.json');
 }
+
+/** Names the workspace file had before it grew into `workspace.json`. */
+const LEGACY_WORKSPACE_FILES = ['pointer.json', 'current.json'] as const;
 
 export function assertBlueprintId(id: string): string {
   if (!BLUEPRINT_ID.test(id)) {
@@ -217,7 +221,10 @@ export function writeBlueprint(root: string, blueprint: BlueprintFile): void {
   writeJsonAtomic(blueprintFile(root, blueprint.id), blueprint);
 }
 
-export function createBlueprint(root: string, options: { title?: string; id?: string } = {}): BlueprintFile {
+export function createBlueprint(
+  root: string,
+  options: { title?: string; id?: string; sessionId?: string | null } = {},
+): BlueprintFile {
   const id = options.id === undefined ? newBlueprintId() : assertBlueprintId(options.id);
   if (blueprintExists(root, id)) {
     throw new BlueprintError(`蓝图「${id}」已经存在；换一个 id，或者直接打开它`, 'exists');
@@ -234,33 +241,68 @@ export function createBlueprint(root: string, options: { title?: string; id?: st
     document: createDocument(),
   };
   writeBlueprint(root, blueprint);
-  writeCurrentBlueprint(root, id);
+  writeBlueprintPointer(root, id, options.sessionId);
   return blueprint;
 }
 
-// ---------------------------------------------------------------- current blueprint
+// ---------------------------------------------------------------- blueprint pointer
 
-export function readCurrentBlueprint(root: string): string | null {
+/** The blueprint id a pointer-shaped file names, or null when absent or unreadable. */
+function readPointer(file: string): string | null {
   let text: string;
   try {
-    text = readFileSync(currentFile(root), 'utf8');
+    text = readFileSync(file, 'utf8');
   } catch {
     return null;
   }
   try {
-    // `project` was the key before the term settled on blueprint; old pointers
-    // keep working and are rewritten the next time the pointer moves.
-    const raw = JSON.parse(text) as { blueprint?: unknown; project?: unknown };
-    const id = typeof raw.blueprint === 'string' ? raw.blueprint : raw.project;
+    const raw = JSON.parse(text) as { lastOpened?: unknown; blueprint?: unknown; project?: unknown };
+    const opened = raw.lastOpened as { id?: unknown } | undefined;
+    // `blueprint` and `project` are the older shapes; they stay readable and are
+    // rewritten in the current shape the next time the pointer moves.
+    const id =
+      typeof opened?.id === 'string' ? opened.id : typeof raw.blueprint === 'string' ? raw.blueprint : raw.project;
     return typeof id === 'string' && BLUEPRINT_ID.test(id) ? id : null;
   } catch {
     return null;
   }
 }
 
-export function writeCurrentBlueprint(root: string, id: string): void {
+/** The blueprint a Session last opened; Session state lives outside the workspace. */
+function sessionPointerFile(sessionId: string): string {
+  return join(sessionDir(sessionId), 'blueprint.json');
+}
+
+/**
+ * The blueprint this Session last opened, when it has one.
+ *
+ * The workspace pointer is only a fallback: two Sessions in the same workspace
+ * must be able to look at different blueprints without moving each other.
+ */
+export function readBlueprintPointer(root: string, sessionId?: string | null): string | null {
+  if (isSessionId(sessionId)) {
+    const session = readPointer(sessionPointerFile(sessionId));
+    if (session !== null) return session;
+  }
+  for (const file of [workspaceFile(root), ...LEGACY_WORKSPACE_FILES.map((name) => join(dataDir(root), name))]) {
+    const id = readPointer(file);
+    if (id !== null) return id;
+  }
+  return null;
+}
+
+/** Remember the blueprint for this Session, and keep the workspace default in sync. */
+export function writeBlueprintPointer(root: string, id: string, sessionId?: string | null): void {
+  const blueprint = assertBlueprintId(id);
+  const openedAt = new Date().toISOString();
+  if (isSessionId(sessionId)) {
+    mkdirSync(sessionDir(sessionId), { recursive: true });
+    writeJsonAtomic(sessionPointerFile(sessionId), { blueprint, updatedAt: new Date().toISOString() });
+  }
   mkdirSync(dataDir(root), { recursive: true });
-  writeJsonAtomic(currentFile(root), { blueprint: assertBlueprintId(id), updatedAt: new Date().toISOString() });
+  writeJsonAtomic(workspaceFile(root), { lastOpened: { id: blueprint, openedAt } });
+  // The old names would keep answering after the pointer moved on; retire them here.
+  for (const name of LEGACY_WORKSPACE_FILES) rmSync(join(dataDir(root), name), { force: true });
 }
 
 // ---------------------------------------------------------------- import
@@ -293,7 +335,7 @@ export function importSessionBlueprint(
   const inner = record.document && typeof record.document === 'object' ? record.document : record;
   const document = normalizeDocument(inner as BlueprintDocument);
 
-  const blueprint = createBlueprint(root, options);
+  const blueprint = createBlueprint(root, { ...options, sessionId });
   blueprint.document = document;
   blueprint.updatedBy = 'import';
   blueprint.updatedAt = new Date().toISOString();
