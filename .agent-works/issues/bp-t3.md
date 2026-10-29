@@ -16,7 +16,7 @@ blocked_by: []
 - 工作区根目录下的 `.dsh-blueprint/blueprints/<id>/<id>.blueprint.json` 是唯一真身；文件名按「蓝图文档统一命名」这条约定。
 - 文件带格式版本号；读到更高版本时拒绝，并说明是插件旧了还是文件坏了，不猜。
 - `bp blueprint list / new / use / current / import` 可用；画布命令按「显式 `--blueprint` → 当前蓝图指针 → 唯一蓝图 → 报错」定位蓝图，找不到时说清楚怎么建。
-- 当前蓝图指针落在 `.dsh-blueprint/current.json`，面板切换蓝图时更新，命令行读它。
+- 当前蓝图指针落在 `.dsh-blueprint/pointer.json`（后续归并进 `workspace.json`），面板切换蓝图时更新，命令行读它。
 - 面板启动能列蓝图；没有蓝图时给空状态和新建入口；切换蓝图后画布加载对应文档，保存写回对应文件，revision 按蓝图独立。
 - 旧的会话级文档能导入成蓝图，导入后不再写会话级路径。
 - 测试覆盖：建蓝图、列蓝图、当前指针、按蓝图读写、版本守卫、导入、两个蓝图 revision 互不影响。
@@ -26,7 +26,7 @@ blocked_by: []
 
 2026-10-29 落地。工作区里的 `.dsh-blueprint/` 成了蓝图唯一的存储，会话目录只留下「选中了什么」这一条状态。
 
-- **磁盘布局**：`<workspace>/.dsh-blueprint/current.json` 记当前蓝图；`blueprints/<id>/<id>.blueprint.json` 是文档。文件名按约定，单个文件拷出去也认得出是什么。
+- **磁盘布局**：`<workspace>/.dsh-blueprint/workspace.json` 记当前蓝图；`blueprints/<id>/<id>.blueprint.json` 是文档。文件名按约定，单个文件拷出去也认得出是什么。
 - **文件外壳**：`schema: 3` 是格式版本；另有 `id`、`title`、`createdAt`、`revision`、`updatedAt`、`updatedBy` 和 `document`。读到更高版本时拒绝打开并说明插件旧了，不按旧规则猜字段。
 - **命令行**：新增 `bp blueprint list / new / use / current / import`。所有画布命令按「显式 `--blueprint` → 当前蓝图指针 → 唯一蓝图 → 报错」定位；多蓝图又没指针时明确说怎么选，不猜。
 - **宿主**：新增蓝图列表、新建、当前蓝图指针三条路由；文档路由带 `blueprint` 参数。工作区从会话的工作目录取（`ctx.sessions` + `ctx.workingDirectory`），拿不到时退回默认目录。
