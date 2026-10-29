@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { temporal } from 'zundo';
 import { diffDocs } from '../model/ops';
 import type { EditingLayer, NewLayerRequest, ShapeKind, Tool } from './components/Canvas';
 import {
@@ -59,7 +61,9 @@ interface BlueprintState {
   reorderFrame(frameId: string, beforeId: string | null): void;
 }
 
-export const useBlueprint = create<BlueprintState>((set, get) => ({
+export const useBlueprint = create<BlueprintState>()(
+  temporal<BlueprintState, [], [], { doc: BlueprintDocument }>(
+    (set, get) => ({
   doc: createDocument(),
   hydrated: false,
   saveState: 'idle',
@@ -128,7 +132,81 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
     if (selections.length === 0) return;
     set({ doc: removeSelection(doc, selections), selections: [] });
   },
-}));
+    }),
+    {
+      // One history step per edit burst: a drag writes many doc objects, but the
+      // user expects one undo per gesture.
+      limit: 30,
+      partialize: (state: BlueprintState) => ({ doc: state.doc }),
+      equality: (past: { doc: BlueprintDocument }, current: { doc: BlueprintDocument }) => past.doc === current.doc,
+      handleSet: (handleSet) => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let pending: Parameters<typeof handleSet> | null = null;
+        return (...args: Parameters<typeof handleSet>): void => {
+          pending = args;
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            timer = null;
+            if (pending) handleSet(...pending);
+            pending = null;
+          }, 350);
+        };
+      },
+      wrapTemporal: (initializer) =>
+        persist(initializer as never, { name: 'blueprint.undo.v1' }) as never,
+    },
+  ),
+);
+
+const HISTORY_SCOPE_KEY = 'blueprint.undo.scope';
+let historyScope: string | null = null;
+
+function readHistoryScope(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(HISTORY_SCOPE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberHistoryScope(url: string): void {
+  historyScope = url;
+  try {
+    globalThis.localStorage?.setItem(HISTORY_SCOPE_KEY, url);
+  } catch {
+    // Private mode: history still works within this page.
+  }
+}
+
+/**
+ * Adopt a document the user did not type. Tracking is paused so loading does not
+ * become an undo step; a different project (or an external write) clears history
+ * instead of letting one canvas undo another writer's change.
+ */
+function adoptDocument(doc: BlueprintDocument, clearHistory: boolean, url: string): void {
+  const temporalStore = useBlueprint.temporal.getState();
+  temporalStore.pause();
+  useBlueprint.setState({ doc });
+  temporalStore.resume();
+  if (clearHistory) temporalStore.clear();
+  rememberHistoryScope(url);
+}
+
+export function undo(): boolean {
+  const temporalStore = useBlueprint.temporal.getState();
+  if (temporalStore.pastStates.length === 0) return false;
+  temporalStore.undo();
+  useBlueprint.setState({ saveState: 'saving', editing: null, selections: [] });
+  return true;
+}
+
+export function redo(): boolean {
+  const temporalStore = useBlueprint.temporal.getState();
+  if (temporalStore.futureStates.length === 0) return false;
+  temporalStore.redo();
+  useBlueprint.setState({ saveState: 'saving', editing: null, selections: [] });
+  return true;
+}
 
 // ---------------------------------------------------------------- persistence
 //
@@ -228,7 +306,12 @@ async function flush(url: string): Promise<void> {
   // we just wrote, that is our local document, not the parsed copy of it.
   const agree = sameDocument(reply.document, local) ? local : reply.document;
   syncedDoc = agree;
-  if (agree !== local) useBlueprint.setState({ doc: agree });
+  if (agree !== local) {
+    const temporalStore = useBlueprint.temporal.getState();
+    temporalStore.pause();
+    useBlueprint.setState({ doc: agree });
+    temporalStore.resume();
+  }
   useBlueprint.setState({ saveState: 'saved' });
 }
 
@@ -307,7 +390,6 @@ export function startSession(url: string, selectionUrl: string): () => void {
     unsubscribe();
     unsubscribeSelection();
     clearInterval(timer);
-    if (activeUrl === url) activeUrl = null;
     if (selectionTimer) {
       clearTimeout(selectionTimer);
       selectionTimer = null;
@@ -333,7 +415,9 @@ async function poll(url: string): Promise<void> {
 
   syncedRevision = stored.revision;
   syncedDoc = stored.document;
-  useBlueprint.setState({ doc: stored.document });
+  // Somebody else wrote: that document is the new base, so old undo steps would
+  // replay against a tree they were not recorded on.
+  adoptDocument(stored.document, true, url);
 }
 
 /**
@@ -380,8 +464,28 @@ export function handleToolKey(
 }
 
 /** Delete and the single-key tool switches, installed once per session. */
+/** Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z or Ctrl+Y redo. */
+export function handleHistoryKey(
+  event: Pick<KeyboardEvent, 'key' | 'target' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'preventDefault'>,
+): boolean {
+  if (!event.metaKey && !event.ctrlKey) return false;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return false;
+  const key = event.key.toLowerCase();
+  if (key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    return undo();
+  }
+  if ((key === 'z' && event.shiftKey) || key === 'y') {
+    event.preventDefault();
+    return redo();
+  }
+  return false;
+}
+
 export function installKeys(): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (handleHistoryKey(event)) return;
     if (handleDeleteKey(event)) return;
     handleToolKey(event);
   };

@@ -18,6 +18,7 @@ import {
   type StackLayout,
 } from '../../model/document';
 import { fillBackground, topFillColor } from '../model/fill';
+import { collapseSelections } from '../model/selection';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
@@ -200,6 +201,17 @@ const clamp = (value: number, min: number, max: number): number => Math.min(max,
 
 function intersects(a: WorldRect, b: WorldRect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/** A marquee selects what it encloses, not what it merely brushes. */
+function contains(outer: WorldRect, inner: WorldRect): boolean {
+  const slack = 0.5;
+  return (
+    inner.x >= outer.x - slack &&
+    inner.y >= outer.y - slack &&
+    inner.x + inner.width <= outer.x + outer.width + slack &&
+    inner.y + inner.height <= outer.y + outer.height + slack
+  );
 }
 
 function isLayerSelected(selections: readonly Selection[], frameId: string | null, layerId: string): boolean {
@@ -1295,18 +1307,18 @@ export function Canvas({
         });
         const hits: Selection[] = [];
         for (const element of host.querySelectorAll<HTMLElement>('[data-frame-id]')) {
-          if (intersects(marquee, toWorldRect(element.getBoundingClientRect()))) {
+          if (contains(marquee, toWorldRect(element.getBoundingClientRect()))) {
             hits.push({ kind: 'frame', frameId: element.dataset.frameId ?? '' });
           }
         }
         for (const element of host.querySelectorAll<HTMLElement>('[data-layer-id]')) {
           const layerId = element.dataset.layerId;
           if (!layerId) continue;
-          if (!intersects(marquee, toWorldRect(element.getBoundingClientRect()))) continue;
+          if (!contains(marquee, toWorldRect(element.getBoundingClientRect()))) continue;
           const frameAttr = element.dataset.frame ?? '';
           hits.push({ kind: 'layer', frameId: frameAttr === '' ? null : frameAttr, layerId });
         }
-        onSelect(hits);
+        onSelect(collapseSelections(doc, hits));
       }
       setMarquee(null);
     }
