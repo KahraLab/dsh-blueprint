@@ -126,9 +126,9 @@ function LayoutSection({
 
       <div className="bp-flow-row" role="group" aria-label="排列方式">
         {([
-          { id: 'free', label: '自由', Icon: FlowFreeIcon },
-          { id: 'column', label: '竖向', Icon: FlowColumnIcon },
-          { id: 'row', label: '横向', Icon: FlowRowIcon },
+          { id: 'free', label: '自由布局', Icon: FlowFreeIcon },
+          { id: 'row', label: '横向排布', Icon: FlowRowIcon },
+          { id: 'column', label: '纵向排布', Icon: FlowColumnIcon },
         ] as const).map(({ id, label, Icon }) => (
           <button
             key={id}

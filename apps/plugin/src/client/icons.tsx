@@ -13,8 +13,6 @@ import Triangle from 'lucide-react/icons/triangle';
 import Star from 'lucide-react/icons/star';
 import ArrowDownToLine from 'lucide-react/icons/arrow-down-to-line';
 import Move from 'lucide-react/icons/move';
-import ArrowDown from 'lucide-react/icons/arrow-down';
-import ArrowRight from 'lucide-react/icons/arrow-right';
 import AlignStartHorizontal from 'lucide-react/icons/align-start-horizontal';
 import AlignCenterHorizontal from 'lucide-react/icons/align-center-horizontal';
 import AlignEndHorizontal from 'lucide-react/icons/align-end-horizontal';
@@ -39,6 +37,8 @@ import Plus from 'lucide-react/icons/plus';
 import Type from 'lucide-react/icons/type';
 import Shapes from 'lucide-react/icons/shapes';
 import ExternalLink from 'lucide-react/icons/external-link';
+import Columns2 from 'lucide-react/icons/columns-2';
+import Rows2 from 'lucide-react/icons/rows-2';
 import type { ReactElement } from 'react';
 
 interface IconProps {
@@ -180,14 +180,14 @@ export function FlowFreeIcon({ size = 14 }: { size?: number }): ReactElement {
   return <Move size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-/** Column: children stack downwards. */
+/** Column: children stack downwards — two panes, one above the other. */
 export function FlowColumnIcon({ size = 14 }: { size?: number }): ReactElement {
-  return <ArrowDown size={size} strokeWidth={1.8} aria-hidden="true" />;
+  return <Rows2 size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-/** Row: children flow to the right. */
+/** Row: children flow sideways — two panes, side by side. */
 export function FlowRowIcon({ size = 14 }: { size?: number }): ReactElement {
-  return <ArrowRight size={size} strokeWidth={1.8} aria-hidden="true" />;
+  return <Columns2 size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
 export type AxisAlignMode = 'start' | 'center' | 'end' | 'between';
