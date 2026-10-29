@@ -155,6 +155,8 @@ interface ChangeReply extends StoredReply {
 let syncedDoc: BlueprintDocument | null = null;
 let syncedRevision = 0;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+/** The document URL this module state belongs to; stale panels must not write. */
+let activeUrl: string | null = null;
 
 function sameDocument(left: BlueprintDocument, right: BlueprintDocument): boolean {
   return left === right || JSON.stringify(left) === JSON.stringify(right);
@@ -189,6 +191,8 @@ async function sendOps(url: string, baseRevision: number, ops: ReturnType<typeof
 
 /** Push whatever the user changed since the last agreed revision. */
 async function flush(url: string): Promise<void> {
+  // A panel that was closed or switched away must not write to its old file.
+  if (url !== activeUrl) return;
   const local = useBlueprint.getState().doc;
   if (!syncedDoc || sameDocument(local, syncedDoc)) {
     useBlueprint.setState({ saveState: 'saved' });
@@ -303,6 +307,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
     unsubscribe();
     unsubscribeSelection();
     clearInterval(timer);
+    if (activeUrl === url) activeUrl = null;
     if (selectionTimer) {
       clearTimeout(selectionTimer);
       selectionTimer = null;
@@ -316,6 +321,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
 
 /** Take a newer revision from the file, unless the user is in the middle of something. */
 async function poll(url: string): Promise<void> {
+  if (url !== activeUrl) return;
   const before = useBlueprint.getState();
   if (!before.hydrated || before.saveState !== 'saved' || before.doc !== syncedDoc) return;
 

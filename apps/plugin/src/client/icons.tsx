@@ -238,3 +238,14 @@ export function PolygonIcon({ size = 15, className }: IconProps): ReactElement {
 export function StarIcon({ size = 15, className }: IconProps): ReactElement {
   return <Star size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
+
+export function GridIcon({ size = 15 }: IconProps): ReactElement {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2" />
+      <rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2" />
+      <rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2" />
+      <rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2" />
+    </svg>
+  );
+}

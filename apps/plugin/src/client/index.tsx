@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type ShapeKind, type Viewport, type ViewportInfo } from './components/Canvas';
+import { ProjectGallery } from './components/Gallery';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
 import { ShapeIcon, ShapeMenu, shapeLabel } from './components/ShapeMenu';
 import {
   CaretIcon,
   FrameIcon,
+  GridIcon,
   HandIcon,
   LockIcon,
   MarkIcon,
@@ -16,6 +18,7 @@ import {
   TextIcon,
   VisibilityIcon,
 } from './icons';
+import type { BlueprintDocument } from '../model/document';
 import { installKeys, loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
@@ -36,13 +39,7 @@ const PROJECTS_ENDPOINT = '/api/blueprint/projects';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 
-interface ProjectEntry {
-  id: string;
-  title: string;
-  revision: number;
-  updatedAt: string;
-  broken: boolean;
-}
+type ProjectEntry = import('./components/Gallery').GalleryProject;
 const VIEWPORT_KEY = 'blueprint.viewport';
 
 /** World point at the middle of the visible canvas, used to place new frames. */
@@ -101,6 +98,9 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const [projectError, setProjectError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [previews, setPreviews] = useState<Record<string, BlueprintDocument | null>>({});
+  const [screen, setScreen] = useState<'gallery' | 'editor'>('gallery');
+  const initialised = useRef(false);
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [layersWidth, setLayersWidth] = useState(LAYERS_DEFAULT_WIDTH);
@@ -149,38 +149,56 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }
   }, [currentUrl]);
 
-  // Which prototypes exist, and which one this panel was looking at last time.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch(projectsUrl, { headers: { accept: 'application/json' } });
-        const data = (await response.json()) as { ok?: boolean; projects?: ProjectEntry[]; current?: string | null; error?: string };
-        if (cancelled) return;
-        if (data?.ok !== true) {
-          setProjectError(data?.error ?? '读不到原型列表');
-          setProjects([]);
-          return;
-        }
-        const list = data.projects ?? [];
-        setProjects(list);
+  const documentUrlOf = useCallback((id: string): string => (
+    `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}project=${encodeURIComponent(id)}`
+  ), [query]);
+
+  /** The project list plus one screen per project, for the gallery cards. */
+  const loadGallery = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch(projectsUrl, { headers: { accept: 'application/json' } });
+      const data = (await response.json()) as { ok?: boolean; projects?: ProjectEntry[]; current?: string | null; error?: string };
+      if (data?.ok !== true) {
+        setProjectError(data?.error ?? '读不到原型列表');
+        setProjects([]);
+        return;
+      }
+      const list = data.projects ?? [];
+      setProjects(list);
+      setProjectError(null);
+
+      if (!initialised.current) {
+        initialised.current = true;
         const current = data.current ?? null;
         const chosen = current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null;
         setProjectId(chosen);
         if (chosen !== null && chosen !== current) void reportCurrent(chosen);
-      } catch (error) {
-        if (cancelled) return;
-        setProjectError(error instanceof Error ? error.message : String(error));
-        setProjects([]);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectsUrl, reportCurrent]);
+
+      const entries = await Promise.all(list.map(async (entry) => {
+        try {
+          const reply = await fetch(documentUrlOf(entry.id), { headers: { accept: 'application/json' } });
+          const body = (await reply.json()) as { document?: BlueprintDocument };
+          return [entry.id, body?.document ?? null] as const;
+        } catch {
+          return [entry.id, null] as const;
+        }
+      }));
+      setPreviews(Object.fromEntries(entries));
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : String(error));
+      setProjects([]);
+    }
+  }, [projectsUrl, documentUrlOf, reportCurrent]);
+
+  // Refresh the gallery whenever it is shown, so previews track edits.
+  useEffect(() => {
+    if (screen === 'gallery') void loadGallery();
+  }, [screen, loadGallery]);
 
   const openProject = useCallback((id: string): void => {
     setProjectId(id);
+    setScreen('editor');
     void reportCurrent(id);
   }, [reportCurrent]);
 
@@ -279,35 +297,38 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }
   };
 
+  if (screen === 'gallery') {
+    return (
+      <div className="bp-root">
+        <style>{css}</style>
+        <ProjectGallery
+          projects={projects ?? []}
+          previews={previews}
+          current={projectId}
+          loading={projects === null}
+          error={projectError}
+          onOpen={openProject}
+          onNew={() => setCreating(true)}
+        />
+        {creating ? (
+          <CreateProjectDialog
+            title={newTitle}
+            error={projectError}
+            onTitleChange={setNewTitle}
+            onCancel={() => setCreating(false)}
+            onCreate={() => void createProjectNow()}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="bp-root">
       <style>{css}</style>
 
       <header className="bp-head">
         <div className="bp-head-left">
-          <select
-            className="bp-project"
-            aria-label="当前原型"
-            value={projectId ?? ''}
-            onChange={(event) => openProject(event.target.value)}
-            style={{ maxWidth: 120, font: '12px inherit', background: 'transparent', color: 'inherit', border: '1px solid rgba(127,127,127,0.35)', borderRadius: 6, padding: '2px 4px' }}
-          >
-            {(projects ?? []).map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.title}
-              </option>
-            ))}
-            {projectId === null ? <option value="" disabled>还没有原型</option> : null}
-          </select>
-          <button
-            type="button"
-            className="bp-icon"
-            title="新建原型"
-            aria-label="新建原型"
-            onClick={() => setCreating(true)}
-          >
-            ＋
-          </button>
           <button
             type="button"
             className="bp-icon"
@@ -333,6 +354,9 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         </div>
 
         <div className="bp-head-right">
+          <button type="button" className="bp-icon" title="原型列表" aria-label="原型列表" onClick={() => setScreen('gallery')}>
+            <GridIcon />
+          </button>
           {saveState === 'idle' ? null : (
             <span className="bp-save" data-state={saveState}>
               {saveState === 'saving' ? '保存中' : saveState === 'saved' ? '已保存' : '保存失败'}
@@ -343,16 +367,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <div className="bp-main">
         {projectId === null ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 24, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, opacity: 0.7 }}>
-              {projects === null ? '正在读取原型…' : (projectError ?? '这个工作区还没有原型')}
-            </div>
-            {projects === null ? null : (
-              <button type="button" className="bp-btn" onClick={() => setCreating(true)} style={{ padding: '6px 12px' }}>
-                新建原型
-              </button>
-            )}
-          </div>
+          <div className="bp-placeholder">还没打开原型</div>
         ) : tab === 'canvas' ? (
           <>
             <Canvas
@@ -538,28 +553,46 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       </div>
 
       {creating ? (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div style={{ background: '#1f1f1f', color: '#f2f2f2', padding: 16, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, width: 240, boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
-            <div style={{ fontSize: 13 }}>新建原型</div>
-            <input
-              autoFocus
-              value={newTitle}
-              placeholder="标题，比如 登录页"
-              onChange={(event) => setNewTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void createProjectNow();
-                if (event.key === 'Escape') setCreating(false);
-              }}
-              style={{ font: '13px inherit', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit' }}
-            />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setCreating(false)}>取消</button>
-              <button type="button" onClick={() => void createProjectNow()}>创建</button>
-            </div>
-            {projectError ? <div style={{ fontSize: 11, color: '#f97066' }}>{projectError}</div> : null}
-          </div>
-        </div>
+        <CreateProjectDialog
+          title={newTitle}
+          error={projectError}
+          onTitleChange={setNewTitle}
+          onCancel={() => setCreating(false)}
+          onCreate={() => void createProjectNow()}
+        />
       ) : null}
+    </div>
+  );
+}
+
+function CreateProjectDialog({ title, error, onTitleChange, onCancel, onCreate }: {
+  title: string;
+  error: string | null;
+  onTitleChange(value: string): void;
+  onCancel(): void;
+  onCreate(): void;
+}): ReactElement {
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+      <div style={{ background: 'var(--dsw-alias-bg-layer-1, #1f1f1f)', color: 'var(--dsw-alias-label-primary, #f2f2f2)', padding: 16, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, width: 240, boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontSize: 13 }}>新建原型</div>
+        <input
+          autoFocus
+          value={title}
+          placeholder="标题，比如 登录页"
+          onChange={(event) => onTitleChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onCreate();
+            if (event.key === 'Escape') onCancel();
+          }}
+          style={{ font: '13px inherit', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit' }}
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel}>取消</button>
+          <button type="button" onClick={onCreate}>创建</button>
+        </div>
+        {error ? <div style={{ fontSize: 11, color: '#f97066' }}>{error}</div> : null}
+      </div>
     </div>
   );
 }
