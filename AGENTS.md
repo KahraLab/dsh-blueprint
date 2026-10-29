@@ -52,6 +52,7 @@ dsh-blueprint/
 - **写终态，不写过程。** 讨论留在对话里，进 `.agent-works/` 的只有结论：一条决策一行，不记流水账、不附草稿、不写「上一版改成了什么」。
 - **进度只有一处。** 做到哪一步看地图的「实现进度」；规格和概览不记进度。
 - 前端用 React 18，跟平台走；槽位、渲染器、组件库同一套运行时，不引入别的框架。
+- 界面文案进 `src/client/i18n/zh.json` 与 `en.json`，两边同时写；`x18n.config.yml` 负责检查，新增文案后跑 `i18n:check`。
 - 设计语言的令牌只挂 `[data-bp-dl]` 作用域，不写 `:root`，避免漏进宿主界面。
 - 过程产物一律放 `.tmp/`。`.agent-works/` 只放定稿的东西，仓库根目录不放临时文件、截图、脚本。
 - **按块定、按块做。** 一块动工之前，那块的决定先定完；没定的先开票谈，不在代码里猜。
@@ -62,7 +63,8 @@ dsh-blueprint/
 |---|---|
 | `python3 .agent-works/issues/frontier.py` | 列出当前能认领的票 |
 | `pnpm -C apps/plugin typecheck` | 类型检查（strict） |
-| `pnpm -C apps/plugin test` | 构建并跑命令行契约测试（`test/cli.test.mjs`） |
+| `pnpm -C apps/plugin test` | 构建、检查两份语言文件的键、跑命令行契约测试（`test/cli.test.mjs`） |
+| `pnpm -C apps/plugin i18n:check` | 只跑界面文案检查（缺键、多余键、占位符不一致） |
 | `pnpm -C apps/plugin build` | 构建：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
 | `pnpm -C apps/plugin build:watch` | 改动静默重建，DSH 客户端热更新接住 |
 | `git log --oneline` | 看最近改了什么 |

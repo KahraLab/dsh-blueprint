@@ -963,7 +963,7 @@
 .bp-input-box {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   height: 28px;
   box-sizing: border-box;
@@ -975,8 +975,17 @@
 .bp-input-box:focus-within {
   border-color: #4fc3f7;
 }
+/* The number keeps a readable width; the label beside it gives way first. */
+.bp-input-box .bp-input-field {
+  min-width: 2.5ch;
+}
 .bp-input-label {
-  flex: none;
+  /* Narrow panels are the norm: the label gives way before the number does. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, #8f8f8f);
 }
@@ -1048,6 +1057,9 @@
   min-width: 0;
 }
 .bp-typo-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, #8f8f8f);
 }

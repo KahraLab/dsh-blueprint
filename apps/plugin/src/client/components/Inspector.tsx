@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AddFrameIcon,
   AlignBottomIcon,
@@ -26,15 +27,14 @@ import {
   type RectPatch,
   type Selection,
   type StackLayout,
-  type TextAlign,
 } from '../../model/document';
 import { colorToRgba } from '../model/fill';
 
 const FRAME_PRESETS = [
-  { label: '手机', width: 390, height: 844 },
-  { label: '平板', width: 768, height: 1024 },
-  { label: '桌面', width: 1440, height: 900 },
-  { label: '方形', width: 800, height: 800 },
+  { labelKey: 'inspector.presetPhone', width: 390, height: 844 },
+  { labelKey: 'inspector.presetTablet', width: 768, height: 1024 },
+  { labelKey: 'inspector.presetDesktop', width: 1440, height: 900 },
+  { labelKey: 'inspector.presetSquare', width: 800, height: 800 },
 ] as const;
 
 interface InspectorProps {
@@ -77,7 +77,9 @@ function NumberBox({
 }): ReactElement {
   return (
     <label className="bp-input-box" data-disabled={disabled || undefined}>
-      <span className="bp-input-label">{label}</span>
+      <span className="bp-input-label" title={label}>
+        {label}
+      </span>
       <input
         className="bp-input-field"
         type="number"
@@ -93,18 +95,6 @@ function NumberBox({
   );
 }
 
-function AlignBox({ value, onChange }: { value: TextAlign; onChange(value: TextAlign): void }): ReactElement {
-  return (
-    <div className="bp-align-box">
-      {(['left', 'center', 'right'] as const).map((align) => (
-        <button key={align} type="button" className="bp-align-btn" data-on={value === align} onClick={() => onChange(align)}>
-          {align === 'left' ? '左' : align === 'center' ? '中' : '右'}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** Flow, gap, padding and both alignment axes — the auto-layout block. */
 function LayoutSection({
   layout,
@@ -113,6 +103,7 @@ function LayoutSection({
   layout: StackLayout | null;
   onSet(layout: StackLayout | null): void;
 }): ReactElement {
+  const { t } = useTranslation();
   const current = layout ?? makeStackLayout();
   const patch = (next: Partial<StackLayout>): void => onSet({ ...current, ...next });
   const row = current.direction === 'row';
@@ -122,13 +113,13 @@ function LayoutSection({
 
   return (
     <section className="bp-inspector-section">
-      <h5>布局</h5>
+      <h5>{t('inspector.layout')}</h5>
 
-      <div className="bp-flow-row" role="group" aria-label="排列方式">
+      <div className="bp-flow-row" role="group" aria-label={t('inspector.arrangement')}>
         {([
-          { id: 'free', label: '自由布局', Icon: FlowFreeIcon },
-          { id: 'row', label: '横向排布', Icon: FlowRowIcon },
-          { id: 'column', label: '纵向排布', Icon: FlowColumnIcon },
+          { id: 'free', label: t('inspector.flowFree'), Icon: FlowFreeIcon },
+          { id: 'row', label: t('inspector.flowRow'), Icon: FlowRowIcon },
+          { id: 'column', label: t('inspector.flowColumn'), Icon: FlowColumnIcon },
         ] as const).map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -154,9 +145,9 @@ function LayoutSection({
       {layout ? (
         <>
           <div className="bp-grid2">
-            <NumberBox label="间距" value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
+            <NumberBox label={t('inspector.gap')} value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
             <NumberBox
-              label="内边距"
+              label={t('inspector.padding')}
               value={layout.padding.top}
               onChange={(padding) =>
                 patch({ padding: { top: padding, right: padding, bottom: padding, left: padding } })
@@ -165,7 +156,7 @@ function LayoutSection({
           </div>
 
           <div className="bp-typo-field">
-            <span className="bp-typo-label">分布</span>
+            <span className="bp-typo-label">{t('inspector.distribute')}</span>
             <div className="bp-align-box">
               {(['start', 'center', 'end', 'between'] as const).map((mode) => (
                 <button
@@ -173,7 +164,7 @@ function LayoutSection({
                   type="button"
                   className="bp-align-btn"
                   data-on={layout.justify === mode}
-                  title={mode === 'start' ? '起点' : mode === 'center' ? '居中' : mode === 'end' ? '终点' : '两端'}
+                  title={mode === 'start' ? t('inspector.justifyStart') : mode === 'center' ? t('inspector.justifyCenter') : mode === 'end' ? t('inspector.justifyEnd') : t('inspector.justifyBetween')}
                   aria-label={mode}
                   onClick={() => patch({ justify: mode })}
                 >
@@ -184,7 +175,7 @@ function LayoutSection({
           </div>
 
           <div className="bp-typo-field">
-            <span className="bp-typo-label">对齐</span>
+            <span className="bp-typo-label">{t('inspector.align')}</span>
             <div className="bp-align-box">
               {(['start', 'center', 'end', 'stretch'] as const).map((mode) => (
                 <button
@@ -192,7 +183,7 @@ function LayoutSection({
                   type="button"
                   className="bp-align-btn"
                   data-on={layout.align === mode}
-                  title={mode === 'start' ? '起点' : mode === 'center' ? '居中' : mode === 'end' ? '终点' : '拉伸'}
+                  title={mode === 'start' ? t('inspector.alignStart') : mode === 'center' ? t('inspector.alignCenter') : mode === 'end' ? t('inspector.alignEnd') : t('inspector.alignStretch')}
                   aria-label={mode}
                   onClick={() => patch({ align: mode })}
                 >
@@ -207,7 +198,7 @@ function LayoutSection({
   );
 }
 
-const SIZE_LABELS = { fixed: '固定', hug: '自动', fill: '填满' } as const;
+const SIZE_LABEL_KEYS = { fixed: 'inspector.sizeFixed', hug: 'inspector.sizeHug', fill: 'inspector.sizeFill' } as const;
 
 export function Inspector({
   width,
@@ -220,6 +211,7 @@ export function Inspector({
   onSetFrameLayout,
   onSetLayerLayout,
 }: InspectorProps): ReactElement {
+  const { t } = useTranslation();
   const picked = singleSelection(selections);
   const frame = picked?.frameId ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
   const layer: Layer | undefined =
@@ -227,18 +219,18 @@ export function Inspector({
 
   if (framePresets) {
     return (
-      <aside className="bp-inspector" aria-label="画板尺寸" style={{ width }}>
-        <div className="bp-inspector-head">画板尺寸</div>
+      <aside className="bp-inspector" aria-label={t('inspector.frameSize')} style={{ width }}>
+        <div className="bp-inspector-head">{t('inspector.frameSize')}</div>
         <section className="bp-inspector-section">
-          <h5>新建画板</h5>
+          <h5>{t('inspector.newFrame')}</h5>
           {FRAME_PRESETS.map((preset) => (
             <button
-              key={preset.label}
+              key={preset.labelKey}
               type="button"
               className="bp-preset"
               onClick={() => onPickPreset({ width: preset.width, height: preset.height })}
             >
-              <span>{preset.label}</span>
+              <span>{t(preset.labelKey)}</span>
               <span className="bp-preset-size">
                 {preset.width} × {preset.height}
               </span>
@@ -251,9 +243,11 @@ export function Inspector({
 
   if (!picked) {
     return (
-      <aside className="bp-inspector" aria-label="属性" style={{ width }}>
-        <div className="bp-inspector-head">属性</div>
-        <div className="bp-inspector-empty">{selections.length === 0 ? '未选择' : `已选 ${selections.length} 项`}</div>
+      <aside className="bp-inspector" aria-label={t('inspector.properties')} style={{ width }}>
+        <div className="bp-inspector-head">{t('inspector.properties')}</div>
+        <div className="bp-inspector-empty">
+          {selections.length === 0 ? t('inspector.noSelection') : t('inspector.selectedCount', { count: selections.length })}
+        </div>
       </aside>
     );
   }
@@ -262,9 +256,9 @@ export function Inspector({
   const target = isFrame ? frame : layer;
   if (!target) {
     return (
-      <aside className="bp-inspector" aria-label="属性" style={{ width }}>
-        <div className="bp-inspector-head">属性</div>
-        <div className="bp-inspector-empty">未选择</div>
+      <aside className="bp-inspector" aria-label={t('inspector.properties')} style={{ width }}>
+        <div className="bp-inspector-head">{t('inspector.properties')}</div>
+        <div className="bp-inspector-empty">{t('inspector.noSelection')}</div>
       </aside>
     );
   }
@@ -286,19 +280,19 @@ export function Inspector({
   };
 
   return (
-    <aside className="bp-inspector" aria-label="属性" style={{ width }}>
-      <div className="bp-inspector-head">{isFrame ? frame!.name : layer?.name ?? '图层'}</div>
+    <aside className="bp-inspector" aria-label={t('inspector.properties')} style={{ width }}>
+      <div className="bp-inspector-head">{isFrame ? frame!.name : layer?.name ?? t('inspector.layer')}</div>
 
       {!isFrame && layer?.kind === 'icon' ? (
         <section className="bp-inspector-section">
-          <h5>图标</h5>
+          <h5>{t('inspector.icon')}</h5>
           <div className="bp-inspector-note">{layer.iconSet}/{layer.iconName}</div>
         </section>
       ) : null}
 
       {inFlow ? null : (
         <section className="bp-inspector-section">
-          <h5>位置</h5>
+          <h5>{t('inspector.position')}</h5>
           <div className="bp-grid2">
             <NumberBox label="X" value={target.x} onChange={(x) => (isFrame ? patchFrame({ x }) : patchLayer({ x }))} />
             <NumberBox label="Y" value={target.y} onChange={(y) => (isFrame ? patchFrame({ y }) : patchLayer({ y }))} />
@@ -307,7 +301,7 @@ export function Inspector({
       )}
 
       <section className="bp-inspector-section">
-        <h5>尺寸</h5>
+        <h5>{t('inspector.size')}</h5>
         {isFrame ? (
           <div className="bp-grid2">
             <NumberBox label="W" value={frame!.width} onChange={(next) => patchFrame({ width: Math.max(40, next) })} />
@@ -325,7 +319,7 @@ export function Inspector({
               <select
                 className="bp-input-field bp-size-mode"
                 value={layer!.sizeW}
-                aria-label="宽度模式"
+                aria-label={t('inspector.widthMode')}
                 onChange={(event) => {
                   const mode = event.target.value as Layer['sizeW'];
                   patchLayer({ sizeW: mode, width: mode === 'fixed' ? Math.max(4, layer!.width) : layer!.width });
@@ -333,7 +327,7 @@ export function Inspector({
               >
                 {(['fixed', 'hug', 'fill'] as const).map((mode) => (
                   <option key={mode} value={mode}>
-                    {SIZE_LABELS[mode]}
+                    {t(SIZE_LABEL_KEYS[mode])}
                   </option>
                 ))}
               </select>
@@ -348,7 +342,7 @@ export function Inspector({
               <select
                 className="bp-input-field bp-size-mode"
                 value={layer!.sizeH}
-                aria-label="高度模式"
+                aria-label={t('inspector.heightMode')}
                 onChange={(event) => {
                   const mode = event.target.value as Layer['sizeH'];
                   patchLayer({ sizeH: mode, height: mode === 'fixed' ? Math.max(4, layer!.height) : layer!.height });
@@ -356,7 +350,7 @@ export function Inspector({
               >
                 {(['fixed', 'hug', 'fill'] as const).map((mode) => (
                   <option key={mode} value={mode}>
-                    {SIZE_LABELS[mode]}
+                    {t(SIZE_LABEL_KEYS[mode])}
                   </option>
                 ))}
               </select>
@@ -367,14 +361,14 @@ export function Inspector({
 
       {isText ? (
         <section className="bp-inspector-section">
-          <h5>布局</h5>
+          <h5>{t('inspector.layout')}</h5>
           <div className="bp-typo-field">
-            <span className="bp-typo-label">水平</span>
+            <span className="bp-typo-label">{t('inspector.horizontal')}</span>
             <div className="bp-align-box">
               {([
-                { id: 'left', label: '左对齐', Icon: TextAlignLeftIcon },
-                { id: 'center', label: '居中', Icon: TextAlignCenterIcon },
-                { id: 'right', label: '右对齐', Icon: TextAlignRightIcon },
+                { id: 'left', label: t('inspector.textAlignLeft'), Icon: TextAlignLeftIcon },
+                { id: 'center', label: t('inspector.textAlignCenter'), Icon: TextAlignCenterIcon },
+                { id: 'right', label: t('inspector.textAlignRight'), Icon: TextAlignRightIcon },
               ] as const).map(({ id, label, Icon }) => (
                 <button
                   key={id}
@@ -391,12 +385,12 @@ export function Inspector({
             </div>
           </div>
           <div className="bp-typo-field">
-            <span className="bp-typo-label">垂直</span>
+            <span className="bp-typo-label">{t('inspector.vertical')}</span>
             <div className="bp-align-box">
               {([
-                { id: 'top', label: '顶部对齐', Icon: AlignTopIcon },
-                { id: 'middle', label: '垂直居中', Icon: AlignMiddleIcon },
-                { id: 'bottom', label: '底部对齐', Icon: AlignBottomIcon },
+                { id: 'top', label: t('inspector.alignTop'), Icon: AlignTopIcon },
+                { id: 'middle', label: t('inspector.alignMiddle'), Icon: AlignMiddleIcon },
+                { id: 'bottom', label: t('inspector.alignBottom'), Icon: AlignBottomIcon },
               ] as const).map(({ id, label, Icon }) => (
                 <button
                   key={id}
@@ -425,12 +419,12 @@ export function Inspector({
 
       <section className="bp-inspector-section">
         <div className="bp-section-head">
-          <h5>填充</h5>
+          <h5>{t('inspector.fill')}</h5>
           <button
             type="button"
             className="bp-section-add"
-            title="添加填充"
-            aria-label="添加填充"
+            title={t('inspector.addFill')}
+            aria-label={t('inspector.addFill')}
             onClick={() => patchFills([...fills, makeFill(isText ? '#101828' : '#FFFFFF')])}
           >
             <AddFrameIcon size={12} />
@@ -478,8 +472,8 @@ export function Inspector({
             <button
               type="button"
               className="bp-fill-action"
-              title={fill.opacity > 0 ? '隐藏填充' : '显示填充'}
-              aria-label={fill.opacity > 0 ? '隐藏填充' : '显示填充'}
+              title={fill.opacity > 0 ? t('inspector.hideFill') : t('inspector.showFill')}
+              aria-label={fill.opacity > 0 ? t('inspector.hideFill') : t('inspector.showFill')}
               onClick={() => {
                 const next = [...fills];
                 next[index] = { ...fill, opacity: fill.opacity > 0 ? 0 : 1 };
@@ -491,8 +485,8 @@ export function Inspector({
             <button
               type="button"
               className="bp-fill-action"
-              title="移除填充"
-              aria-label="移除填充"
+              title={t('inspector.removeFill')}
+              aria-label={t('inspector.removeFill')}
               onClick={() => patchFills(fills.filter((item) => item.id !== fill.id))}
             >
               <MinusIcon />
@@ -502,7 +496,7 @@ export function Inspector({
 
         {!isFrame && layer!.kind === 'rect' ? (
           <div className="bp-grid2">
-            <NumberBox label="圆角" value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
+            <NumberBox label={t('inspector.cornerRadius')} value={layer!.radius} onChange={(radius) => patchLayer({ radius: Math.max(0, radius) })} />
           </div>
         ) : null}
       </section>
@@ -510,12 +504,12 @@ export function Inspector({
       {isText ? (
         <>
           <section className="bp-inspector-section">
-            <h5>内容</h5>
+            <h5>{t('inspector.content')}</h5>
             <textarea className="bp-field-textarea" value={layer!.text} onChange={(event) => patchLayer({ text: event.target.value })} />
           </section>
 
           <section className="bp-inspector-section">
-            <h5>字体</h5>
+            <h5>{t('inspector.font')}</h5>
 
             <label className="bp-input-box bp-full">
               <select className="bp-input-field" value={layer!.fontFamily} onChange={(event) => patchLayer({ fontFamily: event.target.value })}>
@@ -545,16 +539,16 @@ export function Inspector({
                   ))}
                 </select>
               </label>
-              <NumberBox label="字号" value={layer!.fontSize} onChange={(fontSize) => patchLayer({ fontSize: Math.max(6, fontSize) })} />
+              <NumberBox label={t('inspector.fontSize')} value={layer!.fontSize} onChange={(fontSize) => patchLayer({ fontSize: Math.max(6, fontSize) })} />
             </div>
 
             <div className="bp-grid2">
               <div className="bp-typo-field">
-                <span className="bp-typo-label">行高</span>
+                <span className="bp-typo-label">{t('inspector.lineHeight')}</span>
                 <NumberBox label="↕" value={layer!.lineHeight} onChange={(lineHeight) => patchLayer({ lineHeight: Math.max(0.8, lineHeight) })} />
               </div>
               <div className="bp-typo-field">
-                <span className="bp-typo-label">字间距</span>
+                <span className="bp-typo-label">{t('inspector.letterSpacing')}</span>
                 <NumberBox label="↔" value={layer!.letterSpacing} onChange={(letterSpacing) => patchLayer({ letterSpacing })} />
               </div>
             </div>

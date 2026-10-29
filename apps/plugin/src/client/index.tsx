@@ -404,7 +404,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         </div>
 
         <div className="bp-head-center">
-          <div className="bp-seg" role="tablist" aria-label="工作区视图">
+          <div className="bp-seg" role="tablist" aria-label={t('view.tablist')}>
             <button type="button" role="tab" aria-selected={tab === 'canvas'} data-on={tab === 'canvas'} onClick={() => setTab('canvas')}>
               {t('tab.canvas')}
             </button>
@@ -446,14 +446,14 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
               editing={editing}
               onEditingChange={setEditing}
             />
-            <div className="bp-tools" role="toolbar" aria-label="工具">
+            <div className="bp-tools" role="toolbar" aria-label={t('tools.group')}>
               <div className="bp-tool-group">
                 <button
                   type="button"
                   className="bp-tool"
                   data-on={tool === 'move' || tool === 'hand'}
-                  title={tool === 'hand' ? '手' : '移动'}
-                  aria-label="移动或手"
+                  title={tool === 'hand' ? t('tools.hand') : t('tools.move')}
+                  aria-label={t('tools.moveOrHand')}
                   aria-pressed={tool === 'move' || tool === 'hand'}
                   onClick={() => setTool(tool === 'hand' ? 'hand' : 'move')}
                 >
@@ -462,7 +462,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 <button
                   type="button"
                   className="bp-caret"
-                  aria-label="移动工具选项"
+                  aria-label={t('tools.moveOptions')}
                   aria-expanded={moveMenuOpen}
                   onClick={() => { setMoveMenuOpen((open) => !open); setShapeMenuOpen(false); }}
                 >
@@ -471,8 +471,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 {moveMenuOpen ? (
                   <div className="bp-menu" role="menu">
                     {([
-                      { id: 'move', label: '移动', Icon: PointerIcon },
-                      { id: 'hand', label: '手', Icon: HandIcon },
+                      { id: 'move', label: t('tools.move'), Icon: PointerIcon },
+                      { id: 'hand', label: t('tools.hand'), Icon: HandIcon },
                     ] as const).map((item) => (
                       <button
                         key={item.id}
@@ -522,8 +522,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                   type="button"
                   className="bp-tool"
                   data-on={tool === 'shape'}
-                  title={shapeLabel(shapeKind)}
-                  aria-label={t('tools.shapeAria', { name: shapeLabel(shapeKind) })}
+                  title={shapeLabel(shapeKind, t)}
+                  aria-label={t('tools.shapeAria', { name: shapeLabel(shapeKind, t) })}
                   aria-pressed={tool === 'shape'}
                   onClick={() => setTool('shape')}
                 >

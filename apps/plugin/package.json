@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Blueprint：DSH 右侧栏里的产品蓝图工作台",
+  "description": "Blueprint：DSH 里的产品蓝图工作台",
   "exports": {
     ".": "./lib/host/index.js",
     "./client": "./lib/client.js",
@@ -23,11 +23,13 @@
     "build": "node scripts/build.mjs",
     "build:watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/build.mjs && node --test test/*.test.mjs"
+    "test": "node scripts/build.mjs && x18n check && node --test test/*.test.mjs",
+    "i18n:check": "x18n check"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "^18.3.12",
+    "@x18n/cli": "^0.1.2",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.2"
   },

@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://x18n.dev/schema/config.json
+# Locale files are flat: each key is a literal label, and i18next runs with
+# keySeparator: false, so a dot never means nesting.
+sourceLocale: zh
+keyStyle: flat
+resources:
+  - pattern: src/client/i18n/{locale}.json
+usage:
+  exclude:
+    - lib/**
+  # Keys translated through a table instead of a literal t('…') call.
+  keysInUse:
+    - shape.*
+    - inspector.size*
+    - inspector.preset*
+# Registered by ctx.locale for the sidebar tab and its guide entry, not by i18next.
+ignoreKeys:
+  - panel
+  - description
+checks:
+  # Both locales are written in the same edit, so git timestamps are not evidence
+  # that a translation is out of date.
+  stale-translation: off

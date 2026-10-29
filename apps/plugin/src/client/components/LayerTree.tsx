@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
 import {
   findFrame,
@@ -83,6 +84,7 @@ function Row({
   visibleLabel,
   lockedLabel,
 }: RowProps): ReactElement {
+  const { t } = useTranslation();
   return (
     <div
       className="bp-layer-row"
@@ -103,8 +105,8 @@ function Row({
             type="button"
             className="bp-layer-caret"
             data-collapsed={collapsed || undefined}
-            title={collapsed ? '展开' : '收起'}
-            aria-label={collapsed ? '展开子项' : '收起子项'}
+            title={collapsed ? t('layers.expand') : t('layers.collapse')}
+            aria-label={collapsed ? t('layers.expandChildren') : t('layers.collapseChildren')}
             aria-expanded={!collapsed}
             onClick={onToggleCollapsed}
           >
@@ -119,8 +121,8 @@ function Row({
         <button
           type="button"
           className="bp-layer-action"
-          title={visible ? '隐藏' : '显示'}
-          aria-label={visible ? `隐藏${visibleLabel}` : `显示${visibleLabel}`}
+          title={visible ? t('layers.hide') : t('layers.show')}
+          aria-label={visible ? t('layers.hideTarget', { name: visibleLabel }) : t('layers.showTarget', { name: visibleLabel })}
           onClick={onToggleVisible}
         >
           <VisibilityIcon visible={visible} />
@@ -128,8 +130,8 @@ function Row({
         <button
           type="button"
           className="bp-layer-action"
-          title={locked ? '解锁' : '锁定'}
-          aria-label={locked ? `解锁${lockedLabel}` : `锁定${lockedLabel}`}
+          title={locked ? t('layers.unlock') : t('layers.lock')}
+          aria-label={locked ? t('layers.unlockTarget', { name: lockedLabel }) : t('layers.lockTarget', { name: lockedLabel })}
           onClick={onToggleLock}
         >
           <LockIcon locked={locked} />
@@ -149,6 +151,7 @@ export function LayerTree({
   onReorderLayer,
   onReorderFrame,
 }: LayerTreeProps): ReactElement {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const [dragging, setDragging] = useState<RowInfo | null>(null);
   const [dropY, setDropY] = useState<number | null>(null);
@@ -380,8 +383,8 @@ export function LayerTree({
           onClick={() => onSelect([{ kind: 'frame', frameId: frame.id }])}
           onToggleVisible={() => onUpdateFrame(frame.id, { visible: !frame.visible })}
           onToggleLock={() => onUpdateFrame(frame.id, { locked: !frame.locked })}
-          visibleLabel="画板"
-          lockedLabel="画板"
+          visibleLabel={t('layers.frame')}
+          lockedLabel={t('layers.frame')}
         />
       );
     }
@@ -397,15 +400,15 @@ export function LayerTree({
         }}
         onToggleVisible={() => onUpdateLayer(row.frameId, layer.id, { visible: !layer.visible })}
         onToggleLock={() => onUpdateLayer(row.frameId, layer.id, { locked: !layer.locked })}
-        visibleLabel="图层"
-        lockedLabel="图层"
+        visibleLabel={t('layers.layer')}
+        lockedLabel={t('layers.layer')}
       />
     );
   });
 
   return (
     <div className="bp-layer-list" ref={listRef}>
-      {elements.length === 0 ? <div className="bp-empty">还没有内容</div> : elements}
+      {elements.length === 0 ? <div className="bp-empty">{t('layers.empty')}</div> : elements}
       {dropY !== null ? <div className="bp-layer-drop" style={{ top: dropY }} /> : null}
     </div>
   );
