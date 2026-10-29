@@ -2,8 +2,8 @@
 id: bp-g2
 title: AI 编辑协议
 labels: [wayfinder:grilling]
-status: open
-assignee:
+status: closed
+assignee: agent
 blocked_by: [bp-g1]
 ---
 
@@ -20,3 +20,14 @@ blocked_by: [bp-g1]
 - **校验**：patch 落盘前校验什么（id 存在、布局合法、token 存在），失败了怎么让模型自我修正。
 
 产出：工具清单（名字 + 参数 schema 草案）+ 一段「模型一次典型编辑」的完整对话示例（用户说什么 → 模型调什么 → 文档怎么变）。
+
+## Resolution
+
+2026-10-29 定稿。完整协议与示例见 `.agent-works/specs/ai-editing-protocol.md`。
+
+- **读写都是 JSON**：`view` 按原型、单屏、单元素控制范围；新增 `selection` 与 `find`；不捆绑 jq。
+- **所有写入统一 `apply`**：保留 `add / set / move / rm` 作为快捷写法，底层仍只有五种文档操作，不另做 DSL。
+- **id 与名字分工**：id 是稳定身份；AI 创建节点时必须填写语义化 `name`，名字用于识别和搜索，不用于写入寻址。
+- **整屏一次生成**：`insert` 可携带完整子树；批内 `ref` 引用由后台换成真实 id，不存进文档。
+- **冲突必须重读**：`baseRevision` 过期就整批拒绝，AI 不得自动重试；成功后不强制重新 `view`。
+- **撤销与重做纳入实现**：一次成功的 `apply` 是一个撤销单元，人和 AI 共用一个撤销栈；失败不留历史。
