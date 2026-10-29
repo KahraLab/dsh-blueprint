@@ -432,6 +432,14 @@ describe('输出契约', () => {
     }
   });
 
+  test('无参数的 bp 打印 citty 生成的命令表，再补使用规矩', () => {
+    const result = box.run([]);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /COMMANDS/, 'the command list comes from citty');
+    assert.match(result.stdout, /view/, 'commands are listed');
+    assert.match(result.stdout, /一次 apply 要么全成/, 'the workflow rules follow');
+  });
+
   test('schema 发布 JSON Schema 和行为说明', () => {
     const schema = box.ok(['schema']);
     assert.equal(schema.protocol, 'blueprint-editing/1');

@@ -12,48 +12,36 @@
  *   bp apply < change.json      one batch of operations, all or nothing
  *   bp add / set / move / rm    one change each, the same write path
  *   bp schema                   the full contract for a model
+ *
+ * Running `bp` with no command prints citty's command list plus the workflow
+ * rules; the command list is generated, so it cannot drift from the registry.
  */
 import { type CommandDef, defineCommand, renderUsage, runCommand } from 'citty';
 import { subCommands } from '../cli/commands';
 import { report, stripAnsi } from '../cli/output';
 import { ProtocolError } from '../protocol/errors';
+import { CORE_RULES } from '../protocol/guide';
 
-const DIRECTORY = `
-bp — DSH 蓝图插件配套命令行工具
-
-  bp view [id]                 看原型 / 一块屏幕 / 一个元素（JSON）
-  bp session                   当前用的是哪个会话、文档在哪
-  bp selection                 用户当前选中了什么
-  bp find --name 文本           按名字、类型或容器找元素
-  bp apply < change.json       一次提交一批修改
-  bp add / set / move / rm     单条修改的快捷写法
-  bp schema                    字段、操作、错误码的完整说明
-
-什么时候用哪条
+const ORDER = `怎么选命令
   · 用户指着画布说「这个」「它」→ 先 bp selection
   · 用户说出了名字 → bp find
   · 都不知道 → bp view
+`;
 
-写进去的规矩
-  · 一次 apply 要么全成，要么一个都不落盘
-  · 新建节点必须写语义化的 name；画板1、矩形2 这类会被拒绝
-  · baseRevision 对不上就重新读，命令不会自动重试
-  · 一次 apply 就是一个撤销单元
-
-看细节
-  bp help add      某条命令的全部选项
-  bp schema        字段、操作和错误码
+const RULES = `写进去的规矩
+${CORE_RULES.map((rule) => `  · ${rule}`).join('\n')}
 `;
 
 const main = defineCommand({
   meta: { name: 'bp', description: '画布命令行：读写会话右侧栏里的原型画布' },
   subCommands,
-  run({ rawArgs }) {
+  async run({ rawArgs }) {
     // citty runs the matched subcommand and then the parent's run; print the
-    // directory page only when no subcommand was named.
+    // directory page only when no subcommand was named. The command list comes
+    // from citty itself, so it cannot go stale when a command is added.
     const named = rawArgs.find((token) => !token.startsWith('-'));
     if (named && subCommands[named]) return;
-    console.log(DIRECTORY);
+    process.stdout.write(await directoryPage());
   },
 });
 
@@ -79,10 +67,20 @@ async function resolve(entry: NonNullable<(typeof subCommands)[string]>): Promis
   return typeof entry === 'function' ? await entry() : await entry;
 }
 
+/** Usage from citty, plus the rules that are not a list of flags. */
+async function directoryPage(): Promise<string> {
+  const usage = stripAnsi(await renderUsage(main));
+  return `${usage}\n\n${ORDER}\n${RULES}`;
+}
+
 async function printHelp(rawArgs: readonly string[]): Promise<void> {
   const named = rawArgs.find((token) => !token.startsWith('-'));
   const target = named && subCommands[named] ? await resolve(subCommands[named]!) : main;
-  const text = stripAnsi(await renderUsage(target, target === main ? undefined : main));
+  if (target === main) {
+    process.stdout.write(await directoryPage());
+    return;
+  }
+  const text = stripAnsi(await renderUsage(target, main));
   process.stdout.write(`${text}\n`);
 }
 
