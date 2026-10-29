@@ -90,7 +90,7 @@ apply(projectId, ops, baseRevision) → { revision, appliedAt }
 ```
 
 - `schema` 是文件格式版本，当前为 3。
-- `revision` 是每次成功写入后递增的版本号，写入方带 `baseRevision` 做冲突检测。
+- `revision` 是每次成功写入后递增的版本号，写入方带 `baseRevision` 做冲突检测；内容没变的提交不落盘、不涨版本。
 - `document` 就是元素树（屏幕=画板，图层带盒模型与排布）；它的字段细节在「元素树与样式的表达方式」里。
 - 设计语言引用、流程层字段随各自里程碑加入；在那之前文件里没有它们，读的时候不假设存在。
 

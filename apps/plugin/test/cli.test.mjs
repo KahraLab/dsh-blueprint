@@ -389,6 +389,15 @@ describe('版本与冲突', () => {
     assert.equal(box.view().revision, 1);
   });
 
+  test('内容没变的提交不写文件，也不涨版本', () => {
+    box.apply(LOGIN_SCREEN);
+    const buttonId = box.firstId(['--name', '登录按钮']);
+    const before = box.documentFile();
+    const payload = box.ok(['apply'], JSON.stringify({ baseRevision: 1, ops: [{ op: 'set', id: buttonId, patch: { radius: 12 } }] }));
+    assert.equal(payload.revision, 1);
+    assert.equal(box.documentFile(), before, '再写一遍同样的值，文件不该被重写');
+  });
+
   test('apply 不带 baseRevision 是用法错误', () => {
     const { status, payload } = box.failed(['apply'], JSON.stringify({ ops: [] }));
     assert.equal(status, 2);

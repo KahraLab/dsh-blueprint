@@ -6,12 +6,14 @@
  * things make that safe:
  *
  *   - the file carries a revision, and a write states the revision it expected,
- *     so a slow writer cannot silently overwrite a fast one;
+ *     so a slow writer cannot silently overwrite a fast one; a commit that
+ *     changes nothing is not a new version, so no reader is woken for it;
  *   - every write takes a lock file, writes a temp file and renames it, so a
  *     reader never sees half a document.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import type { BlueprintDocument } from '../model/document';
 import { type DocumentOp, applyOps, validateDocument } from '../model/ops';
 import { writeJsonAtomic } from './atomic';
@@ -150,6 +152,13 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
         failure: null,
         problems,
       };
+    }
+
+    // Re-submitting the same values is a no-op, not a new version: bumping the
+    // number would make every panel's poll loop reload a file it already has and
+    // throw away its undo history for nothing.
+    if (isDeepStrictEqual(next, current.document)) {
+      return { ok: true, revision: current.revision, document: current.document, conflict: false, error: null, failure: null, problems: [] };
     }
 
     const stored: ProjectDocument = {
