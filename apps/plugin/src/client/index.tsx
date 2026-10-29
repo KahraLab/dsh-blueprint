@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Poin
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type ShapeKind, type Viewport, type ViewportInfo } from './components/Canvas';
 import { useTranslation } from 'react-i18next';
+import { BlueprintHome } from './components/BlueprintHome';
 import { BlueprintGallery } from './components/Gallery';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
@@ -23,15 +24,17 @@ import {
 } from './icons';
 import type { BlueprintDocument } from '../model/document';
 import { setupLocale } from './i18n';
+import { OPEN_BLUEPRINT_EVENT, type OpenBlueprintDetail } from './blueprintNavigation';
 import { installKeys, loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
-export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
+export const inject = ['slots', 'locale', 'layout', 'sessions', 'workspaces', 'conversation', 'uiWorkspace', 'sidebarRight', 'sidebarRightTabs'];
 
 export const NS = 'blueprint';
 
 const ID = '@local/dsh-blueprint';
 const KIND = 'blueprint';
+const MAIN_ID = 'blueprint-home';
 const AUTO_OPEN_KEY = 'blueprint.panel.opened.v1';
 const LAYERS_MIN_WIDTH = 160;
 const INSPECTOR_MIN_WIDTH = 160;
@@ -99,6 +102,11 @@ function readViewport(key: string): Viewport | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** The glyph in the left navigation row. */
+function EntryIcon({ size = 16 }: { size?: number; active?: boolean }): ReactElement {
+  return <MarkIcon size={size} />;
 }
 
 /** The chip inside the right-sidebar tab strip. */
@@ -188,6 +196,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const docUrl = blueprintId === null
     ? null
     : `${DOC_ENDPOINT}?${query === '' ? '' : `${query}&`}blueprint=${encodeURIComponent(blueprintId)}`;
+  const blueprintTitle = blueprints?.find((entry) => entry.id === blueprintId)?.title ?? t('untitled');
 
   const reportCurrent = useCallback(async (id: string): Promise<void> => {
     try {
@@ -220,17 +229,19 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     if (!initialised.current) {
       initialised.current = true;
       const current = data.current ?? null;
-      // Resume the editor after a reload or a hot swap; fall back to the
-      // gallery when that blueprint is gone.
-      const resume = savedView !== null
-        && savedView.screen === 'editor'
-        && list.some((entry) => entry.id === savedView.blueprint)
-        ? savedView.blueprint
-        : null;
-      const chosen = resume
-        ?? (current !== null && list.some((entry) => entry.id === current) ? current : list.length === 1 ? list[0]!.id : null);
+      const exists = (id: string | null): id is string => id !== null && list.some((entry) => entry.id === id);
+      // The Session's own pointer wins; the saved view only remembers whether
+      // the gallery or the editor was in front. A Dashboard open writes the
+      // pointer before this panel mounts, so a fresh tab lands in the editor.
+      const chosen = exists(current)
+        ? current
+        : exists(savedView?.blueprint ?? null)
+          ? savedView!.blueprint
+          : list.length === 1
+            ? list[0]!.id
+            : null;
       setBlueprintId(chosen);
-      if (resume !== null) setScreen('editor');
+      if (chosen !== null && savedView?.screen !== 'gallery') setScreen('editor');
       if (chosen !== null && chosen !== current) void reportCurrent(chosen);
     }
 
@@ -252,6 +263,18 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     rememberView({ blueprint: id, screen: 'editor' });
     void reportCurrent(id);
   }, [rememberView, reportCurrent]);
+
+  // The Dashboard can ask an already-mounted editor to switch files. A panel
+  // that mounts later reads the Session pointer instead.
+  useEffect(() => {
+    const onOpen = (event: Event): void => {
+      const detail = (event as CustomEvent<OpenBlueprintDetail>).detail;
+      if (detail === undefined || detail.sessionId !== sessionId) return;
+      openBlueprint(detail.blueprintId);
+    };
+    window.addEventListener(OPEN_BLUEPRINT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_BLUEPRINT_EVENT, onOpen);
+  }, [openBlueprint, sessionId]);
 
   const openGallery = useCallback((): void => {
     setScreen('gallery');
@@ -596,6 +619,12 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
         {uiMinimized || tab !== 'canvas' ? null : (
           <aside className="bp-layers" aria-label={t('editor.layers')} style={{ width: layersWidth }}>
+            {blueprintId === null ? null : (
+              <div className="bp-blueprint-head">
+                <div className="bp-blueprint-title" title={blueprintTitle}>{blueprintTitle}</div>
+                <div className="bp-blueprint-id" title={blueprintId}>{blueprintId}</div>
+              </div>
+            )}
             <div className="bp-layers-head">
               <h4>{t('editor.layers')}</h4>
             </div>
@@ -636,9 +665,16 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   );
 }
 
-/** One panel instance per tab body; `_ctx` is kept for the workbench features that follow. */
+/** One panel instance per tab body; `_ctx` is kept for future tab-level actions. */
 function createPanel(_ctx: PluginContext): ComponentType {
   return Panel;
+}
+
+/** The central two-page surface: design entry and Dashboard. */
+function createMainPanel(ctx: PluginContext): ComponentType {
+  return function BlueprintMainPanel() {
+    return <BlueprintHome ctx={ctx} />;
+  };
 }
 
 /** @param ctx DSH plugin context. */
@@ -652,6 +688,27 @@ export function apply(ctx: PluginContext): void {
       en: { panel: 'Blueprint', description: 'Design product blueprints with AI' },
     }),
     'blueprint:locale',
+  );
+
+  ctx.effect(
+    () =>
+      ctx.slots.inject('main', () =>
+        ctx.slots.register({ name: 'main', key: MAIN_ID }, createMainPanel(ctx)),
+      ),
+    'blueprint:main-panel',
+  );
+
+  ctx.effect(
+    () =>
+      ctx.slots.inject('sidebar.panellist', () =>
+        ctx.slots.register({
+          name: 'sidebar.panellist',
+          id: MAIN_ID,
+          order: 20,
+          label: () => t('panel'),
+        }, EntryIcon),
+      ),
+    'blueprint:sidebar-entry',
   );
 
   ctx.effect(

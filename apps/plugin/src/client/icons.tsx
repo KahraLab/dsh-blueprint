@@ -24,6 +24,8 @@ import ChevronDown from 'lucide-react/icons/chevron-down';
 import Eye from 'lucide-react/icons/eye';
 import EyeOff from 'lucide-react/icons/eye-off';
 import Frame from 'lucide-react/icons/frame';
+import Folder from 'lucide-react/icons/folder';
+import Check from 'lucide-react/icons/check';
 import Lock from 'lucide-react/icons/lock';
 import LockOpen from 'lucide-react/icons/lock-open';
 import Hand from 'lucide-react/icons/hand';
@@ -63,6 +65,21 @@ export function MarkIcon({ size = 24, className }: IconProps): ReactElement {
       aria-hidden="true"
     />
   );
+}
+
+/** Folder glyph used by the workspace picker. */
+export function FolderIcon({ size = 16, className }: IconProps): ReactElement {
+  return <Folder size={size} className={className} strokeWidth={1.6} aria-hidden="true" />;
+}
+
+/** Check mark beside the selected workspace. */
+export function CheckIcon({ size = 14, className }: IconProps): ReactElement {
+  return <Check size={size} className={className} strokeWidth={2} aria-hidden="true" />;
+}
+
+/** Add-workspace glyph. */
+export function PlusIcon({ size = 16, className }: IconProps): ReactElement {
+  return <Plus size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
 
 /** Layer list — an indented tree. Used by the left-sidebar toggle. */

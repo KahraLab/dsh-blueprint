@@ -9,6 +9,12 @@ import type { ComponentType } from 'react';
 
 export type Disposable = () => void;
 
+/** A read-only source with a change notification; DSH services expose these. */
+export interface SnapshotStore<T> {
+  getSnapshot(): T;
+  subscribe(listener: () => void): Disposable;
+}
+
 export interface LocaleSnapshot {
   readonly active: string;
   readonly locales: readonly { readonly id: string; readonly label: string }[];
@@ -87,8 +93,31 @@ export interface SessionHandle {
   readonly cwd: string;
 }
 
+export interface SessionSummary {
+  id: string;
+  cwd?: string;
+  blank?: boolean;
+  updatedAt?: string;
+  retainedBy?: { readonly mainView?: number };
+}
+
+export interface SessionListSnapshot {
+  phase?: string;
+  ids: readonly string[];
+  byId: Readonly<Record<string, SessionSummary>>;
+}
+
+/** A Session-scoped view of the conversation service. */
+export interface SessionScope {
+  get(name: 'conversation'): { send(text: string): Promise<void> } | undefined;
+}
+
 export interface SessionsService {
   get(id: string): SessionHandle | undefined;
+  /** Client-side Session catalog. */
+  list?: SnapshotStore<SessionListSnapshot>;
+  binding?(id: string): unknown;
+  scope?(id: string): SessionScope;
 }
 
 export interface WorkingDirectoryService {
@@ -112,6 +141,44 @@ export interface SkillsService {
   register(skill: SkillRegistration): Disposable;
 }
 
+export interface LayoutService {
+  /** Select a root main panel; null returns to the conversation. */
+  selectPanel(id: string | null): void;
+}
+
+export interface WorkspaceSummary {
+  workspaceId: string;
+  path: string;
+  title?: string;
+  sessionIds: readonly string[];
+}
+
+export interface WorkspaceListSnapshot {
+  phase?: string;
+  items: readonly WorkspaceSummary[];
+  archivedSessionIds?: readonly string[];
+}
+
+export interface WorkspacesService {
+  list: SnapshotStore<WorkspaceListSnapshot>;
+  /** Adopt a directory as a workspace; it then appears in the left sidebar. */
+  create(input: { path: string }): Promise<WorkspaceSummary>;
+}
+
+export interface UiWorkspaceService {
+  /** Create or reuse a blank Session in a workspace without navigating. */
+  connectWorkspace(workspaceId: string): Promise<string>;
+  /** Make an existing Session the main conversation. */
+  openSession(sessionId: string): void;
+  /** Ask the platform's directory picker for a path. */
+  pickDirectory(): Promise<string>;
+  /** Create/open a blank Session, optionally leaving a first prompt as a draft. */
+  startSession(workspaceId?: string, options?: {
+    prompt?: string;
+    whenDraftExists?: 'keep' | 'replace' | 'append';
+  }): void;
+}
+
 export interface PluginContext {
   effect(setup: () => Disposable | void, label?: string): Disposable;
   inject(dependencies: string[], callback: (scope: PluginContext) => Disposable | void): Disposable;
@@ -124,4 +191,7 @@ export interface PluginContext {
   workingDirectory: WorkingDirectoryService;
   skills: SkillsService;
   fs: FsService;
+  layout: LayoutService;
+  workspaces: WorkspacesService;
+  uiWorkspace: UiWorkspaceService;
 }
