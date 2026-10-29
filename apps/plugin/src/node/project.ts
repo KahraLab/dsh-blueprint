@@ -10,6 +10,7 @@
  * fields we do not know yet.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { customAlphabet } from 'nanoid';
 import { dirname, join, resolve } from 'node:path';
 import { type BlueprintDocument, createDocument, normalizeDocument } from '../model/document';
 import { writeJsonAtomic } from './atomic';
@@ -18,6 +19,9 @@ import { sessionDir } from './session';
 export const BLUEPRINT_DIR = '.dsh-blueprint';
 export const DOCUMENT_SCHEMA = 3;
 export const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/** Directory and file names: lowercase + digits, ten characters. */
+const newProjectId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 10);
 
 /** The file a project is: identity, revision, and the design document itself. */
 export interface ProjectDocument {
@@ -179,7 +183,7 @@ export function writeProject(root: string, project: ProjectDocument): void {
 }
 
 export function createProject(root: string, options: { title?: string; id?: string } = {}): ProjectDocument {
-  const id = options.id === undefined ? nextProjectId(root) : assertProjectId(options.id);
+  const id = options.id === undefined ? newProjectId() : assertProjectId(options.id);
   if (projectExists(root, id)) {
     throw new ProjectError(`项目「${id}」已经存在；换一个 id，或者直接打开它`, 'exists');
   }
@@ -187,7 +191,7 @@ export function createProject(root: string, options: { title?: string; id?: stri
   const project: ProjectDocument = {
     schema: DOCUMENT_SCHEMA,
     id,
-    title: options.title?.trim() || '未命名原型',
+    title: options.title?.trim() || '未命名蓝图',
     createdAt: now,
     revision: 0,
     updatedAt: now,
@@ -197,15 +201,6 @@ export function createProject(root: string, options: { title?: string; id?: stri
   writeProject(root, project);
   writeCurrentProject(root, id);
   return project;
-}
-
-/** `prototype-1`, `prototype-2`, … The title carries the meaning, the id just has to be unique. */
-export function nextProjectId(root: string): string {
-  const used = new Set(listProjects(root).map((project) => project.id));
-  for (let index = 1; ; index += 1) {
-    const candidate = `prototype-${index}`;
-    if (!used.has(candidate)) return candidate;
-  }
 }
 
 // ---------------------------------------------------------------- current project

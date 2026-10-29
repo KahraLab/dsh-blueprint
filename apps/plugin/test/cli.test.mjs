@@ -145,6 +145,13 @@ describe('项目', () => {
     assert.deepEqual(stored.document, { frames: [], layers: [] });
   });
 
+  test('不给 id 时用 nanoid 生成短 id，标题可以不给', () => {
+    const created = box.ok(['project', 'new']);
+    assert.match(created.project.id, /^[a-z0-9]{10}$/);
+    assert.equal(created.project.title, '未命名蓝图');
+    assert.ok(existsSync(box.projectPath(created.project.id)));
+  });
+
   test('列出项目，新建的项目是当前项目', () => {
     const listed = box.ok(['project', 'list']);
     assert.equal(listed.current, 'login-page');

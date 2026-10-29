@@ -17,6 +17,9 @@ importers:
       lucide-react:
         specifier: ^1.62.0
         version: 1.62.0(@types/react@18.3.31)(react@19.3.1)
+      nanoid:
+        specifier: ^6.0.2
+        version: 6.0.2
       react-i18next:
         specifier: ^17.1.9
         version: 17.1.9(i18next@26.5.11(typescript@5.9.3))(react@19.3.1)(typescript@5.9.3)
@@ -245,6 +248,11 @@ packages:
       '@types/react':
         optional: true
 
+  nanoid@6.0.2:
+    resolution: {integrity: sha512-hIvVOb9Qr1p/9CNNLOe0OlWvgx/ziTsVwKN/GDSsuArN2K0wDiafP3s0SWmsm7o2BdnyS8Z9Z64NFBUbn6ziBg==}
+    engines: {node: ^22 || ^24 || >=26}
+    hasBin: true
+
   react-i18next@17.1.9:
     resolution: {integrity: sha512-OgYqIH13XHPlWTaaI795Dz+k2AdKnXcOxNQVnf750T8Ij0TYWp1nYvXRpoJBulPqlyk2OAbn1PM4tFKiIj/byA==}
     peerDependencies:
@@ -441,6 +449,8 @@ snapshots:
       react: 19.3.1
     optionalDependencies:
       '@types/react': 18.3.31
+
+  nanoid@6.0.2: {}
 
   react-i18next@17.1.9(i18next@26.5.11(typescript@5.9.3))(react@19.3.1)(typescript@5.9.3):
     dependencies:

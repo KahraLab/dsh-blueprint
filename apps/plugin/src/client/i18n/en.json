@@ -12,12 +12,7 @@
   "gallery.reading": "Loading…",
   "gallery.blank": "Empty canvas",
   "gallery.loadFailed": "Cannot read the prototype list",
-  "dialog.title": "New prototype",
-  "dialog.placeholder": "Title, e.g. Sign in",
-  "dialog.cancel": "Cancel",
-  "dialog.create": "Create",
-  "dialog.failed": "Could not create it",
-  "untitled": "Untitled prototype",
+  "untitled": "Untitled blueprint",
   "save.saving": "Saving",
   "save.saved": "Saved",
   "save.failed": "Save failed",
@@ -35,5 +30,6 @@
   "tools.pickShape": "Choose shape",
   "tools.shapeAria": "Shape: {{name}}",
   "resize.inspector": "Resize properties panel",
-  "resize.layers": "Resize layers panel"
+  "resize.layers": "Resize layers panel",
+  "gallery.createFailed": "Could not create it"
 }

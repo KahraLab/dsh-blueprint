@@ -32,8 +32,8 @@ export const projectListCommand = defineCommand({
 export const projectNewCommand = defineCommand({
   meta: { name: 'new', description: '新建一个原型项目' },
   args: {
-    title: { type: 'string', description: '原型标题，比如「登录页」' },
-    id: { type: 'string', description: '项目 id，小写字母数字连字符；不给就自动编号' },
+    title: { type: 'string', description: '原型标题，比如「登录页」；不给就叫「未命名蓝图」' },
+    id: { type: 'string', description: '项目 id，小写字母数字连字符；不给就用 nanoid 生成 10 位短 id' },
   },
   run({ args }) {
     const workspace = root();
@@ -83,8 +83,8 @@ export const projectCurrentCommand = defineCommand({
 export const projectImportCommand = defineCommand({
   meta: { name: 'import', description: '把旧会话里的文档导入成项目' },
   args: {
-    title: { type: 'string', description: '导入后的标题' },
-    id: { type: 'string', description: '导入后的项目 id；不给就自动编号' },
+    title: { type: 'string', description: '导入后的标题；不给就用原来的默认名' },
+    id: { type: 'string', description: '导入后的项目 id；不给就用 nanoid 生成短 id' },
     session: { type: 'string', description: '会话 id；不给就用环境变量 DSH_SESSION_ID' },
   },
   run({ args }) {

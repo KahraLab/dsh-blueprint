@@ -100,8 +100,6 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
   const [previews, setPreviews] = useState<Record<string, BlueprintDocument | null>>({});
   const [screen, setScreen] = useState<'gallery' | 'editor'>('gallery');
   const initialised = useRef(false);
@@ -211,23 +209,21 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       const response = await fetch(projectsUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: newTitle.trim() === '' ? t('untitled') : newTitle.trim() }),
+        body: JSON.stringify({ title: t('untitled') }),
       });
       const data = (await response.json()) as { ok?: boolean; project?: { id: string; title: string; revision: number }; error?: string };
       if (data?.ok !== true || !data.project) {
-        setProjectError(data?.error ?? t('dialog.failed'));
+        setProjectError(data?.error ?? t('gallery.createFailed'));
         return;
       }
       const entry: ProjectEntry = { id: data.project.id, title: data.project.title, revision: data.project.revision, updatedAt: '', broken: false };
       setProjects((previous) => [...(previous ?? []), entry]);
       setProjectError(null);
-      setCreating(false);
-      setNewTitle('');
       openProject(entry.id);
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : String(error));
     }
-  }, [projectsUrl, newTitle, openProject, t]);
+  }, [projectsUrl, openProject, t]);
 
   // One effect per open project: read its document, then keep writing it back.
   useEffect(() => {
@@ -324,17 +320,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
           loading={projects === null}
           error={projectError}
           onOpen={openProject}
-          onNew={() => setCreating(true)}
+          onNew={() => void createProjectNow()}
         />
-        {creating ? (
-          <CreateProjectDialog
-            title={newTitle}
-            error={projectError}
-            onTitleChange={setNewTitle}
-            onCancel={() => setCreating(false)}
-            onCreate={() => void createProjectNow()}
-          />
-        ) : null}
       </div>
     );
   }
@@ -569,48 +556,6 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         )}
       </div>
 
-      {creating ? (
-        <CreateProjectDialog
-          title={newTitle}
-          error={projectError}
-          onTitleChange={setNewTitle}
-          onCancel={() => setCreating(false)}
-          onCreate={() => void createProjectNow()}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function CreateProjectDialog({ title, error, onTitleChange, onCancel, onCreate }: {
-  title: string;
-  error: string | null;
-  onTitleChange(value: string): void;
-  onCancel(): void;
-  onCreate(): void;
-}): ReactElement {
-  const { t } = useTranslation();
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-      <div style={{ background: 'var(--dsw-alias-bg-layer-1, #1f1f1f)', color: 'var(--dsw-alias-label-primary, #f2f2f2)', padding: 16, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, width: 240, boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontSize: 13 }}>{t('dialog.title')}</div>
-        <input
-          autoFocus
-          value={title}
-          placeholder={t('dialog.placeholder')}
-          onChange={(event) => onTitleChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') onCreate();
-            if (event.key === 'Escape') onCancel();
-          }}
-          style={{ font: '13px inherit', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit' }}
-        />
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel}>{t('dialog.cancel')}</button>
-          <button type="button" onClick={onCreate}>{t('dialog.create')}</button>
-        </div>
-        {error ? <div style={{ fontSize: 11, color: '#f97066' }}>{error}</div> : null}
-      </div>
     </div>
   );
 }

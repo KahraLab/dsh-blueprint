@@ -12,12 +12,7 @@
   "gallery.reading": "读取中…",
   "gallery.blank": "空白画布",
   "gallery.loadFailed": "读不到原型列表",
-  "dialog.title": "新建原型",
-  "dialog.placeholder": "标题，比如 登录页",
-  "dialog.cancel": "取消",
-  "dialog.create": "创建",
-  "dialog.failed": "没建成",
-  "untitled": "未命名原型",
+  "untitled": "未命名蓝图",
   "save.saving": "保存中",
   "save.saved": "已保存",
   "save.failed": "保存失败",
@@ -35,5 +30,6 @@
   "tools.pickShape": "选择形状",
   "tools.shapeAria": "形状：{{name}}",
   "resize.inspector": "调整属性栏宽度",
-  "resize.layers": "调整图层栏宽度"
+  "resize.layers": "调整图层栏宽度",
+  "gallery.createFailed": "没建成"
 }
