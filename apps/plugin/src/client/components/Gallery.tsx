@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
-import { FramePreview, thumbSize } from './FramePreview';
+import { BlueprintPreview, previewSize } from './BlueprintPreview';
 
 export interface GalleryBlueprint {
   id: string;
@@ -83,13 +83,13 @@ export function BlueprintGallery({ blueprints, previews, current, loading, error
 
 function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: BlueprintDocument | null }): ReactElement {
   const { t } = useTranslation();
-  const frame = doc?.frames[0] ?? null;
-  const key = frame === null ? '' : `${blueprint.id}:${blueprint.revision}`;
+  const size = doc === null ? null : previewSize(doc);
+  const key = size === null ? '' : `${blueprint.id}:${blueprint.revision}`;
   const stage = useRef<HTMLSpanElement | null>(null);
   const [image, setImage] = useState<string | null>(() => (key === '' ? null : cachedThumbnail(key) ?? null));
 
   useEffect(() => {
-    if (frame === null || key === '') return;
+    if (doc === null || size === null || key === '') return;
     const cached = cachedThumbnail(key);
     if (cached !== undefined) {
       setImage(cached);
@@ -113,21 +113,20 @@ function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: Blu
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [frame, key]);
+  }, [doc, size, key]);
 
   if (blueprint.broken) return <span className="bp-card-note">{t('gallery.broken')}</span>;
   if (doc === null) return <span className="bp-card-note">{t('gallery.reading')}</span>;
-  if (frame === null) return <span className="bp-card-note">{t('gallery.blank')}</span>;
+  if (size === null) return <span className="bp-card-note">{t('gallery.blank')}</span>;
 
   if (image !== null) {
-    const size = thumbSize(frame);
     return (
       <span className="bp-thumb" aria-hidden="true" style={{ width: size.width, height: size.height }}>
         <img className="bp-thumb-image" src={image} alt="" draggable={false} />
       </span>
     );
   }
-  return <FramePreview ref={stage} frame={frame} />;
+  return <BlueprintPreview ref={stage} doc={doc} />;
 }
 
 function updatedLabel(blueprint: GalleryBlueprint, t: (key: string, options?: Record<string, unknown>) => string): string {

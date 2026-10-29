@@ -1328,7 +1328,8 @@
   justify-content: center;
   height: 152px;
   padding: 12px 10px;
-  background: #ededed;
+  /* The canvas behind the document, not a light grey card. */
+  background: var(--dsw-alias-bg-base, #1b1b1b);
   overflow: hidden;
 }
 .bp-card-note {
@@ -1340,7 +1341,8 @@
   overflow: hidden;
   border-radius: 3px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16);
-  background: #fff;
+  /* The page the document sits on, not a white card. */
+  background: var(--dsw-alias-bg-base, #1b1b1b);
 }
 .bp-thumb-image {
   display: block;
