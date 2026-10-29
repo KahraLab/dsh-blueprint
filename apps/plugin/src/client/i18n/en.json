@@ -52,5 +52,7 @@
   "iconPicker.downloadedBadge": "Downloaded",
   "iconPicker.openIconify": "View on Iconify",
   "iconPicker.openNpm": "Open npm package",
-  "iconPicker.filterInSet": "Filter in this set"
+  "iconPicker.filterInSet": "Filter in this set",
+  "iconPicker.indexFailed": "Cannot read this icon set",
+  "iconPicker.retry": "Retry"
 }

@@ -44,8 +44,8 @@ apply(blueprintId, ops, baseRevision) → { revision, appliedAt }
 | `POST /blueprint/doc/assets` | 上传图片，返回文件引用 |
 | `GET /blueprint/icons` | 图标目录与已下载集合 |
 | `POST /blueprint/icons` | 下载一个图标集 |
-| `GET /blueprint/icons/set?prefix=` | 一份集合的完整数据 |
-| `GET /blueprint/icons/index?prefix=` | 一份集合的名字索引 |
+| `GET /blueprint/icons?part=index&prefix=` | 一份集合的名字索引 |
+| `GET /blueprint/icons?part=set&prefix=` | 一份集合的完整数据 |
 | `* /blueprint/languages/...` | 设计语言的同构路由 |
 
 `baseRevision` 对不上时，后台拒掉这次补丁并回最新文档。界面拿到最新版后重放自己的改动；重放不了就提示冲突，不猜。

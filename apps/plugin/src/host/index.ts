@@ -38,8 +38,6 @@ const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
-const ICON_SET_ENDPOINT = '/api/blueprint/icons/set';
-const ICON_INDEX_ENDPOINT = '/api/blueprint/icons/index';
 
 /** The workspace the current Session works in; the default directory otherwise. */
 function workspaceOf(scope: PluginContext, sessionId: string | null): string {
@@ -246,6 +244,22 @@ function createIconsRoute(): FetchRoute {
 
     async fetch(request) {
       if (request.method === 'GET') {
+        const url = new URL(request.url);
+        const prefix = url.searchParams.get('prefix');
+        const part = url.searchParams.get('part');
+        // One route serves the whole library: the catalog, one set's names, one
+        // set's drawings. Nested paths under this prefix were not reaching the
+        // handler in the panel, and a query parameter cannot collide with them.
+        if (prefix !== null && part === 'index') {
+          const index = readIndex(prefix);
+          if (!index) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
+          return Response.json({ ok: true, index });
+        }
+        if (prefix !== null && part === 'set') {
+          const set = readSet(prefix);
+          if (!set) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
+          return Response.json({ ok: true, set });
+        }
         try {
           const catalog = await fetchCatalog();
           return Response.json({
@@ -286,20 +300,6 @@ function createIconsRoute(): FetchRoute {
   };
 }
 
-function createIconContentRoute(path: string, read: (prefix: string) => unknown, label: string): FetchRoute {
-  return {
-    path,
-    methods: ['GET'],
-    async fetch(request) {
-      const prefix = new URL(request.url).searchParams.get('prefix');
-      if (!prefix) return Response.json({ ok: false, error: '缺少 prefix 参数' }, { status: 400 });
-      const data = read(prefix);
-      if (!data) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
-      return Response.json({ ok: true, [label]: data });
-    },
-  };
-}
-
 // ---------------------------------------------------------------- wiring
 
 function register(ctx: PluginContext, label: string, create: () => FetchRoute): void {
@@ -330,8 +330,6 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'document', () => createDocumentRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
     register(scope, 'icons', () => createIconsRoute());
-    register(scope, 'icon-set', () => createIconContentRoute(ICON_SET_ENDPOINT, (prefix) => readSet(prefix), 'set'));
-    register(scope, 'icon-index', () => createIconContentRoute(ICON_INDEX_ENDPOINT, (prefix) => readIndex(prefix), 'index'));
   });
 
   ctx.inject(['skills'], (scope) => {

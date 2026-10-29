@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { drawIcon, type IconSetData } from '../../model/icon';
 import { ExternalLinkIcon } from '../icons';
 import {
+  forgetIndex,
   installIconSet,
   loadIndex,
   loadLibrary,
@@ -53,6 +54,8 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
   const [query, setQuery] = useState('');
   const [setFilter, setSetFilter] = useState('');
   const [iconFilter, setIconFilter] = useState('');
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
   const [activeSet, setActiveSet] = useState<string | null>(null);
   const [indexes, setIndexes] = useState<Record<string, IconIndexData>>({});
   const [sets, setSets] = useState<Record<string, IconSetData>>({});
@@ -91,15 +94,20 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
     const wanted = trimmed === ''
       ? activeSet !== null && installedPrefixes.includes(activeSet) ? [activeSet] : []
       : installedPrefixes;
+    setIndexError(null);
     for (const prefix of wanted) {
       if (requestedIndexes.current.has(prefix)) continue;
       requestedIndexes.current.add(prefix);
       void loadIndex(prefix).then((index) => {
-        if (index) setIndexes((previous) => (previous[prefix] ? previous : { ...previous, [prefix]: index }));
-        else requestedIndexes.current.delete(prefix);
+        if (index) {
+          setIndexes((previous) => (previous[prefix] ? previous : { ...previous, [prefix]: index }));
+          return;
+        }
+        requestedIndexes.current.delete(prefix);
+        if (prefix === activeSet) setIndexError(t('iconPicker.indexFailed'));
       });
     }
-  }, [activeSet, installedPrefixes, trimmed]);
+  }, [activeSet, installedPrefixes, trimmed, retryToken, t]);
 
   // Switching sets starts that set's own filter from scratch.
   useEffect(() => {
@@ -365,8 +373,25 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
                   })}
                 </div>
                 {cells.length === 0 ? (
-                  <div className="bp-ip-empty">
-                    {trimmed !== ''
+                  <div className={`bp-ip-empty${indexError === null ? '' : ' bp-ip-empty-error'}`}>
+                    {indexError !== null ? (
+                      <>
+                        <span>{indexError}</span>
+                        <button
+                          type="button"
+                          className="bp-ip-retry"
+                          onClick={() => {
+                            if (activeSet !== null) {
+                              forgetIndex(activeSet);
+                              requestedIndexes.current.delete(activeSet);
+                            }
+                            setRetryToken((token) => token + 1);
+                          }}
+                        >
+                          {t('iconPicker.retry')}
+                        </button>
+                      </>
+                    ) : trimmed !== ''
                       ? t('iconPicker.noMatch', { query: query.trim() })
                       : iconFilter.trim() !== ''
                         ? t('iconPicker.noMatch', { query: iconFilter.trim() })

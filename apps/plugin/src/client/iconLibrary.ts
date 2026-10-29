@@ -9,8 +9,6 @@
 import type { IconSetData } from '../model/icon';
 
 const LIBRARY_ENDPOINT = '/api/blueprint/icons';
-const SET_ENDPOINT = '/api/blueprint/icons/set';
-const INDEX_ENDPOINT = '/api/blueprint/icons/index';
 
 export interface InstalledSet {
   prefix: string;
@@ -77,22 +75,39 @@ export async function installIconSet(prefix: string): Promise<InstallResult> {
 export function loadIndex(prefix: string): Promise<IconIndexData | null> {
   const cached = indexCache.get(prefix);
   if (cached) return cached;
-  const pending = fetch(`${INDEX_ENDPOINT}?prefix=${encodeURIComponent(prefix)}`, { headers: { accept: 'application/json' } })
+  const pending = fetch(`${LIBRARY_ENDPOINT}?part=index&prefix=${encodeURIComponent(prefix)}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(15_000),
+  })
     .then(async (response) => {
-      if (!response.ok) return null;
+      if (!response.ok) {
+        console.warn('[blueprint] 图标集名字读取失败', prefix, response.status);
+        return null;
+      }
       const data = (await response.json()) as { ok?: boolean; index?: IconIndexData };
       return data?.ok === true && data.index ? data.index : null;
     })
-    .catch(() => null);
+    .catch((error: unknown) => {
+      console.warn('[blueprint] 图标集名字读取失败', prefix, error);
+      return null;
+    });
   indexCache.set(prefix, pending);
   return pending;
+}
+
+/** Forget a cached lookup so a retry really asks again. */
+export function forgetIndex(prefix: string): void {
+  indexCache.delete(prefix);
 }
 
 /** Full set, drawings included: fetched once, then kept in memory. */
 export function loadSet(prefix: string): Promise<IconSetData | null> {
   const cached = setCache.get(prefix);
   if (cached) return cached;
-  const pending = fetch(`${SET_ENDPOINT}?prefix=${encodeURIComponent(prefix)}`, { headers: { accept: 'application/json' } })
+  const pending = fetch(`${LIBRARY_ENDPOINT}?part=set&prefix=${encodeURIComponent(prefix)}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(30_000),
+  })
     .then(async (response) => {
       if (!response.ok) return null;
       const data = (await response.json()) as { ok?: boolean; set?: IconSetData };

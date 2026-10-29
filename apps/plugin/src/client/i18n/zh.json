@@ -52,5 +52,7 @@
   "iconPicker.downloadedBadge": "已下载",
   "iconPicker.openIconify": "在 Iconify 上查看",
   "iconPicker.openNpm": "打开 npm 包",
-  "iconPicker.filterInSet": "在此图标集中筛选"
+  "iconPicker.filterInSet": "在此图标集中筛选",
+  "iconPicker.indexFailed": "无法读取这个图标集",
+  "iconPicker.retry": "重试"
 }
