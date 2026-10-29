@@ -1511,16 +1511,11 @@
   background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.1));
   color: var(--dsw-alias-label-primary, #f0f0f0);
 }
-.bp-ip-set-state {
+.bp-ip-set-badge {
   flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid var(--dsw-alias-label-tertiary, #6f6f6f);
-}
-.bp-ip-set[data-installed='true'] .bp-ip-set-state {
-  background: var(--dsw-alias-accent, #4FC3F7);
-  border-color: transparent;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--dsw-alias-state-success-primary, #3fb950);
 }
 .bp-ip-set-name {
   flex: 1;
@@ -1543,6 +1538,67 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+.bp-ip-set-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+}
+.bp-ip-set-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bp-ip-set-name-lg {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #f0f0f0);
+}
+.bp-ip-set-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: var(--dsw-alias-label-tertiary, #7c7c7c);
+  text-decoration: none;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.bp-ip-set-link:hover {
+  color: var(--dsw-alias-label-primary, #eee);
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.08));
+}
+.bp-ip-set-npm {
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.16));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+.bp-ip-set-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #7c7c7c);
+}
+.bp-ip-set-search {
+  appearance: none;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  background: var(--dsw-alias-bg-base, #1b1b1b);
+  color: var(--dsw-alias-label-primary, #eaeaea);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.bp-ip-set-search::placeholder {
+  color: var(--dsw-alias-label-tertiary, #7c7c7c);
+}
+.bp-ip-set-search:focus {
+  border-color: var(--dsw-alias-accent, #4FC3F7);
 }
 .bp-ip-grid {
   flex: 1;

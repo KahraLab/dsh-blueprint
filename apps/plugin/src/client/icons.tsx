@@ -38,6 +38,7 @@ import MousePointer2 from 'lucide-react/icons/mouse-pointer-2';
 import Plus from 'lucide-react/icons/plus';
 import Type from 'lucide-react/icons/type';
 import Shapes from 'lucide-react/icons/shapes';
+import ExternalLink from 'lucide-react/icons/external-link';
 import type { ReactElement } from 'react';
 
 interface IconProps {
@@ -251,4 +252,9 @@ export function BackIcon({ size = 15 }: IconProps): ReactElement {
 /** Toolbar glyph for "icons": the tool that is a set of drawn shapes. */
 export function IconToolGlyph({ size = 15 }: { size?: number }): ReactElement {
   return <Shapes size={size} strokeWidth={1.8} />;
+}
+
+/** Opens the source of a third-party thing (an icon set, a package) elsewhere. */
+export function ExternalLinkIcon({ size = 11 }: { size?: number }): ReactElement {
+  return <ExternalLink size={size} strokeWidth={1.8} aria-hidden="true" />;
 }

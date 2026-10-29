@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { drawIcon, type IconSetData } from '../../model/icon';
+import { ExternalLinkIcon } from '../icons';
 import {
   installIconSet,
   loadIndex,
@@ -18,7 +19,6 @@ import {
   type IconIndexData,
   type IconLibrary,
 } from '../iconLibrary';
-import { CaretIcon } from '../icons';
 
 export interface PickedIcon {
   set: string;
@@ -39,12 +39,20 @@ const PAD = 10;
 const STEP = CELL + GAP;
 const SEARCH_LIMIT = 240;
 
+function withoutPrefix<T>(record: Record<string, T>, prefix: string): Record<string, T> {
+  if (!(prefix in record)) return record;
+  const next = { ...record };
+  delete next[prefix];
+  return next;
+}
+
 export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
   const { t } = useTranslation();
   const [library, setLibrary] = useState<IconLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [setFilter, setSetFilter] = useState('');
+  const [iconFilter, setIconFilter] = useState('');
   const [activeSet, setActiveSet] = useState<string | null>(null);
   const [indexes, setIndexes] = useState<Record<string, IconIndexData>>({});
   const [sets, setSets] = useState<Record<string, IconSetData>>({});
@@ -74,18 +82,29 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
   const installedPrefixes = useMemo(() => (library?.installed ?? []).map((item) => item.prefix), [library]);
   const trimmed = query.trim().toLowerCase();
   const words = useMemo(() => trimmed.split(/\s+/).filter(Boolean), [trimmed]);
+  const setWords = useMemo(() => iconFilter.trim().toLowerCase().split(/\s+/).filter(Boolean), [iconFilter]);
 
-  // Names for the sets the grid is about to show.
+  // Names for the sets the grid is about to show. Only downloaded sets have an
+  // index on disk: asking for one that is not installed would cache a 404 and
+  // the grid would stay empty after the user downloads it.
   useEffect(() => {
-    const wanted = trimmed === '' ? (activeSet ? [activeSet] : []) : installedPrefixes;
+    const wanted = trimmed === ''
+      ? activeSet !== null && installedPrefixes.includes(activeSet) ? [activeSet] : []
+      : installedPrefixes;
     for (const prefix of wanted) {
       if (requestedIndexes.current.has(prefix)) continue;
       requestedIndexes.current.add(prefix);
       void loadIndex(prefix).then((index) => {
         if (index) setIndexes((previous) => (previous[prefix] ? previous : { ...previous, [prefix]: index }));
+        else requestedIndexes.current.delete(prefix);
       });
     }
   }, [activeSet, installedPrefixes, trimmed]);
+
+  // Switching sets starts that set's own filter from scratch.
+  useEffect(() => {
+    setIconFilter('');
+  }, [activeSet]);
 
   const cells = useMemo((): { set: string; name: string }[] => {
     if (trimmed !== '') {
@@ -106,8 +125,15 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
     }
     if (!activeSet) return [];
     const index = indexes[activeSet];
-    return index ? index.icons.map((name) => ({ set: activeSet, name })) : [];
-  }, [activeSet, indexes, installedPrefixes, trimmed, words]);
+    if (!index) return [];
+    const names = setWords.length === 0
+      ? index.icons
+      : index.icons.filter((name) => {
+          const haystack = name.toLowerCase();
+          return setWords.every((word) => haystack.includes(word));
+        });
+    return names.map((name) => ({ set: activeSet, name }));
+  }, [activeSet, indexes, installedPrefixes, trimmed, words, setWords]);
 
   // Drawings for the sets on screen, fetched once.
   useEffect(() => {
@@ -117,6 +143,7 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
       requestedSets.current.add(prefix);
       void loadSet(prefix).then((data) => {
         if (data) setSets((previous) => (previous[prefix] ? previous : { ...previous, [prefix]: data }));
+        else requestedSets.current.delete(prefix);
       });
     }
   }, [cells]);
@@ -178,6 +205,12 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
     setError(null);
     try {
       const result = await installIconSet(prefix);
+      // The set just became readable: drop any cached miss so its names are
+      // fetched now instead of being skipped as "already asked for".
+      requestedIndexes.current.delete(prefix);
+      requestedSets.current.delete(prefix);
+      setIndexes((previous) => withoutPrefix(previous, prefix));
+      setSets((previous) => withoutPrefix(previous, prefix));
       setLibrary((previous) => previous === null ? previous : {
         installed: [...previous.installed, { prefix, name: result.name, total: result.total, bytes: result.bytes }],
         sets: previous.sets.map((item) => (item.prefix === prefix ? { ...item, installed: true, total: result.total } : item)),
@@ -202,7 +235,8 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
 
   const activeInfo = library?.sets.find((item) => item.prefix === activeSet);
   const activeInstalled = activeSet !== null && installedPrefixes.includes(activeSet);
-  const activeIndex = activeSet ? indexes[activeSet] : undefined;
+  // A set that is not downloaded yet still has a size worth showing.
+  const footerCount = trimmed !== '' || activeInstalled ? cells.length : activeInfo?.total ?? 0;
 
   return (
     <div className="bp-ip-backdrop" role="dialog" aria-modal="true" aria-label={t('iconPicker.title')} onPointerDown={(event) => {
@@ -238,13 +272,15 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
                   type="button"
                   className="bp-ip-set"
                   data-on={activeSet === item.prefix}
-                  data-installed={item.installed || undefined}
-                  title={`${item.name} · ${item.installed ? t('iconPicker.downloaded') : t('iconPicker.notDownloaded')}`}
+                  title={item.name}
                   onClick={() => { setActiveSet(item.prefix); setQuery(''); }}
                 >
-                  <span className="bp-ip-set-state" aria-hidden="true" />
                   <span className="bp-ip-set-name">{item.name}</span>
-                  <span className="bp-ip-set-total">{item.total}</span>
+                  {item.installed ? (
+                    <span className="bp-ip-set-badge">{t('iconPicker.downloadedBadge')}</span>
+                  ) : (
+                    <span className="bp-ip-set-total">{item.total}</span>
+                  )}
                 </button>
               ))}
               {library !== null && railSets.length === 0 ? (
@@ -255,6 +291,47 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
 
           <div className="bp-ip-main">
             {error ? <div className="bp-ip-error">{error}</div> : null}
+
+            {activeSet !== null && activeInstalled && trimmed === '' ? (
+              <div className="bp-ip-set-head">
+                <div className="bp-ip-set-title">
+                  <span className="bp-ip-set-name-lg">{activeInfo?.name ?? activeSet}</span>
+                  <a
+                    className="bp-ip-set-link"
+                    href={`https://icon-sets.iconify.design/${activeSet}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={t('iconPicker.openIconify')}
+                    aria-label={t('iconPicker.openIconify')}
+                  >
+                    <ExternalLinkIcon />
+                  </a>
+                  <a
+                    className="bp-ip-set-link bp-ip-set-npm"
+                    href={`https://www.npmjs.com/package/@iconify-json/${activeSet}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={t('iconPicker.openNpm')}
+                    aria-label={t('iconPicker.openNpm')}
+                  >
+                    npm
+                  </a>
+                </div>
+                {(activeInfo?.author ?? '') !== '' || (activeInfo?.license ?? '') !== '' ? (
+                  <div className="bp-ip-set-meta">
+                    {activeInfo?.author ? <span>{activeInfo.author}</span> : null}
+                    {activeInfo?.license ? <span>{activeInfo.license}</span> : null}
+                  </div>
+                ) : null}
+                <input
+                  className="bp-ip-set-search"
+                  value={iconFilter}
+                  placeholder={t('iconPicker.filterInSet')}
+                  aria-label={t('iconPicker.filterInSet')}
+                  onChange={(event) => setIconFilter(event.target.value)}
+                />
+              </div>
+            ) : null}
 
             {activeSet !== null && !activeInstalled ? (
               <div className="bp-ip-download">
@@ -289,23 +366,22 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
                 </div>
                 {cells.length === 0 ? (
                   <div className="bp-ip-empty">
-                    {trimmed === '' ? t('iconPicker.noSet') : t('iconPicker.noMatch', { query: query.trim() })}
+                    {trimmed !== ''
+                      ? t('iconPicker.noMatch', { query: query.trim() })
+                      : iconFilter.trim() !== ''
+                        ? t('iconPicker.noMatch', { query: iconFilter.trim() })
+                        : activeSet === null
+                          ? t('iconPicker.noSet')
+                          : t('iconPicker.loadingIcons')}
                   </div>
                 ) : null}
               </div>
             )}
 
             <div className="bp-ip-foot">
-              <span>
-                {trimmed !== ''
-                  ? t('iconPicker.results', { count: cells.length })
-                  : activeInstalled && activeIndex
-                    ? t('iconPicker.count', { count: activeIndex.total })
-                    : ''}
-              </span>
+              <span>{trimmed !== '' ? t('iconPicker.searchResults') : activeInfo?.name ?? ''}</span>
               <span className="bp-ip-foot-right">
-                {activeInfo?.license ? activeInfo.license : ''}
-                <CaretIcon size={8} />
+                {t('iconPicker.iconCount', { count: footerCount })}
               </span>
             </div>
           </div>

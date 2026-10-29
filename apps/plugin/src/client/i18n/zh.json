@@ -40,14 +40,17 @@
   "iconPicker.download": "下载图标集",
   "iconPicker.downloading": "下载中…",
   "iconPicker.totalIcons": "{{count}} 个图标",
-  "iconPicker.count": "{{count}} 个",
   "iconPicker.noSet": "选择一个图标集",
   "iconPicker.noMatch": "未找到匹配「{{query}}」的图标",
   "iconPicker.failed": "无法读取图标库",
-  "iconPicker.results": "{{count}} 个结果",
   "iconPicker.filterSets": "筛选图标集",
   "iconPicker.noSets": "未找到匹配「{{query}}」的图标集",
   "iconPicker.sets": "图标集",
-  "iconPicker.downloaded": "已下载",
-  "iconPicker.notDownloaded": "未下载"
+  "iconPicker.loadingIcons": "正在读取图标…",
+  "iconPicker.iconCount": "图标数量：{{count}} 个",
+  "iconPicker.searchResults": "搜索结果",
+  "iconPicker.downloadedBadge": "已下载",
+  "iconPicker.openIconify": "在 Iconify 上查看",
+  "iconPicker.openNpm": "打开 npm 包",
+  "iconPicker.filterInSet": "在此图标集中筛选"
 }

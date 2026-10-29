@@ -26,6 +26,7 @@ export interface CatalogSet {
   total: number;
   category?: string;
   license?: string;
+  author?: string;
   installed: boolean;
   samples?: readonly string[];
 }

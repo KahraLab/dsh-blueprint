@@ -40,14 +40,17 @@
   "iconPicker.download": "Download set",
   "iconPicker.downloading": "Downloading…",
   "iconPicker.totalIcons": "{{count}} icons",
-  "iconPicker.count": "{{count}}",
   "iconPicker.noSet": "Choose an icon set",
   "iconPicker.noMatch": "No icons match “{{query}}”",
   "iconPicker.failed": "Cannot read the icon library",
-  "iconPicker.results": "{{count}} results",
   "iconPicker.filterSets": "Filter icon sets",
   "iconPicker.noSets": "No icon set matches “{{query}}”",
   "iconPicker.sets": "Icon sets",
-  "iconPicker.downloaded": "Downloaded",
-  "iconPicker.notDownloaded": "Not downloaded"
+  "iconPicker.loadingIcons": "Loading icons…",
+  "iconPicker.iconCount": "Icons: {{count}}",
+  "iconPicker.searchResults": "Search results",
+  "iconPicker.downloadedBadge": "Downloaded",
+  "iconPicker.openIconify": "View on Iconify",
+  "iconPicker.openNpm": "Open npm package",
+  "iconPicker.filterInSet": "Filter in this set"
 }

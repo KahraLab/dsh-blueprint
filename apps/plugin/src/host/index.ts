@@ -258,6 +258,7 @@ function createIconsRoute(): FetchRoute {
               total: info.total,
               category: info.category,
               license: info.license?.title,
+              author: info.author?.name,
               installed: isInstalled(info.prefix),
               samples: info.samples,
             })),
