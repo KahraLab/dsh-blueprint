@@ -233,8 +233,26 @@ interface ChangeReply extends StoredReply {
 let syncedDoc: BlueprintDocument | null = null;
 let syncedRevision = 0;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-/** The document URL this module state belongs to; stale panels must not write. */
+/** The document URL this module state belongs to; polls of stale panels are ignored. */
 let activeUrl: string | null = null;
+let saveWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+/** Never leave the header saying "saving" forever: surface a stuck write. */
+function armSaveWatchdog(): void {
+  if (saveWatchdog) clearTimeout(saveWatchdog);
+  saveWatchdog = setTimeout(() => {
+    saveWatchdog = null;
+    if (useBlueprint.getState().saveState === 'saving') {
+      console.warn('[blueprint] 保存超时：10 秒内没有写成功');
+      useBlueprint.setState({ saveState: 'error' });
+    }
+  }, 10_000);
+}
+
+function clearSaveWatchdog(): void {
+  if (saveWatchdog) clearTimeout(saveWatchdog);
+  saveWatchdog = null;
+}
 
 function sameDocument(left: BlueprintDocument, right: BlueprintDocument): boolean {
   return left === right || JSON.stringify(left) === JSON.stringify(right);
@@ -260,17 +278,35 @@ async function sendOps(url: string, baseRevision: number, ops: ReturnType<typeof
       body: JSON.stringify({ baseRevision, ops, by: 'canvas' }),
     });
     const data = (await response.json()) as ChangeReply & { document?: BlueprintDocument };
-    if (!data || typeof data.revision !== 'number') return null;
+    if (!response.ok || !data || typeof data.revision !== 'number') {
+      console.warn('[blueprint] 保存被拒绝', response.status, data);
+      return null;
+    }
     return { ...data, document: data.document ? normalizeDocument(data.document) : useBlueprint.getState().doc };
   } catch {
     return null;
   }
 }
 
-/** Push whatever the user changed since the last agreed revision. */
+/**
+ * Push whatever the user changed since the last agreed revision.
+ *
+ * A panel that switched documents has already had its timers cleared, so the URL
+ * is used as given: gating on a module-wide "active URL" here once left the
+ * header stuck on 保存中 when two panels coexisted.
+ */
 async function flush(url: string): Promise<void> {
-  // A panel that was closed or switched away must not write to its old file.
-  if (url !== activeUrl) return;
+  try {
+    await flushOnce(url);
+  } catch (error) {
+    console.warn('[blueprint] 保存失败', error);
+    useBlueprint.setState({ saveState: 'error' });
+  } finally {
+    clearSaveWatchdog();
+  }
+}
+
+async function flushOnce(url: string): Promise<void> {
   const local = useBlueprint.getState().doc;
   if (!syncedDoc || sameDocument(local, syncedDoc)) {
     useBlueprint.setState({ saveState: 'saved' });
@@ -360,6 +396,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
     if (state.doc === previous.doc || !state.hydrated) return;
     if (state.doc === syncedDoc) return; // came from the file, not from the user
     useBlueprint.setState({ saveState: 'saving' });
+    armSaveWatchdog();
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;

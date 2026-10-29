@@ -470,6 +470,29 @@ describe('协议契约', () => {
     assert.deepEqual(node.layout.padding, { top: 0, right: 0, bottom: 0, left: 0 });
   });
 
+  test('可见与锁定状态写进文档，读回来还在', () => {
+    box.apply(LOGIN_SCREEN);
+    const buttonId = box.firstId(['--name', '登录按钮']);
+    box.ok(['set', buttonId, '--visible', 'false', '--locked', 'true']);
+
+    const node = box.view(buttonId).node;
+    assert.equal(node.visible, false);
+    assert.equal(node.locked, true);
+
+    const stored = JSON.parse(box.documentFile());
+    const walk = (layers) => {
+      for (const layer of layers) {
+        if (layer.id === buttonId) return layer;
+        const nested = walk(layer.children ?? []);
+        if (nested) return nested;
+      }
+      return null;
+    };
+    const onDisk = stored.document.frames.flatMap((frame) => [walk(frame.children)]).find(Boolean);
+    assert.equal(onDisk.visible, false, 'visibility must be in the file, not only in the panel');
+    assert.equal(onDisk.locked, true);
+  });
+
   test('replace 把屏内元素换掉后仍留在原屏幕里', () => {
     box.apply(LOGIN_SCREEN);
     const frameId = box.firstId(['--kind', 'frame']);
