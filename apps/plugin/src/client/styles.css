@@ -1243,6 +1243,8 @@
 
 /* ---------- blueprint gallery ---------- */
 .bp-gallery {
+  /* The library page: the document-preview surface, one step off the panel. */
+  background: var(--dsw-alias-bg-document-preview, #1b1b1b);
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -1328,8 +1330,8 @@
   justify-content: center;
   height: 152px;
   padding: 12px 10px;
-  /* Let the card surface show through; the canvas sits inside as its own well. */
-  background: transparent;
+  /* A light mat, the way a screenshot sits on paper. */
+  background: var(--dsw-static-neutral-150, #ededed);
   overflow: hidden;
 }
 .bp-card-note {
@@ -1339,18 +1341,22 @@
 .bp-thumb {
   position: relative;
   overflow: hidden;
-  border-radius: 4px;
-  /* The page the document sits on, inset into the card surface. */
+  border-radius: 5px;
+  /* The canvas the document was drawn on; on the light mat it reads as a shot. */
   background: var(--dsw-alias-bg-base, #1b1b1b);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 1px 6px rgba(0, 0, 0, 0.28);
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.18);
+}
+/* Documents made of screens read on paper; page-level layers keep the canvas. */
+.bp-thumb-paper {
+  background: var(--dsw-static-neutral-00, #ffffff);
 }
 .bp-thumb-image {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 5px;
   user-select: none;
   pointer-events: none;
 }

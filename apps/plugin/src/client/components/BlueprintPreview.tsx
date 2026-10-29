@@ -70,8 +70,17 @@ export const BlueprintPreview = forwardRef<HTMLSpanElement, {
   const size = previewSize(doc, maxWidth, maxHeight);
   if (size === null) return null;
   const { bounds, scale } = size;
+  // Screens carry their own paint, so the page behind them is paper. A document
+  // that only has page-level layers keeps the canvas colour, or dark art on a
+  // white sheet would simply vanish.
+  const paper = doc.frames.some((frame) => frame.visible);
   return (
-    <span ref={ref} className="bp-thumb" aria-hidden="true" style={{ width: size.width, height: size.height }}>
+    <span
+      ref={ref}
+      className={`bp-thumb${paper ? ' bp-thumb-paper' : ''}`}
+      aria-hidden="true"
+      style={{ width: size.width, height: size.height }}
+    >
       <span className="bp-thumb-stage" style={{ width: bounds.width, height: bounds.height, transform: `scale(${scale})` }}>
         {doc.frames.filter((frame) => frame.visible).map((frame) => (
           <PreviewFrame key={frame.id} frame={frame} bounds={bounds} />
