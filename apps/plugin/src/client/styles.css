@@ -1242,6 +1242,10 @@
 }
 
 /* ---------- blueprint gallery ---------- */
+/* Dark mode: keep the page a shade below the canvas so cards read as cards. */
+body[data-ds-dark-theme] .bp-gallery {
+  background: var(--dsw-static-neutral-bluish-1000, #0f1115);
+}
 .bp-gallery {
   /* The library page: the document-preview surface, one step off the panel. */
   background: var(--dsw-alias-bg-document-preview, #1b1b1b);
@@ -1330,8 +1334,8 @@
   justify-content: center;
   height: 152px;
   padding: 12px 10px;
-  /* A light mat, the way a screenshot sits on paper. */
-  background: var(--dsw-static-neutral-150, #ededed);
+  /* The canvas itself: the card's top half is the surface the document sits on. */
+  background: var(--dsw-alias-bg-base, #1b1b1b);
   overflow: hidden;
 }
 .bp-card-note {
@@ -1341,16 +1345,7 @@
 .bp-thumb {
   position: relative;
   overflow: hidden;
-  border-radius: 5px;
-  /* The canvas the document was drawn on; on the light mat it reads as a shot. */
-  background: var(--dsw-alias-bg-base, #1b1b1b);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.18);
-}
-/* Documents made of screens read on paper; page-level layers keep the canvas. */
-.bp-thumb-paper {
-  background: var(--dsw-static-neutral-00, #ffffff);
+  border-radius: 3px;
 }
 .bp-thumb-image {
   display: block;
