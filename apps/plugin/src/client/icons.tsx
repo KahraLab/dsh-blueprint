@@ -41,6 +41,7 @@ import Shapes from 'lucide-react/icons/shapes';
 import ExternalLink from 'lucide-react/icons/external-link';
 import Columns2 from 'lucide-react/icons/columns-2';
 import Rows2 from 'lucide-react/icons/rows-2';
+import LayoutGrid from 'lucide-react/icons/layout-grid';
 import type { ReactElement } from 'react';
 
 interface IconProps {
@@ -65,6 +66,11 @@ export function MarkIcon({ size = 24, className }: IconProps): ReactElement {
       aria-hidden="true"
     />
   );
+}
+
+/** The blueprint library: a grid of documents. */
+export function BlueprintLibraryIcon({ size = 14, className }: IconProps): ReactElement {
+  return <LayoutGrid size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 /** Folder glyph used by the workspace picker. */

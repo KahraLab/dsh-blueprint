@@ -21,7 +21,7 @@ import {
 } from '../blueprintNavigation';
 import { BlueprintGallery, type GalleryBlueprint } from './Gallery';
 import { WorkspacePicker } from './WorkspacePicker';
-import { BackIcon, MarkIcon } from '../icons';
+import { BackIcon, BlueprintLibraryIcon, MarkIcon } from '../icons';
 
 const EMPTY_WORKSPACES: WorkspaceListSnapshot = { phase: 'pending', items: [], archivedSessionIds: [] };
 const EMPTY_SESSIONS: SessionListSnapshot = { ids: [], byId: {} };
@@ -145,12 +145,6 @@ function DesignEntry({ ctx, workspaces, workspace, onSelectWorkspace, onDashboar
 
   return (
     <div className="bp-entry-page">
-      <div className="bp-page-topbar">
-        <button type="button" className="bp-entry-all" onClick={onDashboard}>
-          {t('home.allBlueprints')}
-        </button>
-      </div>
-
       <div className="bp-entry-center">
         <div className="bp-entry-head">
           <span className="bp-entry-mark"><MarkIcon size={34} /></span>
@@ -185,6 +179,10 @@ function DesignEntry({ ctx, workspaces, workspace, onSelectWorkspace, onDashboar
               onError={setError}
               label={workspaceLabel}
             />
+            <button type="button" className="bp-entry-all" onClick={onDashboard}>
+              <BlueprintLibraryIcon />
+              <span>{t('home.allBlueprints')}</span>
+            </button>
             <button
               type="button"
               className="bp-entry-send"
