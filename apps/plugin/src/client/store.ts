@@ -138,6 +138,7 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
 
 const SAVE_DEBOUNCE_MS = 600;
 const POLL_MS = 700;
+const SELECTION_REPORT_MS = 150;
 
 interface StoredReply {
   revision: number;
@@ -227,9 +228,28 @@ async function flush(url: string): Promise<void> {
   useBlueprint.setState({ saveState: 'saved' });
 }
 
+/**
+ * Tell the host what is selected, so `bp selection` can answer when the model is
+ * asked to change "this button". A lost update is repaired by the next one.
+ */
+async function reportSelection(url: string): Promise<void> {
+  const selections = useBlueprint.getState().selections.map((item) => ({
+    frameId: item.frameId,
+    layerId: item.kind === 'layer' ? item.layerId : null,
+  }));
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ selections }),
+    });
+  } catch {
+    // The next selection change sends the state again.
+  }
+}
+
 /** Pull the document for this session. A missing file is a normal first run. */
-export async function loadDocument(url: string): Promise<void> {
-  const stored = await getStored(url);
+export async function loadDocument(url: string): Promise<void> {  const stored = await getStored(url);
   if (stored) {
     syncedRevision = stored.revision;
     syncedDoc = stored.document;
@@ -244,10 +264,11 @@ export async function loadDocument(url: string): Promise<void> {
 }
 
 /**
- * Watch for local edits, write them back after they settle, and pick up changes
- * that arrive from elsewhere. Lives outside React so no render depends on it.
+ * Watch for local edits, write them back after they settle, pick up changes that
+ * arrive from elsewhere, and report what the user has selected. Lives outside
+ * React so no render depends on it.
  */
-export function startSession(url: string): () => void {
+export function startSession(url: string, selectionUrl: string): () => void {
   const unsubscribe = useBlueprint.subscribe((state, previous) => {
     if (state.doc === previous.doc || !state.hydrated) return;
     if (state.doc === syncedDoc) return; // came from the file, not from the user
@@ -259,6 +280,19 @@ export function startSession(url: string): () => void {
     }, SAVE_DEBOUNCE_MS);
   });
 
+  let selectionTimer: ReturnType<typeof setTimeout> | null = null;
+  const unsubscribeSelection = useBlueprint.subscribe((state, previous) => {
+    if (state.selections === previous.selections) return;
+    if (selectionTimer) clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(() => {
+      selectionTimer = null;
+      void reportSelection(selectionUrl);
+    }, SELECTION_REPORT_MS);
+  });
+  // Send whatever the panel starts with, so a selection left behind by an
+  // earlier mount is corrected instead of lingering.
+  void reportSelection(selectionUrl);
+
   // The command line and the model write the file directly; polling is enough to
   // notice, and it keeps the browser half independent of any other transport.
   const timer = setInterval(() => {
@@ -267,7 +301,12 @@ export function startSession(url: string): () => void {
 
   return () => {
     unsubscribe();
+    unsubscribeSelection();
     clearInterval(timer);
+    if (selectionTimer) {
+      clearTimeout(selectionTimer);
+      selectionTimer = null;
+    }
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;

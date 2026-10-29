@@ -16,30 +16,22 @@
  */
 import {
   type BlueprintDocument,
-  type FillStyle,
   type Frame,
   type Layer,
-  type LayerKind,
-  type SizeMode,
-  type StackAlign,
-  type StackDirection,
-  type StackJustify,
-  type StackLayout,
-  type TextAlign,
-  type VerticalAlign,
+  type Node,
   type LayerRectPatch,
   type RectPatch,
   findFrame,
-  makeFill,
-  makeStackLayout,
   moveLayer,
   removeSelection,
   insertLayer,
   updateFrame,
   updateLayer,
 } from './document';
+import { LAYER_KINDS, cleanFields } from './fields';
+import { locateNode } from './tree';
 
-export type Node = Layer | Frame;
+export type { Node } from './document';
 
 export type DocumentOp =
   /** `parent: null` means the canvas root: a screen, or a loose layer on the page. */
@@ -123,16 +115,16 @@ function setOp(doc: BlueprintDocument, id: string, patch: Record<string, unknown
 
   const frame = findFrame(doc, id);
   if (frame) {
-    const checked = checkPatch(patch, FRAME_FIELDS);
-    if (typeof checked === 'string') return checked;
-    return updateFrame(doc, id, checked as RectPatch);
+    const checked = cleanFields(patch, 'frame');
+    if (!checked.ok) return checked.message;
+    return updateFrame(doc, id, checked.value as RectPatch);
   }
 
   const found = locateLayer(doc, id);
   if (!found) return `找不到 id 为 ${id} 的元素`;
-  const checked = checkPatch(patch, LAYER_FIELDS);
-  if (typeof checked === 'string') return checked;
-  return updateLayer(doc, found.frameId, id, checked as LayerRectPatch);
+  const checked = cleanFields(patch, 'layer');
+  if (!checked.ok) return checked.message;
+  return updateLayer(doc, found.frameId, id, checked.value as LayerRectPatch);
 }
 
 function moveOp(doc: BlueprintDocument, id: string, parent: string | null, index: number | null): BlueprintDocument | string {
@@ -165,7 +157,9 @@ function replaceOp(doc: BlueprintDocument, id: string, node: Node): BlueprintDoc
   if (!found) return `找不到 id 为 ${id} 的元素`;
   if (isFrame(node)) return `${id} 是图层，替换它的也得是图层`;
   const removed = removeSelection(doc, [{ kind: 'layer', frameId: found.frameId, layerId: id }]);
-  const target = siblingsOf(removed, found.parentId);
+  // A layer that sits directly in a screen has no container layer, but the
+  // screen itself is still the list it belongs to.
+  const target = siblingsOf(removed, found.parentId ?? found.frameId);
   if (typeof target === 'string') return target;
   return insertLayer(removed, target.insertTarget(removed, found.index), asLayer(node));
 }
@@ -180,22 +174,9 @@ interface FoundLayer {
 }
 
 function locateLayer(doc: BlueprintDocument, id: string): FoundLayer | null {
-  const walk = (layers: readonly Layer[], frameId: string | null, parentId: string | null): FoundLayer | null => {
-    for (const [index, layer] of layers.entries()) {
-      if (layer.id === id) return { frameId, parentId, node: layer, index };
-      const nested = walk(layer.children, frameId, layer.id);
-      if (nested) return nested;
-    }
-    return null;
-  };
-
-  const root = walk(doc.layers, null, null);
-  if (root) return root;
-  for (const frame of doc.frames) {
-    const found = walk(frame.children, frame.id, null);
-    if (found) return found;
-  }
-  return null;
+  const found = locateNode(doc, id);
+  if (!found || found.kind !== 'layer') return null;
+  return { frameId: found.frameId, parentId: found.parentId, node: found.node as Layer, index: found.index };
 }
 
 /** The container a layer sits in: a screen id, a container layer id, or null for the page root. */
@@ -271,138 +252,7 @@ function asLayer(node: Node): Layer {
 
 // ---------------------------------------------------------------- validation
 
-const SIZE_MODES: readonly SizeMode[] = ['fixed', 'hug', 'fill'];
-const TEXT_ALIGNS: readonly TextAlign[] = ['left', 'center', 'right'];
-const VERTICAL_ALIGNS: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
-const DIRECTIONS: readonly StackDirection[] = ['row', 'column'];
-const ALIGNS: readonly StackAlign[] = ['start', 'center', 'end', 'stretch'];
-const JUSTIFIES: readonly StackJustify[] = ['start', 'center', 'end', 'between'];
-
-const FRAME_FIELDS = ['name', 'x', 'y', 'width', 'height', 'fills', 'opacity', 'visible', 'locked', 'layout'] as const;
-const LAYER_FIELDS = [
-  ...FRAME_FIELDS,
-  'kind',
-  'sizeW',
-  'sizeH',
-  'radius',
-  'text',
-  'fontFamily',
-  'fontSize',
-  'fontWeight',
-  'lineHeight',
-  'letterSpacing',
-  'textAlign',
-  'verticalAlign',
-] as const;
-
-const NUMBER_FIELDS = new Set(['x', 'y', 'width', 'height', 'opacity', 'radius', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']);
-const STRING_FIELDS = new Set(['name', 'text', 'fontFamily']);
-const KINDS: readonly LayerKind[] = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text'];
-
-/** Check one `set` payload against the fields the canvas knows, and clamp obvious nonsense. */
-function checkPatch(patch: Record<string, unknown>, allowed: readonly string[]): Record<string, unknown> | string {
-  const clean: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(patch)) {
-    if (!allowed.includes(key)) {
-      return `改不了 ${key}。能改的字段：${allowed.filter((name) => name !== 'kind').join('、')}`;
-    }
-    if (value === undefined) continue;
-
-    if (NUMBER_FIELDS.has(key)) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return `${key} 要写数字`;
-      if (key === 'opacity') clean[key] = clamp(value, 0, 1);
-      else if (key === 'width' || key === 'height') clean[key] = Math.max(1, Math.round(value));
-      else clean[key] = value;
-      continue;
-    }
-    if (STRING_FIELDS.has(key)) {
-      if (typeof value !== 'string') return `${key} 要写字符串`;
-      clean[key] = value;
-      continue;
-    }
-    if (key === 'visible' || key === 'locked') {
-      if (typeof value !== 'boolean') return `${key} 要写 true 或 false`;
-      clean[key] = value;
-      continue;
-    }
-    if (key === 'kind') {
-      if (!KINDS.includes(value as LayerKind)) return `kind 只能是：${KINDS.join('、')}`;
-      continue; // 元素种类建好就不改，省得样式和形状对不上
-    }
-    if (key === 'sizeW' || key === 'sizeH') {
-      if (!SIZE_MODES.includes(value as SizeMode)) return `${key} 只能是：${SIZE_MODES.join('、')}`;
-      clean[key] = value;
-      continue;
-    }
-    if (key === 'textAlign') {
-      if (!TEXT_ALIGNS.includes(value as TextAlign)) return `textAlign 只能是：${TEXT_ALIGNS.join('、')}`;
-      clean[key] = value;
-      continue;
-    }
-    if (key === 'verticalAlign') {
-      if (!VERTICAL_ALIGNS.includes(value as VerticalAlign)) return `verticalAlign 只能是：${VERTICAL_ALIGNS.join('、')}`;
-      clean[key] = value;
-      continue;
-    }
-    if (key === 'layout') {
-      const layout = checkLayout(value);
-      if (typeof layout === 'string') return layout;
-      clean[key] = layout;
-      continue;
-    }
-    if (key === 'fills') {
-      const fills = checkFills(value);
-      if (typeof fills === 'string') return fills;
-      clean[key] = fills;
-      continue;
-    }
-  }
-  return clean;
-}
-
-function checkLayout(value: unknown): StackLayout | null | string {
-  if (value === null) return null;
-  if (typeof value !== 'object') return 'layout 传 null 表示自由摆放，或者传一个排布对象';
-  const raw = value as Record<string, unknown>;
-  if (!DIRECTIONS.includes(raw.direction as StackDirection)) return 'layout.direction 只能是 row 或 column';
-  if (!ALIGNS.includes(raw.align as StackAlign)) return 'layout.align 只能是 start / center / end / stretch';
-  if (!JUSTIFIES.includes(raw.justify as StackJustify)) return 'layout.justify 只能是 start / center / end / between';
-  if (typeof raw.gap !== 'number' || !Number.isFinite(raw.gap)) return 'layout.gap 要写数字';
-  const padding = (raw.padding ?? {}) as Record<string, unknown>;
-  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
-    if (padding[side] !== undefined && typeof padding[side] !== 'number') return `layout.padding.${side} 要写数字`;
-  }
-  return makeStackLayout({
-    direction: raw.direction as StackDirection,
-    gap: Math.max(0, Math.round(raw.gap)),
-    align: raw.align as StackAlign,
-    justify: raw.justify as StackJustify,
-    padding: {
-      top: Number(padding.top ?? 0),
-      right: Number(padding.right ?? 0),
-      bottom: Number(padding.bottom ?? 0),
-      left: Number(padding.left ?? 0),
-    },
-  });
-}
-
-function checkFills(value: unknown): readonly FillStyle[] | string {
-  if (!Array.isArray(value)) return 'fills 要写成数组，比如 [{ "color": "#FFFFFF", "opacity": 1 }]';
-  const fills: FillStyle[] = [];
-  for (const entry of value) {
-    if (typeof entry === 'string') {
-      fills.push(makeFill(entry));
-      continue;
-    }
-    if (!entry || typeof entry !== 'object') return 'fills 里每一项要么是颜色字符串，要么是 { color, opacity }';
-    const raw = entry as Record<string, unknown>;
-    if (typeof raw.color !== 'string') return 'fills 里每项都要有 color';
-    const opacity = typeof raw.opacity === 'number' ? clamp(raw.opacity, 0, 1) : 1;
-    fills.push(raw.id && typeof raw.id === 'string' ? { id: raw.id, color: raw.color, opacity } : makeFill(raw.color, opacity));
-  }
-  return fills;
-}
-
+/** Check a node has the shape the canvas can draw, and a free id. */
 /** A node has to be shaped like something the canvas can draw, and carry a free id. */
 function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): string | null {
   if (!node || typeof node !== 'object') return 'node 缺了';
@@ -420,7 +270,7 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
   }
 
   const layer = asLayer(node);
-  if (!KINDS.includes(layer.kind)) return `图层 ${layer.id} 的 kind 不认识：${String(layer.kind)}`;
+  if (!LAYER_KINDS.includes(layer.kind)) return `图层 ${layer.id} 的 kind 不认识：${String(layer.kind)}`;
   const bad = finite(layer, ['x', 'y', 'width', 'height', 'opacity', 'radius', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']);
   if (bad) return `图层 ${layer.id} 的 ${bad} 不是数字`;
   if (!Array.isArray(layer.fills)) return `图层 ${layer.id} 的 fills 要是数组`;
@@ -467,7 +317,7 @@ export function validateDocument(doc: BlueprintDocument): string[] {
   function walk(layers: readonly Layer[], where: string): void {
     for (const layer of layers) {
       claim(layer.id, where);
-      if (!KINDS.includes(layer.kind)) problems.push(`${layer.id} 的 kind 不认识：${String(layer.kind)}`);
+      if (!LAYER_KINDS.includes(layer.kind)) problems.push(`${layer.id} 的 kind 不认识：${String(layer.kind)}`);
       for (const field of ['x', 'y', 'width', 'height', 'opacity'] as const) {
         if (typeof layer[field] !== 'number' || !Number.isFinite(layer[field])) problems.push(`${layer.id} 的 ${field} 不是数字`);
       }
@@ -476,10 +326,6 @@ export function validateDocument(doc: BlueprintDocument): string[] {
   }
 
   return problems;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 // ---------------------------------------------------------------- before / after

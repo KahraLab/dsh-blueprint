@@ -97,6 +97,9 @@ export interface BlueprintDocument {
   layers: readonly Layer[];
 }
 
+/** Either kind of node the document holds. */
+export type Node = Layer | Frame;
+
 export type Selection =
   | { kind: 'frame'; frameId: string }
   | { kind: 'layer'; frameId: string | null; layerId: string };

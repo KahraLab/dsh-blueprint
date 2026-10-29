@@ -22,7 +22,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:watch": "node scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
@@ -47,6 +48,7 @@
   "dependencies": {
     "citty": "^0.2.2",
     "lucide-react": "^1.62.0",
+    "zod": "^4.6.7",
     "zustand": "^5.0.16"
   },
   "main": "lib/host/index.js"

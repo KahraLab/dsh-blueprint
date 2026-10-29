@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext } from '../types/dsh.js';
 import { changeDocument, readDocument, resolveSessionId } from '../node/docfile.js';
+import { writeSelection, type StoredSelection } from '../node/selection.js';
 import { skillFor } from './skill.js';
 
 /**
@@ -10,15 +11,18 @@ import { skillFor } from './skill.js';
  * directory, one folder per Session:
  *
  *   ~/.dsh/dsh-blueprints/<sessionId>/document.json
+ *   ~/.dsh/dsh-blueprints/<sessionId>/selection.json
  *
- * Three things live here:
+ * Four things live here:
  *   1. one route the browser half uses to load the document and send changes;
- *   2. the same file, through the same function and revision number, that the
- *      `bp` command line writes to;
- *   3. a skill that tells the model how to operate the canvas.
+ *   2. one route that carries the user's current selection to the command line;
+ *   3. the same document file, through the same function and revision number,
+ *      that the `bp` command line writes to;
+ *   4. a skill that tells the model how to operate the canvas.
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
+const SELECTION_ENDPOINT = '/api/blueprint/selection';
 
 function createDocumentRoute(): FetchRoute {
   return {
@@ -70,6 +74,47 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The canvas reports what the user has selected. The command line reads the
+ * file; nothing here touches the document or its revision.
+ */
+function createSelectionRoute(): FetchRoute {
+  return {
+    path: SELECTION_ENDPOINT,
+    methods: ['POST'],
+    requestBody: 'buffered',
+
+    async fetch(request) {
+      const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
+      let body: { selections?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
+      }
+      if (!Array.isArray(body.selections)) {
+        return Response.json({ ok: false, error: 'selections 要是数组' }, { status: 400 });
+      }
+      try {
+        const selections = body.selections.map(toSelection).filter((entry): entry is StoredSelection => entry !== null);
+        writeSelection(sessionId, selections);
+        return Response.json({ ok: true });
+      } catch (error) {
+        return Response.json({ ok: false, error: message(error) }, { status: 500 });
+      }
+    },
+  };
+}
+
+function toSelection(value: unknown): StoredSelection | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const frameId = typeof raw.frameId === 'string' ? raw.frameId : null;
+  const layerId = typeof raw.layerId === 'string' ? raw.layerId : null;
+  if (frameId === null && layerId === null) return null;
+  return { frameId, layerId };
+}
+
 export function apply(ctx: PluginContext): void {
   ctx.inject(['connection'], (scope) => {
     scope.effect(() => {
@@ -81,7 +126,7 @@ export function apply(ctx: PluginContext): void {
           dispose = await scope.connection.fetch.register(createDocumentRoute());
           if (cancelled) dispose();
         } catch (error) {
-          console.error('[blueprint] route registration failed', error);
+          console.error('[blueprint] document route failed', error);
         }
       })();
 
@@ -90,6 +135,25 @@ export function apply(ctx: PluginContext): void {
         dispose?.();
       };
     }, 'blueprint:document-route');
+
+    scope.effect(() => {
+      let dispose: (() => void) | undefined;
+      let cancelled = false;
+
+      void (async () => {
+        try {
+          dispose = await scope.connection.fetch.register(createSelectionRoute());
+          if (cancelled) dispose();
+        } catch (error) {
+          console.error('[blueprint] selection route failed', error);
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+        dispose?.();
+      };
+    }, 'blueprint:selection-route');
   });
 
   ctx.inject(['skills'], (scope) => {

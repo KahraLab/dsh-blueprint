@@ -7,13 +7,14 @@ export const SKILL_NAME = 'dsh-blueprint-canvas';
  *
  * It ships inside the plugin, so it is always the version that matches the
  * command line next to it. Only the description shows up in the skill catalog;
- * the body is read when the model actually needs to draw something.
+ * the body is read when the model actually needs to look at or change the
+ * canvas.
  */
 export function skillFor(command: string): SkillRegistration {
   return {
     name: SKILL_NAME,
-    description: '操作会话右侧栏里的原型画布：看画板和图层，新建、修改界面元素。用户提到原型、画布、界面、屏幕、页面、按钮时先看这里。',
-    whenToUse: '用户要在原型画布上新增或修改界面，或者说「看下画布上现在是什么样」。',
+    description: '操作会话右侧栏里的原型画布：按用户的指点找到元素，一次提交一批修改；读取和写入都是 JSON。用户提到原型、画布、界面、屏幕、页面、按钮时先看这里。',
+    whenToUse: '用户要在原型画布上新增或修改界面，或者问「画布上现在是什么样」「我选中了什么」。',
     source: 'bundled',
     invocation: { modelInvocable: true, userInvocable: true },
     content: `# 画布
@@ -24,39 +25,90 @@ export function skillFor(command: string): SkillRegistration {
 
     ${command} view
 
-这条命令是插件带的，不在 PATH 里，必须写全路径。不带参数就打印总目录：
+命令是插件带的，不在 PATH 里，必须写全路径。所有命令的输出都是 JSON：成功写到标准输出并返回 0，失败写到标准错误并返回非零。别去 grep 人话，直接读 JSON。
 
-    ${command} --help
+先看契约，不要凭记忆猜字段：
 
-要看某条命令的细节，再看它自己的说明，不要凭记忆猜参数：
+    ${command} schema
 
-    ${command} help add
-    ${command} help set
+它返回的 jsonSchema 就是写入校验器本身，字段、取值范围和节点形状都在里面；其余字段说明版本、命名和退出码。单条命令有哪些选项：
 
-## 干活的顺序
+    ${command} help apply
 
-1. \`view\` 看现在有什么——画板、图层、它们的位置尺寸和文字。
-2. 改。
-3. 再 \`view\` 一遍，确认改对了。
+## 每一步怎么做
+
+先弄清楚改谁。
+
+- 用户指着画布说「这个」「把它改大」→ 跑 ${command} selection，拿 frameId 和 layerId。
+- 用户说出了名字 → 跑 ${command} find --name 登录按钮。
+- 都没有 → 先 ${command} view 看原型；要看整屏再用 ${command} view <画板id>。
+
+然后带上读到的 revision，一次提交完。一批修改写成 { "baseRevision": N, "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply。只有一处小改动时可以用 add / set / move / rm 的快捷写法，它们内部走同一条写入路径。
+
+最后用一两句话告诉用户改了什么。成功后不用再 view；只有结果不确定、冲突之后要重读，或者下一步需要更多文档内容时才再读。
 
 ## 规矩
 
-- **id 只能从 \`view\` 的输出里抄。** 自己编的 id 会被拒绝，这是故意的。
-- **一个屏幕 = 一块画板。** 手机尺寸默认 390×844，新的一块排在已有画板右边。
-- **先排布，再摆位置。** 容器支持 \`--layout row|column\`，配 \`--gap\`、\`--padding\`、\`--align\`、\`--justify\`。能用排布就别用手算的坐标，这样人打开属性栏还能继续调，导出的代码也是干净的 flex。
-- **文字就建 \`text\`**，别用矩形加文字冒充。
-- **只改要改的那几处**，不要整份重写。人可能同时在拖别的元素。
-- 命令报「文件已经被别处改过」，说明用户刚动过画布：重新 \`view\`，基于最新的再来一次。
-- 改完用一两句话说清动了什么，别把整份文档复述一遍。
+- id 只能从命令输出里抄。自己编的 id 会被拒绝。
+- 字段写错会被整条拒绝。契约之外的字段不会静默忽略，照着 bp schema 写。
+- 新建节点必须写语义化的 name。「登录页」「手机号输入框」「登录按钮」可以，「画板1」「矩形2」这类自动编号会被拒绝。
+- 批内引用用 ref。insert 的节点带 { "ref": "login" }，同一批里别的操作写 "@login"；ref 不会写进文档。
+- 一次 apply 就是一个撤销单元。用户按一次撤销，退回这一步之前。
+- 冲突不要自动重试。baseRevision 对不上会返回 REVISION_CONFLICT（退出码 3）；重新读文档，拿到最新 revision，再决定改什么。
+- 整批失败不留痕。一条操作不合法，整批都不落盘，文档还是原样。
+- 只改要改的那几处，不要整份重写。用户可能同时在拖别的元素。
+- selection 返回多个元素时（count 大于 1，带 note），先问清楚改哪一个。
 
-## 例子：新建一屏登录页
+## 例子：把选中的按钮改成蓝色
 
-    ${command} add frame --name 登录页 --size 390,844 --at 0,0
-    ${command} add text --into <画板id> --at 24,120 --text "欢迎回来" --font-size 28 --font-weight 600
-    ${command} add rect --into <画板id> --at 24,700 --size 342,48 --fill '#0D99FF' --radius 12 --name 主按钮
-    ${command} add text --into <画板id> --at 24,712 --text "登录" --fill '#FFFFFF' --font-size 16 --name 按钮文字
+    ${command} selection
+    # → { "ok": true, "revision": 8, "selection": { "layerId": "layer-c56", "kind": "rect", "name": "登录按钮", "path": ["登录页", "表单", "登录按钮"] }, "count": 1 }
 
-左边是邮箱、密码输入框时，更省事的做法是先把一块容器摆成 \`--layout column --gap 12 --padding 24\`，再往里放元素。
+    ${command} apply <<'JSON'
+    {
+      "baseRevision": 8,
+      "reason": "登录按钮改蓝色并加大圆角",
+      "ops": [
+        {
+          "op": "set",
+          "id": "layer-c56",
+          "patch": { "fills": [{ "color": "#0D99FF", "opacity": 1 }], "radius": 16 }
+        }
+      ]
+    }
+    JSON
+
+## 例子：从空画布生成登录页
+
+    ${command} view
+    # → { "ok": true, "revision": 0, "frames": [], "layers": [] }
+
+    ${command} apply <<'JSON'
+    {
+      "baseRevision": 0,
+      "reason": "生成登录页",
+      "ops": [
+        {
+          "op": "insert",
+          "parent": null,
+          "node": {
+            "ref": "login",
+            "name": "登录页",
+            "width": 390,
+            "height": 844,
+            "children": [
+              { "kind": "text", "name": "欢迎语", "text": "欢迎回来", "x": 24, "y": 120, "fontSize": 28, "fontWeight": 600 },
+              { "kind": "rect", "name": "登录按钮", "x": 24, "y": 700, "width": 342, "height": 48, "radius": 12, "fills": ["#0D99FF"] }
+            ]
+          }
+        }
+      ]
+    }
+    JSON
+
+    # → { "ok": true, "revision": 1, "ids": { "login": "frame-…" } }
+
+排布优先：容器设 layout（row 或 column），配 gap、padding，再往里放元素；能用排布就别手算坐标。省略的字段按画布规则补齐，手机画板默认 390×844。
 `,
   };
 }

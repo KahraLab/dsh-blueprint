@@ -32,6 +32,7 @@ const INSPECTOR_MAX_WIDTH = 340;
 const LAYERS_MAX_WIDTH = 360;
 const LAYERS_DEFAULT_WIDTH = 200;
 const DOC_ENDPOINT = '/api/blueprint/doc';
+const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const VIEWPORT_KEY = 'blueprint.viewport';
 
 /** World point at the middle of the visible canvas, used to place new frames. */
@@ -72,6 +73,7 @@ interface PanelProps {
 function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const sessionId = tabSessionId ?? null;
   const docUrl = sessionId ? `${DOC_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : DOC_ENDPOINT;
+  const selectionUrl = sessionId ? `${SELECTION_ENDPOINT}?session=${encodeURIComponent(sessionId)}` : SELECTION_ENDPOINT;
   const viewportKey = sessionId ? `${VIEWPORT_KEY}.${sessionId}` : VIEWPORT_KEY;
   const [initialViewport] = useState<Viewport | undefined>(() => readViewport(viewportKey));
   const saveViewport = useCallback((next: Viewport): void => {
@@ -118,13 +120,13 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   // back. The debounce and the fetch live in the store, away from the render path.
   useEffect(() => {
     void loadDocument(docUrl);
-    const stopSession = startSession(docUrl);
+    const stopSession = startSession(docUrl, selectionUrl);
     const stopKeys = installKeys();
     return () => {
       stopSession();
       stopKeys();
     };
-  }, [docUrl]);
+  }, [docUrl, selectionUrl]);
 
   // Any pointerdown outside a menu (and outside its trigger) closes every menu.
   useEffect(() => {

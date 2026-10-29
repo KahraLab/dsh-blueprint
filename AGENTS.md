@@ -31,6 +31,8 @@ dsh-blueprint/
 │   ├── specs/             # 已定稿的规格
 │   └── issues/            # 路线图、票、总看板
 ├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
+│   ├── src/protocol/      # AI 面对的读写契约：校验、构建、JSON Schema
+│   └── src/model/         # 文档模型：元素树、字段规则、五种文档操作
 └── .tmp/                  # 过程资料，不进版本库
 ```
 
@@ -60,6 +62,7 @@ dsh-blueprint/
 |---|---|
 | `python3 .agent-works/issues/frontier.py` | 列出当前能认领的票 |
 | `pnpm -C apps/plugin typecheck` | 类型检查（strict） |
+| `pnpm -C apps/plugin test` | 构建并跑命令行契约测试（`test/cli.test.mjs`） |
 | `pnpm -C apps/plugin build` | 构建：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
 | `pnpm -C apps/plugin build:watch` | 改动静默重建，DSH 客户端热更新接住 |
 | `git log --oneline` | 看最近改了什么 |

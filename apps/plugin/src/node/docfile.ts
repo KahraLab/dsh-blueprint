@@ -12,10 +12,11 @@
  * The document itself stays inside an envelope so the revision and the document
  * are always in one file and can never disagree.
  */
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { type BlueprintDocument, normalizeDocument } from '../model/document.js';
 import { type DocumentOp, applyOps, validateDocument } from '../model/ops.js';
+import { writeJsonAtomic } from './atomic.js';
 
 export interface StoredDocument {
   schema: 2;
@@ -101,13 +102,6 @@ function lift(parsed: unknown, path: string): StoredDocument {
   throw new Error(`${path} 里既没有 document 也没有 frames`);
 }
 
-/** Replace the file in one atomic step. */
-function writeFileAtomic(path: string, stored: StoredDocument): void {
-  const temp = `${path}.tmp-${process.pid}`;
-  writeFileSync(temp, `${JSON.stringify(stored, null, 2)}\n`);
-  renameSync(temp, path);
-}
-
 // ---------------------------------------------------------------- lock
 
 function acquireLock(dir: string): () => void {
@@ -171,6 +165,10 @@ export interface ChangeResult {
   /** Set when the caller was writing against an old revision. */
   conflict: boolean;
   error: string | null;
+  /** Which operation failed and why, when one did. */
+  failure: { index: number; message: string } | null;
+  /** Whole-document problems found after the operations ran. */
+  problems: readonly string[];
 }
 
 /** Read, change, validate, write — under the lock, all or nothing. */
@@ -183,25 +181,41 @@ export function changeDocument(sessionId: string | null, request: ChangeRequest)
   try {
     const current = readDocument(sessionId);
     if (request.baseRevision !== null && request.baseRevision !== current.revision) {
-      return { ok: false, revision: current.revision, document: current.document, conflict: true, error: '文件已经被别处改过了' };
+      return { ok: false, revision: current.revision, document: current.document, conflict: true, error: '文件已经被别处改过了', failure: null, problems: [] };
     }
 
     let next = current.document;
     if (request.ops) {
       const applied = applyOps(current.document, request.ops);
       if (applied.failure) {
-        return { ok: false, revision: current.revision, document: current.document, conflict: false, error: `第 ${applied.failure.index + 1} 个操作没通过：${applied.failure.message}` };
+        return {
+          ok: false,
+          revision: current.revision,
+          document: current.document,
+          conflict: false,
+          error: `第 ${applied.failure.index + 1} 个操作没通过：${applied.failure.message}`,
+          failure: applied.failure,
+          problems: [],
+        };
       }
       next = applied.doc;
     } else if (request.document) {
       next = normalizeDocument(request.document);
     } else {
-      return { ok: false, revision: current.revision, document: current.document, conflict: false, error: '既没有 ops 也没有 document' };
+      return { ok: false, revision: current.revision, document: current.document, conflict: false, error: '既没有 ops 也没有 document', failure: null, problems: [] };
     }
 
     const problems = validateDocument(next);
     if (problems.length > 0) {
-      return { ok: false, revision: current.revision, document: current.document, conflict: false, error: `文档没通过检查：${problems.slice(0, 3).join('；')}` };
+      return {
+        ok: false,
+        revision: current.revision,
+        document: current.document,
+        conflict: false,
+        error: `文档没通过检查：${problems.slice(0, 3).join('；')}`,
+        failure: null,
+        problems,
+      };
     }
 
     const stored: StoredDocument = {
@@ -211,8 +225,8 @@ export function changeDocument(sessionId: string | null, request: ChangeRequest)
       updatedBy: request.by,
       document: next,
     };
-    writeFileAtomic(path, stored);
-    return { ok: true, revision: stored.revision, document: next, conflict: false, error: null };
+    writeJsonAtomic(path, stored);
+    return { ok: true, revision: stored.revision, document: next, conflict: false, error: null, failure: null, problems: [] };
   } finally {
     release();
   }
