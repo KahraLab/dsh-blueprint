@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { PluginContext } from '../types/dsh';
 import { Canvas, type ShapeKind, type Viewport, type ViewportInfo } from './components/Canvas';
+import { useTranslation } from 'react-i18next';
 import { ProjectGallery } from './components/Gallery';
 import { Inspector } from './components/Inspector';
 import { LayerTree } from './components/LayerTree';
@@ -19,6 +20,7 @@ import {
   VisibilityIcon,
 } from './icons';
 import type { BlueprintDocument } from '../model/document';
+import { setupLocale } from './i18n';
 import { installKeys, loadDocument, startSession, useBlueprint, type Tab } from './store';
 import css from './styles.css';
 
@@ -78,6 +80,7 @@ interface PanelProps {
 }
 
 function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
+  const { t, i18n } = useTranslation();
   const sessionId = tabSessionId ?? null;
   const query = sessionId ? `session=${encodeURIComponent(sessionId)}` : '';
   const projectsUrl = query === '' ? PROJECTS_ENDPOINT : `${PROJECTS_ENDPOINT}?${query}`;
@@ -93,6 +96,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }
   }, [viewportKey]);
 
+  const [now, setNow] = useState(() => new Date());
   const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
@@ -159,7 +163,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       const response = await fetch(projectsUrl, { headers: { accept: 'application/json' } });
       const data = (await response.json()) as { ok?: boolean; projects?: ProjectEntry[]; current?: string | null; error?: string };
       if (data?.ok !== true) {
-        setProjectError(data?.error ?? '读不到原型列表');
+        setProjectError(data?.error ?? t('gallery.loadFailed'));
         setProjects([]);
         return;
       }
@@ -189,7 +193,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       setProjectError(error instanceof Error ? error.message : String(error));
       setProjects([]);
     }
-  }, [projectsUrl, documentUrlOf, reportCurrent]);
+  }, [projectsUrl, documentUrlOf, reportCurrent, t]);
 
   // Refresh the gallery whenever it is shown, so previews track edits.
   useEffect(() => {
@@ -207,11 +211,11 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       const response = await fetch(projectsUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: newTitle.trim() === '' ? '未命名原型' : newTitle.trim() }),
+        body: JSON.stringify({ title: newTitle.trim() === '' ? t('untitled') : newTitle.trim() }),
       });
       const data = (await response.json()) as { ok?: boolean; project?: { id: string; title: string; revision: number }; error?: string };
       if (data?.ok !== true || !data.project) {
-        setProjectError(data?.error ?? '没建成');
+        setProjectError(data?.error ?? t('dialog.failed'));
         return;
       }
       const entry: ProjectEntry = { id: data.project.id, title: data.project.title, revision: data.project.revision, updatedAt: '', broken: false };
@@ -223,7 +227,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : String(error));
     }
-  }, [projectsUrl, newTitle, openProject]);
+  }, [projectsUrl, newTitle, openProject, t]);
 
   // One effect per open project: read its document, then keep writing it back.
   useEffect(() => {
@@ -236,6 +240,12 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
       stopKeys();
     };
   }, [docUrl, selectionUrl]);
+
+  // The header shows the local time in 24-hour form; refresh it twice a minute.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Any pointerdown outside a menu (and outside its trigger) closes every menu.
   useEffect(() => {
@@ -297,6 +307,12 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }
   };
 
+  const clock = new Intl.DateTimeFormat(i18n.language === 'zh' ? 'zh-CN' : 'en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now);
+
   if (screen === 'gallery') {
     return (
       <div className="bp-root">
@@ -329,12 +345,15 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <header className="bp-head">
         <div className="bp-head-left">
+          <button type="button" className="bp-icon" title={t('header.gallery')} aria-label={t('header.gallery')} onClick={() => setScreen('gallery')}>
+            <GridIcon />
+          </button>
           <button
             type="button"
             className="bp-icon"
             data-on={uiMinimized}
-            title={uiMinimized ? '展开界面' : '收起界面'}
-            aria-label={uiMinimized ? '展开界面' : '收起界面'}
+            title={uiMinimized ? t('header.expand') : t('header.collapse')}
+            aria-label={uiMinimized ? t('header.expand') : t('header.collapse')}
             aria-pressed={uiMinimized}
             onClick={toggleUiMinimized}
           >
@@ -345,21 +364,19 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         <div className="bp-head-center">
           <div className="bp-seg" role="tablist" aria-label="工作区视图">
             <button type="button" role="tab" aria-selected={tab === 'canvas'} data-on={tab === 'canvas'} onClick={() => setTab('canvas')}>
-              画布
+              {t('tab.canvas')}
             </button>
             <button type="button" role="tab" aria-selected={tab === 'flow'} data-on={tab === 'flow'} onClick={() => setTab('flow')}>
-              流程
+              {t('tab.flow')}
             </button>
           </div>
         </div>
 
         <div className="bp-head-right">
-          <button type="button" className="bp-icon" title="原型列表" aria-label="原型列表" onClick={() => setScreen('gallery')}>
-            <GridIcon />
-          </button>
+          <span className="bp-clock">{clock}</span>
           {saveState === 'idle' ? null : (
             <span className="bp-save" data-state={saveState}>
-              {saveState === 'saving' ? '保存中' : saveState === 'saved' ? '已保存' : '保存失败'}
+              {saveState === 'saving' ? t('save.saving') : saveState === 'saved' ? t('save.saved') : t('save.failed')}
             </span>
           )}
         </div>
@@ -367,7 +384,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <div className="bp-main">
         {projectId === null ? (
-          <div className="bp-placeholder">还没打开原型</div>
+          <div className="bp-placeholder">{t('editor.noProject')}</div>
         ) : tab === 'canvas' ? (
           <>
             <Canvas
@@ -438,8 +455,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 type="button"
                 className="bp-tool"
                 data-on={tool === 'frame'}
-                title="Frame"
-                aria-label="Frame"
+                title={t('tools.frame')}
+                aria-label={t('tools.frame')}
                 aria-pressed={tool === 'frame'}
                 onClick={() => setTool('frame')}
               >
@@ -452,7 +469,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                   className="bp-tool"
                   data-on={tool === 'shape'}
                   title={shapeLabel(shapeKind)}
-                  aria-label={`形状：${shapeLabel(shapeKind)}`}
+                  aria-label={t('tools.shapeAria', { name: shapeLabel(shapeKind) })}
                   aria-pressed={tool === 'shape'}
                   onClick={() => setTool('shape')}
                 >
@@ -461,7 +478,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 <button
                   type="button"
                   className="bp-caret"
-                  aria-label="选择形状"
+                  aria-label={t('tools.pickShape')}
                   aria-expanded={shapeMenuOpen}
                   onClick={() => { setShapeMenuOpen((open) => !open); setMoveMenuOpen(false); }}
                 >
@@ -483,8 +500,8 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 type="button"
                 className="bp-tool"
                 data-on={tool === 'text'}
-                title="文字"
-                aria-label="文字"
+                title={t('tools.text')}
+                aria-label={t('tools.text')}
                 aria-pressed={tool === 'text'}
                 onClick={() => setTool('text')}
               >
@@ -497,7 +514,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
               className="bp-inspector-resizer"
               role="separator"
               aria-orientation="vertical"
-              aria-label="调整属性栏宽度"
+              aria-label={t('resize.inspector')}
               onPointerDown={onInspectorResizeStart}
               onPointerMove={onInspectorResizeMove}
               onPointerUp={onInspectorResizeEnd}
@@ -520,13 +537,13 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
           </>
         ) : (
-          <div className="bp-placeholder">流程视图</div>
+          <div className="bp-placeholder">{t('flow.placeholder')}</div>
         )}
 
         {uiMinimized || tab !== 'canvas' ? null : (
-          <aside className="bp-layers" aria-label="层级" style={{ width: layersWidth }}>
+          <aside className="bp-layers" aria-label={t('editor.layers')} style={{ width: layersWidth }}>
             <div className="bp-layers-head">
-              <h4>层级</h4>
+              <h4>{t('editor.layers')}</h4>
             </div>
             <LayerTree
               doc={doc}
@@ -542,7 +559,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
               className="bp-resizer"
               role="separator"
               aria-orientation="vertical"
-              aria-label="调整图层栏宽度"
+              aria-label={t('resize.layers')}
               onPointerDown={onPointerDownResize}
               onPointerMove={onPointerMoveResize}
               onPointerUp={onPointerUpResize}
@@ -572,14 +589,15 @@ function CreateProjectDialog({ title, error, onTitleChange, onCancel, onCreate }
   onCancel(): void;
   onCreate(): void;
 }): ReactElement {
+  const { t } = useTranslation();
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
       <div style={{ background: 'var(--dsw-alias-bg-layer-1, #1f1f1f)', color: 'var(--dsw-alias-label-primary, #f2f2f2)', padding: 16, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, width: 240, boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontSize: 13 }}>新建原型</div>
+        <div style={{ fontSize: 13 }}>{t('dialog.title')}</div>
         <input
           autoFocus
           value={title}
-          placeholder="标题，比如 登录页"
+          placeholder={t('dialog.placeholder')}
           onChange={(event) => onTitleChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') onCreate();
@@ -588,8 +606,8 @@ function CreateProjectDialog({ title, error, onTitleChange, onCancel, onCreate }
           style={{ font: '13px inherit', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit' }}
         />
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel}>取消</button>
-          <button type="button" onClick={onCreate}>创建</button>
+          <button type="button" onClick={onCancel}>{t('dialog.cancel')}</button>
+          <button type="button" onClick={onCreate}>{t('dialog.create')}</button>
         </div>
         {error ? <div style={{ fontSize: 11, color: '#f97066' }}>{error}</div> : null}
       </div>
@@ -604,6 +622,7 @@ function createPanel(_ctx: PluginContext): ComponentType {
 
 /** @param ctx DSH plugin context. */
 export function apply(ctx: PluginContext): void {
+  setupLocale(ctx.locale);
   const t = ctx.locale.bind(NS);
 
   ctx.effect(

@@ -6,6 +6,7 @@
  * where choosing a design file happens.
  */
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import { Canvas } from './Canvas';
 
@@ -31,17 +32,18 @@ export interface GalleryProps {
 const THUMB_LIMIT = 160;
 
 export function ProjectGallery({ projects, previews, current, loading, error, onOpen, onNew }: GalleryProps): ReactElement {
+  const { t } = useTranslation();
   return (
     <div className="bp-gallery">
       <header className="bp-gallery-head">
         <div>
-          <h2 className="bp-gallery-title">原型</h2>
+          <h2 className="bp-gallery-title">{t('panel.title')}</h2>
           <p className="bp-gallery-sub">
-            {loading ? '正在读取…' : `${projects.length} 个原型`}
+            {loading ? t('gallery.loading') : t('gallery.count', { count: projects.length })}
           </p>
         </div>
         <button type="button" className="bp-new" onClick={onNew}>
-          ＋ 新建原型
+          {t('gallery.new')}
         </button>
       </header>
 
@@ -49,9 +51,9 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
 
       {projects.length === 0 && loading ? null : projects.length === 0 ? (
         <div className="bp-gallery-empty">
-          <p>这个工作区还没有原型。</p>
+          <p>{t('gallery.empty')}</p>
           <button type="button" className="bp-new" onClick={onNew}>
-            新建第一个原型
+            {t('gallery.newFirst')}
           </button>
         </div>
       ) : (
@@ -70,7 +72,7 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
               </span>
               <span className="bp-card-meta">
                 <span className="bp-card-title">{project.title}</span>
-                <span className="bp-card-sub">{project.id === current ? '当前打开' : updatedLabel(project)}</span>
+                <span className="bp-card-sub">{project.id === current ? t('gallery.current') : updatedLabel(project, t)}</span>
               </span>
             </button>
           ))}
@@ -81,11 +83,12 @@ export function ProjectGallery({ projects, previews, current, loading, error, on
 }
 
 function CardPreview({ project, doc }: { project: GalleryProject; doc: BlueprintDocument | null }): ReactElement {
-  if (project.broken) return <span className="bp-card-note">打不开</span>;
-  if (doc === null) return <span className="bp-card-note">读取中…</span>;
+  const { t } = useTranslation();
+  if (project.broken) return <span className="bp-card-note">{t('gallery.broken')}</span>;
+  if (doc === null) return <span className="bp-card-note">{t('gallery.reading')}</span>;
 
   const frame = doc.frames[0];
-  if (!frame) return <span className="bp-card-note">空白画布</span>;
+  if (!frame) return <span className="bp-card-note">{t('gallery.blank')}</span>;
 
   const scale = Math.min(0.2, THUMB_LIMIT / Math.max(frame.height, 1), (THUMB_LIMIT * 0.8) / Math.max(frame.width, 1));
   return (
@@ -118,9 +121,9 @@ function CardPreview({ project, doc }: { project: GalleryProject; doc: Blueprint
   );
 }
 
-function updatedLabel(project: GalleryProject): string {
-  if (project.updatedAt === '') return '还没保存过';
+function updatedLabel(project: GalleryProject, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (project.updatedAt === '') return t('gallery.neverSaved');
   const date = new Date(project.updatedAt);
   if (Number.isNaN(date.getTime())) return '';
-  return `更新于 ${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+  return t('gallery.updated', { month: date.getMonth() + 1, day: date.getDate() });
 }

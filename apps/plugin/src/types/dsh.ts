@@ -9,9 +9,18 @@ import type { ComponentType } from 'react';
 
 export type Disposable = () => void;
 
+export interface LocaleSnapshot {
+  readonly active: string;
+  readonly locales: readonly { readonly id: string; readonly label: string }[];
+  readonly revision: number;
+}
+
 export interface LocaleService {
   bind(namespace: string): (key: string) => string;
   register(namespace: string, messages: Record<string, Record<string, string>>): Disposable;
+  /** Current language, and a subscription for when the app switches it. */
+  getLocale(): LocaleSnapshot;
+  subscribe(listener: () => void): Disposable;
 }
 
 export interface SlotsService {
