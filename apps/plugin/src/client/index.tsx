@@ -370,7 +370,7 @@ function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
         <BlueprintGallery
           blueprints={blueprints ?? []}
           previews={previews}
-          current={blueprintId}
+          lastOpened={blueprintId}
           loading={blueprints === null}
           error={blueprintError}
           onOpen={openBlueprint}

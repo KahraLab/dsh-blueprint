@@ -1339,6 +1339,7 @@ body[data-ds-dark-theme] .bp-gallery {
   gap: 12px;
 }
 .bp-card {
+  position: relative;
   appearance: none;
   display: flex;
   flex-direction: column;
@@ -1411,6 +1412,19 @@ body[data-ds-dark-theme] .bp-gallery {
 .bp-card-sub {
   font-size: 10px;
   color: var(--dsw-alias-label-secondary, #9a9a9a);
+}
+
+.bp-card-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--dsw-alias-bg-base, #1b1b1b);
+  background: var(--dsw-alias-label-secondary, #b5b5b5);
+  pointer-events: none;
 }
 
 /* ---------- icons in the document ---------- */

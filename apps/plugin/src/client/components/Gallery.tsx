@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
+import { BackIcon } from '../icons';
 import { BlueprintPreview, previewSize } from './BlueprintPreview';
 
 export interface GalleryBlueprint {
@@ -23,24 +24,36 @@ export interface GalleryProps {
   blueprints: readonly GalleryBlueprint[];
   /** First screen of each blueprint, when it could be read. */
   previews: Readonly<Record<string, BlueprintDocument | null>>;
-  current: string | null;
+  /** Blueprint opened last; the gallery itself never has one open. */
+  lastOpened: string | null;
   loading: boolean;
   error: string | null;
   onOpen(blueprintId: string): void;
   onNew(): void;
   onRetry(): void;
+  /** Present when the gallery fills the central Dashboard rather than the editor. */
+  onBack?(): void;
+  /** The Dashboard names its workspace here; the editor keeps the default. */
+  title?: string;
 }
 
-export function BlueprintGallery({ blueprints, previews, current, loading, error, onOpen, onNew, onRetry }: GalleryProps): ReactElement {
+export function BlueprintGallery({ blueprints, previews, lastOpened, loading, error, onOpen, onNew, onRetry, onBack, title }: GalleryProps): ReactElement {
   const { t } = useTranslation();
   return (
     <div className="bp-gallery">
       <header className="bp-gallery-head">
-        <div>
-          <h2 className="bp-gallery-title">{t('panel.title')}</h2>
-          <p className="bp-gallery-sub">
-            {loading ? t('gallery.loading') : t('gallery.count', { count: blueprints.length })}
-          </p>
+        <div className="bp-gallery-heading">
+          {onBack === undefined ? null : (
+            <button type="button" className="bp-gallery-back" aria-label={t('gallery.back')} title={t('gallery.back')} onClick={onBack}>
+              <BackIcon />
+            </button>
+          )}
+          <div>
+            <h2 className="bp-gallery-title">{title ?? t('panel.title')}</h2>
+            <p className="bp-gallery-sub">
+              {loading ? t('gallery.loading') : t('gallery.count', { count: blueprints.length })}
+            </p>
+          </div>
         </div>
         <button type="button" className="bp-new" onClick={onNew}>
           {t('gallery.new')}
@@ -70,16 +83,19 @@ export function BlueprintGallery({ blueprints, previews, current, loading, error
               key={blueprint.id}
               type="button"
               className="bp-card"
-              data-current={blueprint.id === current}
+              data-last-opened={blueprint.id === lastOpened}
               onClick={() => onOpen(blueprint.id)}
               title={blueprint.title}
             >
               <span className="bp-card-thumb">
                 <CardPreview blueprint={blueprint} doc={previews[blueprint.id] ?? null} />
               </span>
+              {/* The tag says how old the card is, not that it is open: the gallery
+                  shows only when nothing is open. */}
+              {blueprint.id === lastOpened ? <span className="bp-card-tag">{t('gallery.lastOpened')}</span> : null}
               <span className="bp-card-meta">
                 <span className="bp-card-title">{blueprint.title}</span>
-                <span className="bp-card-sub">{blueprint.id === current ? t('gallery.current') : updatedLabel(blueprint, t)}</span>
+                <span className="bp-card-sub">{updatedLabel(blueprint, t)}</span>
               </span>
             </button>
           ))}
