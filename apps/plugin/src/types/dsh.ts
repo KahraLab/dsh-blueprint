@@ -116,8 +116,48 @@ export interface SessionsService {
   get(id: string): SessionHandle | undefined;
   /** Client-side Session catalog. */
   list?: SnapshotStore<SessionListSnapshot>;
-  binding?(id: string): unknown;
+  binding?(id: string): SessionBinding | undefined;
   scope?(id: string): SessionScope;
+}
+
+/** A materialized Session: the client half of a Host Session. */
+export interface SessionBinding {
+  session: LiveSession;
+}
+
+/** The Live Session calls this plugin needs; commands are plain `/` lines. */
+export interface LiveSession {
+  command(line: string): Promise<RemoteResult<{ matched: boolean }>>;
+}
+
+/** One Remote answer: success carries a value, failure a host error code. */
+export interface RemoteResult<T> {
+  ok: boolean;
+  value?: T;
+  error?: { code: string; message: string };
+}
+
+export interface PermissionPreset {
+  value: string;
+  name: string;
+  description?: string;
+}
+
+/** The Host's process-wide permission catalog. */
+export interface PermissionCatalog {
+  options: readonly PermissionPreset[];
+  /** Presets that may serve as the default for newly created Sessions. */
+  defaultOptions: readonly PermissionPreset[];
+  defaultPreset: string;
+}
+
+/**
+ * The Remote namespace `remote.permissionPresets`, the only Remote service a
+ * pre-Session page needs. Remote namespaces register as services, not as
+ * properties of one shared object.
+ */
+export interface PermissionPresetsService {
+  catalog(): Promise<RemoteResult<PermissionCatalog>>;
 }
 
 export interface WorkingDirectoryService {
@@ -182,6 +222,8 @@ export interface UiWorkspaceService {
 export interface PluginContext {
   effect(setup: () => Disposable | void, label?: string): Disposable;
   inject(dependencies: string[], callback: (scope: PluginContext) => Disposable | void): Disposable;
+  /** Read a service by name without making the plugin depend on its presence. */
+  get<T>(name: string): T | undefined;
   locale: LocaleService;
   slots: SlotsService;
   sidebarRight: SidebarRightService;

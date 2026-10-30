@@ -172,5 +172,11 @@
   "inspector.group": "Group",
   "inspector.groupNote": "A group organizes layers; it draws nothing.",
   "menu.confirmDelete": "Delete",
-  "menu.cancel": "Cancel"
+  "menu.cancel": "Cancel",
+  "permission.title": "Access mode",
+  "permission.confirm": "Enable anyway",
+  "permission.readOnly": "Read Only",
+  "permission.workspaceWrite": "Workspace Write",
+  "permission.fullAccess": "Full access",
+  "permission.auto": "Auto review"
 }

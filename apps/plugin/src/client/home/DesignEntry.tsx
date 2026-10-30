@@ -4,10 +4,12 @@
  * One composer, one workspace picker, one prompt. Sending starts an ordinary
  * Session; this page never creates a blueprint of its own.
  */
-import { useCallback, type ReactElement } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PluginContext, WorkspaceListSnapshot, WorkspaceSummary } from '../../types/dsh';
 import { describeNavigationError, startDesignSession, workspaceLabel } from '../blueprintNavigation';
+import { PermissionChip } from './PermissionChip';
+import { loadPermissionChoice, type PermissionChoice } from './permissions';
 import { WorkspacePicker } from './WorkspacePicker';
 import { BlueprintLibraryIcon, MarkIcon } from '../icons';
 import { useHomeUi } from './homeStore';
@@ -25,6 +27,8 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
   const sending = useHomeUi((state) => state.sending);
   const error = useHomeUi((state) => state.error);
   const setPrompt = useHomeUi((state) => state.setPrompt);
+  const permission = useHomeUi((state) => state.permission);
+  const setPermission = useHomeUi((state) => state.setPermission);
   const setSending = useHomeUi((state) => state.setSending);
   const setError = useHomeUi((state) => state.setError);
   const selectWorkspace = useHomeUi((state) => state.selectWorkspace);
@@ -43,6 +47,18 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
     }
   }, [ctx, selectWorkspace]);
 
+  const [permissionChoice, setPermissionChoice] = useState<PermissionChoice | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void loadPermissionChoice(ctx, t).then((choice) => {
+      if (alive) setPermissionChoice(choice);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [ctx, t]);
+
   const submit = useCallback(async (): Promise<void> => {
     if (sending) return;
     if (workspace === null) {
@@ -54,12 +70,12 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
     setSending(true);
     setError(null);
     try {
-      await startDesignSession(ctx, workspace, text);
+      await startDesignSession(ctx, workspace, text, permission);
     } catch (reason) {
       setSending(false);
       setError(describeNavigationError(reason, t));
     }
-  }, [ctx, prompt, sending, setError, setSending, t, workspace]);
+  }, [ctx, permission, prompt, sending, setError, setSending, t, workspace]);
 
   return (
     <div className="bp-entry-page">
@@ -96,6 +112,12 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
               onAdd={addWorkspace}
               onError={setError}
               label={workspaceLabel}
+            />
+            <PermissionChip
+              choice={permissionChoice}
+              value={permission}
+              disabled={sending}
+              onPick={setPermission}
             />
             <button type="button" className="bp-entry-all" onClick={onDashboard}>
               <BlueprintLibraryIcon />

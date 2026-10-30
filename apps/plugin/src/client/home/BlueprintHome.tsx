@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import type { PluginContext, SessionListSnapshot, WorkspaceListSnapshot, WorkspaceSummary } from '../../types/dsh';
 import { preferredWorkspaceId } from '../blueprintNavigation';
 import css from '../styles.css';
+import { ContextMenuHost } from '../menu/ContextMenuHost';
 import { Dashboard } from '../home/Dashboard';
 import { DesignEntry } from '../home/DesignEntry';
 import { useHomeUi } from '../home/homeStore';
@@ -42,6 +43,7 @@ export function BlueprintHome({ ctx }: HomeProps): ReactElement {
   return (
     <div className="bp-page-root">
       <style>{css}</style>
+      <ContextMenuHost />
       {page === 'entry' ? (
         <DesignEntry
           ctx={ctx}

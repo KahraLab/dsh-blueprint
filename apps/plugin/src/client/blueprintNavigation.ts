@@ -11,6 +11,7 @@ import type {
   WorkspaceListSnapshot,
   WorkspaceSummary,
 } from '../types/dsh';
+import { applyPermissionPreset } from './home/permissions';
 
 export const OPEN_BLUEPRINT_EVENT = 'blueprint:open';
 const KIND = 'blueprint';
@@ -182,12 +183,25 @@ export async function startDesignSession(
   ctx: PluginContext,
   workspace: WorkspaceSummary,
   prompt: string,
+  permission: string | null = null,
 ): Promise<void> {
   const text = prompt.trim();
   if (text === '') throw new BlueprintNavError('emptyPrompt');
 
   const sessionId = await ctx.uiWorkspace.connectWorkspace(workspace.workspaceId);
   ctx.uiWorkspace.openSession(sessionId);
+
+  // A preset picked on the entry page belongs to this Session, not to the
+  // Host's default. Losing it must not cost the prompt, so a failure is logged
+  // and the Session keeps its inherited mode.
+  if (permission !== null) {
+    try {
+      await waitForBinding(ctx, sessionId);
+      await applyPermissionPreset(ctx, sessionId, permission);
+    } catch (error) {
+      console.warn('[blueprint] could not switch the permission preset', error);
+    }
+  }
 
   // Bind the Session scope and wait for the conversation service to arrive in
   // the same tick; sending once avoids a retry that could duplicate a prompt.
