@@ -9,7 +9,6 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type R
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import type { BlueprintSummary } from '../library';
-import { askName, confirmAction } from '../menu/dialogStore';
 import { openMenuAt } from '../menu/menuStore';
 import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
 import { BackIcon } from '../icons';
@@ -39,33 +38,38 @@ export interface GalleryProps {
 
 export function BlueprintGallery({ blueprints, previews, lastOpened, loading, error, onOpen, onNew, onRetry, onRename, onDelete, onBack, title }: GalleryProps): ReactElement {
   const { t } = useTranslation();
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  const renameDone = useRef(false);
+
+  const startRename = (blueprint: BlueprintSummary): void => {
+    renameDone.current = false;
+    setRenaming({ id: blueprint.id, value: blueprint.title });
+  };
+
+  const commitRename = (blueprint: BlueprintSummary): void => {
+    if (renameDone.current) return;
+    renameDone.current = true;
+    const current = renaming;
+    setRenaming(null);
+    if (current === null) return;
+    const title = current.value.trim();
+    if (title === '' || title === blueprint.title) return;
+    onRename(blueprint.id, title.slice(0, TITLE_MAX));
+  };
 
   const openCardMenu = async (event: ReactMouseEvent, blueprint: BlueprintSummary): Promise<void> => {
     const picked = await openMenuAt(event, [
       { id: 'rename', label: t('menu.rename'), disabled: blueprint.broken },
-      { id: 'delete', label: t('menu.delete'), danger: true, separator: true },
-    ]);
-    if (picked === 'rename') {
-      const title = await askName({
-        title: t('gallery.renameTitle'),
-        message: t('gallery.renameMessage'),
-        value: blueprint.title,
-        confirmLabel: t('menu.rename'),
-        cancelLabel: t('dialog.cancel'),
-        validate: (value) => (value === '' || value.length > TITLE_MAX ? t('gallery.nameInvalid', { max: TITLE_MAX }) : null),
-      });
-      if (title !== null && title !== blueprint.title) onRename(blueprint.id, title);
-    }
-    if (picked === 'delete') {
-      const confirmed = await confirmAction({
-        title: t('gallery.deleteTitle'),
-        message: t('gallery.deleteMessage', { title: blueprint.title }),
-        confirmLabel: t('menu.delete'),
-        cancelLabel: t('dialog.cancel'),
+      {
+        id: 'delete',
+        label: t('menu.delete'),
         danger: true,
-      });
-      if (confirmed) onDelete(blueprint.id);
-    }
+        separator: true,
+        confirm: { label: t('menu.confirmDelete'), cancelLabel: t('menu.cancel') },
+      },
+    ]);
+    if (picked === 'rename') startRename(blueprint);
+    if (picked === 'delete') onDelete(blueprint.id);
   };
 
   return (
@@ -110,20 +114,16 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
           {blueprints.map((blueprint) => (
             <div
               key={blueprint.id}
-              role="button"
-              tabIndex={0}
               className="bp-card"
               data-last-opened={blueprint.id === lastOpened}
-              aria-label={blueprint.title}
-              onClick={() => onOpen(blueprint.id)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                onOpen(blueprint.id);
-              }}
               onContextMenu={(event) => void openCardMenu(event, blueprint)}
-              title={blueprint.title}
             >
+              <button
+                type="button"
+                className="bp-card-open"
+                aria-label={blueprint.title}
+                onClick={() => onOpen(blueprint.id)}
+              />
               <span className="bp-card-thumb">
                 <CardPreview blueprint={blueprint} doc={previews[blueprint.id] ?? null} />
               </span>
@@ -131,7 +131,34 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
                   shows only when nothing is open. */}
               {blueprint.id === lastOpened ? <span className="bp-card-tag">{t('gallery.lastOpened')}</span> : null}
               <span className="bp-card-meta">
-                <span className="bp-card-title">{blueprint.title}</span>
+                {renaming?.id === blueprint.id ? (
+                  <input
+                    className="bp-card-rename"
+                    value={renaming.value}
+                    maxLength={TITLE_MAX}
+                    autoFocus
+                    aria-label={t('menu.rename')}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) => setRenaming({ id: blueprint.id, value: event.target.value })}
+                    onBlur={() => commitRename(blueprint)}
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitRename(blueprint);
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        renameDone.current = true;
+                        setRenaming(null);
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="bp-card-title">{blueprint.title}</span>
+                )}
                 <span className="bp-card-sub">{updatedLabel(blueprint, t)}</span>
               </span>
             </div>

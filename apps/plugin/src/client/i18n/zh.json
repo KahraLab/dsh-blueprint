@@ -160,14 +160,6 @@
   "panel.libraryTitle": "{{workspace}} 的蓝图库",
   "menu.rename": "重命名",
   "menu.delete": "删除",
-  "dialog.cancel": "取消",
-  "gallery.renameTitle": "重命名蓝图",
-  "gallery.renameMessage": "只改显示名，目录名和 id 不变。",
-  "gallery.nameInvalid": "名字要 1–{{max}} 个字",
-  "gallery.deleteTitle": "删除蓝图？",
-  "gallery.deleteMessage": "「{{title}}」会从这个工作区删除，不能恢复。",
-  "layers.deleteTitle": "删除图层？",
-  "layers.deleteMessage": "「{{name}}」及其子图层会一起删除，不能恢复。",
   "tools.insert": "插入",
   "tools.insertOptions": "插入工具",
   "chat.created": "蓝图已生成",
@@ -178,5 +170,7 @@
   "menu.group": "编组",
   "layers.renameAria": "重命名图层",
   "inspector.group": "编组",
-  "inspector.groupNote": "编组只组织图层，不画任何东西。"
+  "inspector.groupNote": "编组只组织图层，不画任何东西。",
+  "menu.confirmDelete": "确认删除",
+  "menu.cancel": "取消"
 }

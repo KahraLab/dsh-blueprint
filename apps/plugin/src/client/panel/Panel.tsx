@@ -27,7 +27,6 @@ import {
   type LibraryScope,
 } from '../library';
 import { ContextMenuHost } from '../menu/ContextMenuHost';
-import { DialogHost } from '../menu/DialogHost';
 import { EditorToolbar } from './EditorToolbar';
 import { InspectorResizer, LayersPane } from './LayersPane';
 import { PanelHeader } from './PanelHeader';
@@ -168,7 +167,6 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const hosts = (
     <>
       <ContextMenuHost />
-      <DialogHost />
     </>
   );
 

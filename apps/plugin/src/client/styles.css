@@ -2225,96 +2225,6 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
   white-space: nowrap;
 }
 
-/* ---------- dialog ---------- */
-.bp-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1001;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.45);
-}
-.bp-dialog {
-  width: min(380px, 100%);
-  box-sizing: border-box;
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 14px;
-  background: var(--dsw-alias-bg-layer-2, #242424);
-  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  color: var(--dsw-alias-label-primary, #e6e8eb);
-}
-.bp-dialog-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-.bp-dialog-message {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-secondary, #a2a2a2);
-  overflow-wrap: anywhere;
-}
-.bp-dialog-input {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 13px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.16));
-  background: var(--dsw-alias-bg-layer-1, rgba(0, 0, 0, 0.2));
-  color: inherit;
-  outline: none;
-}
-.bp-dialog-input:focus {
-  border-color: #4fc3f7;
-}
-.bp-dialog-input[aria-invalid='true'] {
-  border-color: #e5484d;
-}
-.bp-dialog-problem {
-  margin: 0;
-  font-size: 12px;
-  color: #e5484d;
-}
-.bp-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-.bp-dialog-cancel,
-.bp-dialog-confirm {
-  appearance: none;
-  font: inherit;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.16));
-  background: transparent;
-  color: inherit;
-}
-.bp-dialog-cancel:hover {
-  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.08));
-}
-.bp-dialog-confirm {
-  background: #4fc3f7;
-  border-color: transparent;
-  color: #08131a;
-  font-weight: 500;
-}
-.bp-dialog-confirm[data-danger='true'] {
-  background: #e5484d;
-  color: #fff;
-}
-
 /* ---------- layer groups ---------- */
 /* A group is structure only: its box lets a tree row exist, but the canvas
    must see through it to the children. */
@@ -2379,4 +2289,50 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
 .bp-layer-row[data-inside='true'] .bp-layer-kind {
   color: var(--dsw-alias-label-primary, #fff);
   opacity: 1;
+}
+
+/* Renaming a blueprint card in place, without a modal. */
+.bp-card-rename {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary, #fff);
+  background: rgba(79, 195, 247, 0.14);
+  border: 0;
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+  box-shadow: none;
+}
+
+/* The card is a surface; one stretched button owns opening it, so the title
+   input can live inside without nesting a focusable control in a button. */
+.bp-card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 14px;
+}
+.bp-card-open:focus-visible {
+  outline: 2px solid #4fc3f7;
+  outline-offset: -2px;
+}
+.bp-card-thumb,
+.bp-card-meta {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+.bp-card-tag {
+  z-index: 2;
+}
+.bp-card-rename {
+  pointer-events: auto;
 }

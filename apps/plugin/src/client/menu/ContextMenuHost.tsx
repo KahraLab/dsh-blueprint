@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { registerHost, unregisterHost, useIsFirstHost } from './hosts';
-import { dismissMenu, pickMenuItem, useContextMenu } from './menuStore';
+import { dismissMenu, pickMenuItem, useContextMenu, type MenuItem } from './menuStore';
 
 const MARGIN = 8;
 
@@ -61,6 +61,21 @@ export function ContextMenuHost(): ReactElement | null {
 
   if (anchor === null || !first) return null;
 
+  const choose = (item: MenuItem): void => {
+    if (item.confirm === undefined) {
+      pickMenuItem(item.id);
+      return;
+    }
+    // Confirm in place: the menu becomes the question, so there is no second
+    // surface that can be covered, clipped or lost.
+    useContextMenu.setState({
+      items: [
+        { id: item.id, label: item.confirm.label, danger: true },
+        { id: 'cancel', label: item.confirm.cancelLabel },
+      ],
+    });
+  };
+
   return createPortal(
     <div className="bp-ctx bp-menu" role="menu" ref={ref} style={{ left: anchor.x, top: anchor.y }}>
       {items.map((item) => (
@@ -71,8 +86,8 @@ export function ContextMenuHost(): ReactElement | null {
           className="bp-menu-item"
           data-danger={item.danger || undefined}
           disabled={item.disabled}
-          style={item.separator ? { marginTop: 6 } : undefined}
-          onClick={() => pickMenuItem(item.id)}
+          style={item.separator ? { marginTop: 2 } : undefined}
+          onClick={() => choose(item)}
         >
           <span className="bp-menu-label">{item.label}</span>
         </button>

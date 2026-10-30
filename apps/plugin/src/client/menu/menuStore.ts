@@ -13,8 +13,10 @@ export interface MenuItem {
   /** Destructive actions read in the warning colour. */
   danger?: boolean;
   disabled?: boolean;
-  /** Draw a divider above this item. */
+  /** A little air above this item, for destructive actions. */
   separator?: boolean;
+  /** Turn the menu into a yes/no question instead of acting immediately. */
+  confirm?: { label: string; cancelLabel: string };
 }
 
 export interface MenuAnchor {

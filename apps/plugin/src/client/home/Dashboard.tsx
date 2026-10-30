@@ -12,7 +12,6 @@ import { BlueprintGallery } from '../components/Gallery';
 import { BackIcon } from '../icons';
 import { scopeKey, useBlueprintLibrary, useLibrarySlice, watchLibrary } from '../library';
 import { ContextMenuHost } from '../menu/ContextMenuHost';
-import { DialogHost } from '../menu/DialogHost';
 import { useHomeUi } from './homeStore';
 
 interface DashboardProps {
@@ -101,7 +100,6 @@ export function Dashboard({ ctx, workspace, onBack }: DashboardProps): ReactElem
         onDelete={(id) => void useBlueprintLibrary.getState().remove(scope, id, messages)}
       />
       <ContextMenuHost />
-      <DialogHost />
     </div>
   );
 }

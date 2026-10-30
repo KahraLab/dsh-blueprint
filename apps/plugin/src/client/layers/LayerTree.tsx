@@ -8,7 +8,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument, LayerRectPatch, RectPatch, Selection } from '../../model/document';
-import { confirmAction } from '../menu/dialogStore';
 import { openMenuAt } from '../menu/menuStore';
 import { LayerRow } from './LayerRow';
 import {
@@ -208,28 +207,23 @@ export function LayerTree({
     onSelect(rangeSelection(rowModels, anchor.current ?? id, id));
   };
 
-  const removeRow = async (row: LayerRowData): Promise<void> => {
-    const confirmed = await confirmAction({
-      title: t('layers.deleteTitle'),
-      message: t('layers.deleteMessage', { name: row.name }),
-      confirmLabel: t('menu.delete'),
-      cancelLabel: t('dialog.cancel'),
-      danger: true,
-    });
-    if (confirmed) onDelete(selectionOfRow(row));
-  };
-
   const openRowMenu = async (event: ReactMouseEvent, row: LayerRowData): Promise<void> => {
     if (!isSelected(row)) onSelect([selectionOfRow(row)]);
     const canGroup = groupTargetOf(rows.map((model) => model.row), selections) !== null;
     const picked = await openMenuAt(event, [
       { id: 'rename', label: t('menu.rename') },
       { id: 'group', label: t('menu.group'), disabled: !canGroup },
-      { id: 'delete', label: t('menu.delete'), danger: true, separator: true },
+      {
+        id: 'delete',
+        label: t('menu.delete'),
+        danger: true,
+        separator: true,
+        confirm: { label: t('menu.confirmDelete'), cancelLabel: t('menu.cancel') },
+      },
     ]);
     if (picked === 'rename') startRename(row);
     if (picked === 'group') applyGroup();
-    if (picked === 'delete') await removeRow(row);
+    if (picked === 'delete') onDelete(selectionOfRow(row));
   };
 
   return (
