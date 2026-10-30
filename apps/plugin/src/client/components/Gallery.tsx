@@ -8,20 +8,13 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
+import type { BlueprintSummary } from '../library';
 import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
 import { BackIcon } from '../icons';
 import { BlueprintPreview, previewSize } from './BlueprintPreview';
 
-export interface GalleryBlueprint {
-  id: string;
-  title: string;
-  revision: number;
-  updatedAt: string;
-  broken: boolean;
-}
-
 export interface GalleryProps {
-  blueprints: readonly GalleryBlueprint[];
+  blueprints: readonly BlueprintSummary[];
   /** First screen of each blueprint, when it could be read. */
   previews: Readonly<Record<string, BlueprintDocument | null>>;
   /** Blueprint opened last; the gallery itself never has one open. */
@@ -105,7 +98,7 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
   );
 }
 
-function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: BlueprintDocument | null }): ReactElement {
+function CardPreview({ blueprint, doc }: { blueprint: BlueprintSummary; doc: BlueprintDocument | null }): ReactElement {
   const { t } = useTranslation();
   const size = doc === null ? null : previewSize(doc);
   const key = size === null ? '' : `${blueprint.id}:${blueprint.revision}`;
@@ -153,7 +146,7 @@ function CardPreview({ blueprint, doc }: { blueprint: GalleryBlueprint; doc: Blu
   return <BlueprintPreview ref={stage} doc={doc} />;
 }
 
-function updatedLabel(blueprint: GalleryBlueprint, t: (key: string, options?: Record<string, unknown>) => string): string {
+function updatedLabel(blueprint: BlueprintSummary, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (blueprint.updatedAt === '') return t('gallery.neverSaved');
   const date = new Date(blueprint.updatedAt);
   if (Number.isNaN(date.getTime())) return '';

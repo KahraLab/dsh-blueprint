@@ -64,7 +64,6 @@
   "inspector.presetSquare": "方形",
   "inspector.noSelection": "未选择",
   "inspector.selectedCount": "已选 {{count}} 项",
-  "inspector.layer": "图层",
   "inspector.icon": "图标",
   "inspector.position": "位置",
   "inspector.size": "尺寸",

@@ -10,7 +10,6 @@ import {
   listBlueprints,
   blueprintFile,
   readBlueprintPointer,
-  workspaceRoot,
   writeBlueprintPointer,
 } from '../node/blueprint.js';
 import { resolveSessionId } from '../node/session.js';
@@ -44,6 +43,14 @@ const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
 
+/** A request the route can answer, but the caller got wrong. Becomes a 400. */
+class RequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RequestError';
+  }
+}
+
 /** Whether a path is an existing directory, without throwing for a bad path. */
 function isDirectory(path: string): boolean {
   try {
@@ -70,6 +77,27 @@ function workspaceOf(scope: PluginContext, sessionId: string | null, requested: 
   return scope.workingDirectory.defaultDirectory;
 }
 
+/** The workspace and Session a request addresses, resolved once. */
+interface RequestScope {
+  root: string;
+  sessionId: string | null;
+}
+
+function scopeOf(scope: PluginContext, request: Request): RequestScope {
+  const url = new URL(request.url);
+  const sessionId = resolveSessionId(url.searchParams.get('session'));
+  return { root: workspaceOf(scope, sessionId, url.searchParams.get('workspace')), sessionId };
+}
+
+/** Parse a JSON body; an unreadable one is a 400, the same everywhere. */
+async function bodyOf<T>(request: Request): Promise<T> {
+  try {
+    return await request.json() as T;
+  } catch {
+    throw new RequestError('请求体不是 JSON');
+  }
+}
+
 function statusOf(error: BlueprintError): number {
   if (error.kind === 'missing') return 404;
   if (error.kind === 'exists') return 409;
@@ -78,6 +106,9 @@ function statusOf(error: BlueprintError): number {
 }
 
 function failure(error: unknown): Response {
+  if (error instanceof RequestError) {
+    return Response.json({ ok: false, error: error.message, code: 'request' }, { status: 400 });
+  }
   if (error instanceof BlueprintError) {
     return Response.json({ ok: false, error: error.message, code: error.kind }, { status: statusOf(error) });
   }
@@ -88,8 +119,13 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function jsonBody<T>(request: Request): Promise<T> {
-  return request.json() as Promise<T>;
+/** Run a route body, turning any thrown error into the host's JSON failure shape. */
+async function guarded(run: () => Response | Promise<Response>): Promise<Response> {
+  try {
+    return await run();
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 // ---------------------------------------------------------------- routes
@@ -100,37 +136,21 @@ function createBlueprintRoute(scope: PluginContext): FetchRoute {
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
 
-    async fetch(request) {
-      const url = new URL(request.url);
-      const sessionId = resolveSessionId(url.searchParams.get('session'));
-      let root: string;
-      try {
-        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
-      } catch (error) {
-        return failure(error);
-      }
+    fetch: (request) => guarded(async () => {
+      const { root, sessionId } = scopeOf(scope, request);
 
       if (request.method === 'GET') {
         return Response.json({ ok: true, blueprints: listBlueprints(root), current: readBlueprintPointer(root, sessionId) });
       }
 
-      let body: { title?: unknown; id?: unknown };
-      try {
-        body = await jsonBody<typeof body>(request);
-      } catch {
-        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
-      }
-      try {
-        const blueprint = createBlueprint(root, {
-          ...(typeof body.title === 'string' ? { title: body.title } : {}),
-          ...(typeof body.id === 'string' ? { id: body.id } : {}),
-          sessionId,
-        });
-        return Response.json({ ok: true, blueprint: { id: blueprint.id, title: blueprint.title, revision: blueprint.revision } });
-      } catch (error) {
-        return failure(error);
-      }
-    },
+      const body = await bodyOf<{ title?: unknown; id?: unknown }>(request);
+      const blueprint = createBlueprint(root, {
+        ...(typeof body.title === 'string' ? { title: body.title } : {}),
+        ...(typeof body.id === 'string' ? { id: body.id } : {}),
+        sessionId,
+      });
+      return Response.json({ ok: true, blueprint: { id: blueprint.id, title: blueprint.title, revision: blueprint.revision } });
+    }),
   };
 }
 
@@ -140,33 +160,15 @@ function createCurrentRoute(scope: PluginContext): FetchRoute {
     methods: ['POST'],
     requestBody: 'buffered',
 
-    async fetch(request) {
-      const url = new URL(request.url);
-      const sessionId = resolveSessionId(url.searchParams.get('session'));
-      let root: string;
-      try {
-        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
-      } catch (error) {
-        return failure(error);
-      }
-      let body: { blueprint?: unknown };
-      try {
-        body = await jsonBody<typeof body>(request);
-      } catch {
-        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
-      }
-      if (typeof body.blueprint !== 'string') {
-        return Response.json({ ok: false, error: 'blueprint 要写蓝图 id' }, { status: 400 });
-      }
-      try {
-        // Fails when the blueprint is missing, so the pointer cannot dangle.
-        readDocument(blueprintFile(root, body.blueprint));
-        writeBlueprintPointer(root, body.blueprint, sessionId);
-        return Response.json({ ok: true, blueprint: body.blueprint });
-      } catch (error) {
-        return failure(error);
-      }
-    },
+    fetch: (request) => guarded(async () => {
+      const { root, sessionId } = scopeOf(scope, request);
+      const body = await bodyOf<{ blueprint?: unknown }>(request);
+      if (typeof body.blueprint !== 'string') throw new RequestError('blueprint 要写蓝图 id');
+      // Fails when the blueprint is missing, so the pointer cannot dangle.
+      readDocument(blueprintFile(root, body.blueprint));
+      writeBlueprintPointer(root, body.blueprint, sessionId);
+      return Response.json({ ok: true, blueprint: body.blueprint });
+    }),
   };
 }
 
@@ -176,57 +178,33 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
 
-    async fetch(request) {
-      const url = new URL(request.url);
-      const sessionId = resolveSessionId(url.searchParams.get('session'));
-      let root: string;
-      try {
-        root = workspaceOf(scope, sessionId, url.searchParams.get('workspace'));
-      } catch (error) {
-        return failure(error);
-      }
-      const blueprint = url.searchParams.get('blueprint');
-      if (!blueprint) {
-        return Response.json({ ok: false, error: '缺少 blueprint 参数', code: 'id' }, { status: 400 });
-      }
+    fetch: (request) => guarded(async () => {
+      const { root } = scopeOf(scope, request);
+      const blueprint = new URL(request.url).searchParams.get('blueprint');
+      if (!blueprint) throw new RequestError('缺少 blueprint 参数');
       const file = blueprintFile(root, blueprint);
 
       if (request.method === 'GET') {
-        try {
-          const stored = readDocument(file);
-          return Response.json({
-            revision: stored.revision,
-            document: stored.document,
-            updatedBy: stored.updatedBy,
-            updatedAt: stored.updatedAt,
-            blueprint: { id: stored.id, title: stored.title },
-          });
-        } catch (error) {
-          return failure(error);
-        }
-      }
-
-      let body: { baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string };
-      try {
-        body = await jsonBody<typeof body>(request);
-      } catch {
-        return Response.json({ ok: false, error: '请求体不是 JSON', conflict: false, revision: 0 }, { status: 400 });
-      }
-
-      try {
-        const result = changeDocument(file, {
-          baseRevision: typeof body.baseRevision === 'number' ? body.baseRevision : null,
-          ops: Array.isArray(body.ops) ? (body.ops as never[]) : undefined,
-          document: body.document && typeof body.document === 'object' ? (body.document as never) : undefined,
-          by: typeof body.by === 'string' ? body.by : 'canvas',
+        const stored = readDocument(file);
+        return Response.json({
+          revision: stored.revision,
+          document: stored.document,
+          updatedBy: stored.updatedBy,
+          updatedAt: stored.updatedAt,
+          blueprint: { id: stored.id, title: stored.title },
         });
-        const status = result.ok ? 200 : result.conflict ? 409 : 400;
-        return Response.json(result, { status });
-      } catch (error) {
-        if (error instanceof BlueprintError) return failure(error);
-        return Response.json({ ok: false, error: message(error), conflict: false, revision: 0 }, { status: 500 });
       }
-    },
+
+      const body = await bodyOf<{ baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string }>(request);
+      const result = changeDocument(file, {
+        baseRevision: typeof body.baseRevision === 'number' ? body.baseRevision : null,
+        ops: Array.isArray(body.ops) ? (body.ops as never[]) : undefined,
+        document: body.document && typeof body.document === 'object' ? (body.document as never) : undefined,
+        by: typeof body.by === 'string' ? body.by : 'canvas',
+      });
+      const status = result.ok ? 200 : result.conflict ? 409 : 400;
+      return Response.json(result, { status });
+    }),
   };
 }
 
@@ -240,25 +218,14 @@ function createSelectionRoute(): FetchRoute {
     methods: ['POST'],
     requestBody: 'buffered',
 
-    async fetch(request) {
+    fetch: (request) => guarded(async () => {
       const sessionId = resolveSessionId(new URL(request.url).searchParams.get('session'));
-      let body: { selections?: unknown };
-      try {
-        body = (await request.json()) as typeof body;
-      } catch {
-        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
-      }
-      if (!Array.isArray(body.selections)) {
-        return Response.json({ ok: false, error: 'selections 要是数组' }, { status: 400 });
-      }
-      try {
-        const selections = body.selections.map(toSelection).filter((entry): entry is StoredSelection => entry !== null);
-        writeSelection(sessionId, selections);
-        return Response.json({ ok: true });
-      } catch (error) {
-        return Response.json({ ok: false, error: message(error) }, { status: 500 });
-      }
-    },
+      const body = await bodyOf<{ selections?: unknown }>(request);
+      if (!Array.isArray(body.selections)) throw new RequestError('selections 要是数组');
+      const selections = body.selections.map(toSelection).filter((entry): entry is StoredSelection => entry !== null);
+      writeSelection(sessionId, selections);
+      return Response.json({ ok: true });
+    }),
   };
 }
 
@@ -282,61 +249,47 @@ function createIconsRoute(): FetchRoute {
     methods: ['GET', 'POST'],
     requestBody: 'buffered',
 
-    async fetch(request) {
-      if (request.method === 'GET') {
-        const url = new URL(request.url);
-        const prefix = url.searchParams.get('prefix');
-        const part = url.searchParams.get('part');
-        // One route serves the whole library: the catalog, one set's names, one
-        // set's drawings. Nested paths under this prefix were not reaching the
-        // handler in the panel, and a query parameter cannot collide with them.
-        if (prefix !== null && part === 'index') {
-          const index = readIndex(prefix);
-          if (!index) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
-          return Response.json({ ok: true, index });
-        }
-        if (prefix !== null && part === 'set') {
-          const set = readSet(prefix);
-          if (!set) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
-          return Response.json({ ok: true, set });
-        }
-        try {
-          const catalog = await fetchCatalog();
-          return Response.json({
-            ok: true,
-            root: catalog.fetchedAt,
-            installed: installedSets(),
-            sets: Object.values(catalog.collections).map((info) => ({
-              prefix: info.prefix,
-              name: info.name,
-              total: info.total,
-              category: info.category,
-              license: info.license?.title,
-              author: info.author?.name,
-              installed: isInstalled(info.prefix),
-              samples: info.samples,
-            })),
-          });
-        } catch (error) {
-          return failure(error);
-        }
+    fetch: (request) => guarded(async () => {
+      if (request.method === 'POST') {
+        const body = await bodyOf<{ prefix?: unknown }>(request);
+        if (typeof body.prefix !== 'string') throw new RequestError('prefix 要写图标集名字');
+        return Response.json({ ok: true, set: await installSet(body.prefix) });
       }
 
-      let body: { prefix?: unknown };
-      try {
-        body = (await request.json()) as typeof body;
-      } catch {
-        return Response.json({ ok: false, error: '请求体不是 JSON' }, { status: 400 });
+      const url = new URL(request.url);
+      const prefix = url.searchParams.get('prefix');
+      const part = url.searchParams.get('part');
+      // One route serves the whole library: the catalog, one set's names, one
+      // set's drawings. Nested paths under this prefix were not reaching the
+      // handler in the panel, and a query parameter cannot collide with them.
+      if (prefix !== null && part === 'index') {
+        const index = readIndex(prefix);
+        if (!index) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
+        return Response.json({ ok: true, index });
       }
-      if (typeof body.prefix !== 'string') {
-        return Response.json({ ok: false, error: 'prefix 要写图标集名字' }, { status: 400 });
+      if (prefix !== null && part === 'set') {
+        const set = readSet(prefix);
+        if (!set) return Response.json({ ok: false, error: `还没有下载 ${prefix}`, code: 'missing' }, { status: 404 });
+        return Response.json({ ok: true, set });
       }
-      try {
-        return Response.json({ ok: true, set: await installSet(body.prefix) });
-      } catch (error) {
-        return failure(error);
-      }
-    },
+
+      const catalog = await fetchCatalog();
+      return Response.json({
+        ok: true,
+        root: catalog.fetchedAt,
+        installed: installedSets(),
+        sets: Object.values(catalog.collections).map((info) => ({
+          prefix: info.prefix,
+          name: info.name,
+          total: info.total,
+          category: info.category,
+          license: info.license?.title,
+          author: info.author?.name,
+          installed: isInstalled(info.prefix),
+          samples: info.samples,
+        })),
+      });
+    }),
   };
 }
 

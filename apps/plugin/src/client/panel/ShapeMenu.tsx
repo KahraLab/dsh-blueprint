@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowShapeIcon, EllipseIcon, LineIcon, PolygonIcon, RectIcon, StarIcon } from '../icons';
-import type { ShapeKind } from './Canvas';
+import type { ShapeKind } from '../editor/types';
 
 type Translate = (key: string) => string;
 

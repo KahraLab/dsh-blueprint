@@ -13,6 +13,9 @@ usage:
     - shape.*
     - inspector.size*
     - inspector.preset*
+    - inspector.flow*
+    - inspector.justify*
+    - inspector.align*
 # Registered by ctx.locale for the sidebar tab and its guide entry, not by i18next.
 ignoreKeys:
   - panel

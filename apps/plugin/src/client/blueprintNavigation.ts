@@ -108,8 +108,9 @@ function reusableSession(
   const current = mainSessionId(sessions);
   if (current !== null && workspace.sessionIds.includes(current)) return current;
 
+  const archivedIds = new Set(archived);
   return [...workspace.sessionIds]
-    .filter((id) => !archived.includes(id) && sessions.byId[id] !== undefined)
+    .filter((id) => !archivedIds.has(id) && sessions.byId[id] !== undefined)
     .sort((a, b) => sessionScore(sessions, b) - sessionScore(sessions, a))[0]
     ?? null;
 }

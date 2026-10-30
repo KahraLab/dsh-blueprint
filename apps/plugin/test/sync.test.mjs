@@ -1,7 +1,7 @@
 /**
  * The canvas half's sync with the file, tested without a browser.
  *
- * The store is bundled for Node and pointed at a fake fetch. Two behaviours are
+ * The editor runtime is bundled for Node and pointed at a fake fetch. Two behaviours are
  * worth protecting: external writes (the command line, the model) show up on the
  * panel by themselves, and a failed read is retried instead of leaving the panel
  * on a stale or empty document until the next reload.
@@ -38,7 +38,7 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-sync-'));
   const outfile = join(tempDir, 'store.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'client', 'store.ts')],
+    entryPoints: [join(root, 'src', 'client', 'editor', 'index.ts')],
     outfile,
     bundle: true,
     format: 'esm',

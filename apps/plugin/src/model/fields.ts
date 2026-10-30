@@ -118,16 +118,18 @@ export type CleanedField = { ok: true; value: Record<string, unknown> } | { ok: 
  * and the command line cannot drift apart.
  */
 export function cleanFields(raw: Record<string, unknown>, nodeKind: 'frame' | 'layer'): CleanedField {
-  const allowed = nodeKind === 'frame' ? FRAME_FIELDS : LAYER_FIELDS;
+  const fields = nodeKind === 'frame' ? FRAME_FIELDS : LAYER_FIELDS;
+  const allowed = new Set<string>(fields);
+  const editable = fields.filter((name) => name !== 'kind').join('、');
   const value: Record<string, unknown> = {};
 
   for (const [key, raw_value] of Object.entries(raw)) {
     if (raw_value === undefined) continue;
-    if (!allowed.includes(key)) {
-      return { ok: false, message: `改不了 ${key}。能改的字段：${allowed.filter((name) => name !== 'kind').join('、')}` };
+    if (!allowed.has(key)) {
+      return { ok: false, message: `改不了 ${key}。能改的字段：${editable}` };
     }
     const spec = NODE_FIELDS[key];
-    if (!spec) return { ok: false, message: `改不了 ${key}。能改的字段：${allowed.filter((name) => name !== 'kind').join('、')}` };
+    if (!spec) return { ok: false, message: `改不了 ${key}。能改的字段：${editable}` };
     const cleaned = cleanValue(spec, raw_value, key);
     if ('message' in cleaned) return { ok: false, message: cleaned.message };
     if (typeof cleaned.value !== 'undefined') value[key] = cleaned.value;

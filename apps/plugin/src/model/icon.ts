@@ -40,7 +40,7 @@ export function drawIcon(set: IconSetData, name: string): IconDrawing | null {
   if (!record) return null;
   const width = record.width ?? set.width ?? DEFAULT_BOX;
   const height = record.height ?? set.height ?? DEFAULT_BOX;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" fill="currentColor">${sanitizeBody(record.body)}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" fill="currentColor">${sanitizeSvg(record.body)}</svg>`;
   return { svg, width, height };
 }
 
@@ -60,13 +60,18 @@ function resolveRecord(set: IconSetData, name: string, depth: number): IconRecor
 }
 
 /**
- * Downloaded bodies are data from someone else's repository, not code we wrote:
- * strip scripting and event handlers so an odd set cannot run anything in the
- * panel. Everything keeping a normal icon intact stays.
+ * Downloaded markup is data from someone else's repository, not code we wrote:
+ * strip scripting, embedded documents and event handlers so an odd set cannot run
+ * anything in the panel. Everything keeping a normal icon intact stays.
+ *
+ * Call this at the render sink too: the document can be written by the model, so
+ * the trust boundary belongs at the point the markup becomes DOM.
  */
-export function sanitizeBody(body: string): string {
-  return body
+export function sanitizeSvg(markup: string): string {
+  return markup
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/<(iframe|object|embed)[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/javascript:/gi, '');
 }

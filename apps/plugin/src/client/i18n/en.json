@@ -64,7 +64,6 @@
   "inspector.presetSquare": "Square",
   "inspector.noSelection": "Nothing selected",
   "inspector.selectedCount": "{{count}} selected",
-  "inspector.layer": "Layer",
   "inspector.icon": "Icon",
   "inspector.position": "Position",
   "inspector.size": "Size",

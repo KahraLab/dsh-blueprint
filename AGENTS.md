@@ -32,9 +32,33 @@ dsh-blueprint/
 ├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
 │   ├── src/protocol/      # AI 面对的读写契约：校验、构建、JSON Schema
 │   ├── src/model/         # 文档模型：元素树、字段规则、五种文档操作
-│   └── src/node/          # 蓝图与文档落盘：布局、版本号、原子写
+│   ├── src/node/          # 蓝图与文档落盘：布局、版本号、原子写
+│   ├── src/cli/           # bp 命令行：参数解析、输出、五个命令
+│   ├── src/host/          # 路由、技能注册，把 node 层接到 DSH
+│   └── src/client/        # 浏览器半，按界面分块，见下一节
 └── .tmp/                  # 过程资料，不进版本库
 ```
+
+### 浏览器半怎么分块
+
+一个文件负责一类事，界面和逻辑分开；改一块不用翻整棵树。
+
+```
+src/client/
+├── index.tsx        # 只做注册：槽位、Tab、入口页
+├── api.ts           # JSON 请求：统一读错误体、重试、判状态码
+├── library.ts       # 蓝图列表数据，按 Session / 工作区分片
+├── editor/          # 文档状态（zustand + zundo）、落盘同步、快捷键
+├── canvas/          # 画布：几何、命中、手势、图层渲染、浮层
+├── panel/           # 右侧栏：页头、工具栏、图层栏、面板状态
+├── inspector/       # 属性栏，一段一个组件
+├── layers/          # 图层树：纯数据的行、行组件、拖拽 hook
+├── iconpicker/      # 图标选择器：数据 store、虚拟网格、集合栏
+├── home/            # 中央入口页与 Dashboard
+└── components/      # 两个界面共用的视图（画廊、缩略预览、图标 glyph）
+```
+
+规则：状态优先放 zustand，`useState` 只留给「只影响一个组件、随时可丢」的界面状态；`useEffect` 只留给真正的外部同步（网络、窗口事件、DOM 测量）。能算出来的不要存。
 
 ## 工作方式
 
@@ -63,10 +87,11 @@ dsh-blueprint/
 |---|---|
 | `python3 .agent-works/issues/frontier.py` | 列出当前能认领的票 |
 | `pnpm -C apps/plugin typecheck` | 类型检查（strict） |
-| `pnpm -C apps/plugin test` | 构建、检查两份语言文件的键、跑命令行契约测试（`test/cli.test.mjs`） |
+| `pnpm -C apps/plugin test` | 构建、检查两份语言文件的键、跑命令行契约测试与编辑器纯函数测试（`test/*.test.mjs`） |
 | `pnpm -C apps/plugin i18n:check` | 只跑界面文案检查（缺键、多余键、占位符不一致） |
 | `pnpm -C apps/plugin build` | 构建：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
 | `pnpm -C apps/plugin build:watch` | 改动静默重建，DSH 客户端热更新接住 |
+| `npx react-doctor@latest --verbose` | 扫 React 健康分（在 `apps/plugin` 里跑；`doctor.config.json` 跳过构建产物 `lib/`） |
 | `git log --oneline` | 看最近改了什么 |
 
 插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 两个入口。不要拆成两个 npm 包，平台就是这么设计的。

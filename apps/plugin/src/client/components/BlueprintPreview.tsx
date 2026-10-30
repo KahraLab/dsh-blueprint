@@ -9,7 +9,8 @@
 import { forwardRef, type ReactElement } from 'react';
 import { type BlueprintDocument, type Frame, type Layer, type StackLayout } from '../../model/document';
 import { fillBackground } from '../model/fill';
-import { ShapeGraphic, containerStyle, flowItemStyle, freeItemStyle, visualStyle } from './canvasStyle';
+import { IconGlyph } from './IconGlyph';
+import { ShapeGraphic, containerStyle, flowItemStyle, freeItemStyle, visualStyle } from '../canvas/style';
 
 export const THUMB_MAX_WIDTH = 116;
 export const THUMB_MAX_HEIGHT = 128;
@@ -139,7 +140,7 @@ function PreviewLayer({
 function LayerContent({ layer }: { layer: Layer }): ReactElement | null {
   if (layer.kind === 'text') return <>{layer.text}</>;
   if (layer.kind === 'icon') {
-    return <span className="bp-icon-glyph" dangerouslySetInnerHTML={{ __html: layer.svg }} />;
+    return <IconGlyph svg={layer.svg} className="bp-icon-glyph" hidden />;
   }
   return <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />;
 }
