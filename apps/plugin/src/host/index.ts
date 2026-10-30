@@ -3,11 +3,12 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext, SessionHandle } from '../types/dsh.js';
 import { fetchCatalog, installSet, installedSets, isInstalled, readIndex, readSet } from '../icons/store.js';
-import { changeDocument, readDocument } from '../node/docfile.js';
+import { changeDocument, readDocument, readHistoryIndex } from '../node/docfile.js';
 import {
   BlueprintError,
   createBlueprint,
   listBlueprints,
+  blueprintDir,
   blueprintFile,
   readBlueprintPointer,
   writeBlueprintPointer,
@@ -38,6 +39,7 @@ import { skillFor } from './skill.js';
  */
 
 const DOC_ENDPOINT = '/api/blueprint/doc';
+const HISTORY_ENDPOINT = '/api/blueprint/doc/history';
 const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
@@ -195,15 +197,33 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
         });
       }
 
-      const body = await bodyOf<{ baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string }>(request);
+      const body = await bodyOf<{ baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string; reason?: string }>(request);
       const result = changeDocument(file, {
         baseRevision: typeof body.baseRevision === 'number' ? body.baseRevision : null,
         ops: Array.isArray(body.ops) ? (body.ops as never[]) : undefined,
         document: body.document && typeof body.document === 'object' ? (body.document as never) : undefined,
         by: typeof body.by === 'string' ? body.by : 'canvas',
+        reason: typeof body.reason === 'string' ? body.reason : undefined,
       });
       const status = result.ok ? 200 : result.conflict ? 409 : 400;
       return Response.json(result, { status });
+    }),
+  };
+}
+
+function createHistoryRoute(scope: PluginContext): FetchRoute {
+  return {
+    path: HISTORY_ENDPOINT,
+    methods: ['GET'],
+    requestBody: 'buffered',
+
+    fetch: (request) => guarded(async () => {
+      const { root } = scopeOf(scope, request);
+      const blueprint = new URL(request.url).searchParams.get('blueprint');
+      if (!blueprint) throw new RequestError('缺少 blueprint 参数');
+      const dir = blueprintDir(root, blueprint);
+      const snapshots = readHistoryIndex(dir);
+      return Response.json({ ok: true, snapshots });
     }),
   };
 }
@@ -321,6 +341,7 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'blueprints', () => createBlueprintRoute(scope));
     register(scope, 'current', () => createCurrentRoute(scope));
     register(scope, 'document', () => createDocumentRoute(scope));
+    register(scope, 'history', () => createHistoryRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
     register(scope, 'icons', () => createIconsRoute());
   });

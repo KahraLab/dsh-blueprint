@@ -3,8 +3,9 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackIcon, MinimizeUiIcon } from '../icons';
-import { useBlueprint } from '../editor/store';
+import { useStore } from 'zustand';
+import { BackIcon, MinimizeUiIcon, RedoIcon, UndoIcon } from '../icons';
+import { redo, undo, useBlueprint } from '../editor/store';
 import { PanelClock } from './PanelClock';
 
 interface PanelHeaderProps {
@@ -18,6 +19,8 @@ export function PanelHeader({ onBack }: PanelHeaderProps): ReactElement {
   const uiMinimized = useBlueprint((state) => state.uiMinimized);
   const toggleUiMinimized = useBlueprint((state) => state.toggleUiMinimized);
   const saveState = useBlueprint((state) => state.saveState);
+  const canUndo = useStore(useBlueprint.temporal, (state) => state.pastStates.length > 0);
+  const canRedo = useStore(useBlueprint.temporal, (state) => state.futureStates.length > 0);
 
   return (
     <header className="bp-head">
@@ -35,6 +38,26 @@ export function PanelHeader({ onBack }: PanelHeaderProps): ReactElement {
           onClick={toggleUiMinimized}
         >
           <MinimizeUiIcon />
+        </button>
+        <button
+          type="button"
+          className="bp-icon"
+          title={t('header.undo')}
+          aria-label={t('header.undo')}
+          disabled={!canUndo}
+          onClick={() => undo()}
+        >
+          <UndoIcon />
+        </button>
+        <button
+          type="button"
+          className="bp-icon"
+          title={t('header.redo')}
+          aria-label={t('header.redo')}
+          disabled={!canRedo}
+          onClick={() => redo()}
+        >
+          <RedoIcon />
         </button>
       </div>
 

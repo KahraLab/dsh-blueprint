@@ -25,6 +25,8 @@
   "header.gallery": "Blueprint list",
   "header.expand": "Expand panel",
   "header.collapse": "Collapse panel",
+  "header.undo": "Undo",
+  "header.redo": "Redo",
   "tools.frame": "Frame",
   "tools.shape": "Shape",
   "tools.text": "Text",

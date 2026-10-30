@@ -14,10 +14,13 @@
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { BlueprintDocument } from '../model/document';
+import { normalizeDocument, type BlueprintDocument } from '../model/document';
 import { type DocumentOp, applyOps, validateDocument } from '../model/ops';
 import { writeJsonAtomic } from './atomic';
 import { DOCUMENT_SCHEMA, BlueprintError, parseBlueprintFile, type BlueprintFile } from './blueprint';
+import { recordSnapshot, readHistoryIndex, readSnapshotDocument, type SnapshotEntry, MAX_AUTO_SNAPSHOTS, historyDir, historyIndexFile } from './history';
+
+export { recordSnapshot, readHistoryIndex, readSnapshotDocument, type SnapshotEntry, MAX_AUTO_SNAPSHOTS, historyDir, historyIndexFile };
 
 /** The document as the protocol layer reads it: identity, revision, tree. */
 export type StoredDocument = BlueprintFile;
@@ -91,6 +94,8 @@ export interface ChangeRequest {
   /** Whole document, only for the canvas safety net when a diff cannot be applied. */
   document?: BlueprintDocument;
   by: string;
+  reason?: string | null;
+  maxAutoSnapshots?: number;
 }
 
 export interface ChangeResult {
@@ -136,7 +141,7 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
       }
       next = applied.doc;
     } else if (request.document) {
-      next = request.document;
+      next = normalizeDocument(request.document);
     } else {
       return { ok: false, revision: current.revision, document: current.document, conflict: false, error: '既没有 ops 也没有 document', failure: null, problems: [] };
     }
@@ -160,6 +165,22 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
     if (isDeepStrictEqual(next, current.document)) {
       return { ok: true, revision: current.revision, document: current.document, conflict: false, error: null, failure: null, problems: [] };
     }
+
+    const actor: 'human' | 'ai' =
+      request.by === 'ai' || request.by === 'cli' || request.by === 'model' ? 'ai' : 'human';
+    const reason =
+      request.reason && request.reason.trim().length > 0
+        ? request.reason.trim()
+        : actor === 'ai'
+          ? 'auto:model'
+          : 'auto:human';
+
+    recordSnapshot(dir, current.document, {
+      revision: current.revision,
+      reason,
+      by: actor,
+      maxAutoSnapshots: request.maxAutoSnapshots,
+    });
 
     const stored: BlueprintFile = {
       ...current,

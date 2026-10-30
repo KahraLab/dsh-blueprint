@@ -7,7 +7,7 @@
  */
 import { diffDocs } from '../../model/ops';
 import { normalizeDocument, type BlueprintDocument } from '../../model/document';
-import { replaceDocument, useBlueprint } from './store';
+import { adoptExternalDocument, replaceDocument, useBlueprint } from './store';
 
 const SAVE_DEBOUNCE_MS = 600;
 const POLL_MS = 700;
@@ -200,7 +200,11 @@ export async function loadDocument(url: string): Promise<void> {
     loadFailed = false;
     syncedRevision = stored.revision;
     syncedDoc = stored.document;
+    const temporalStore = useBlueprint.temporal.getState();
+    temporalStore.pause();
     useBlueprint.setState({ doc: stored.document, saveState: 'saved', hydrated: true });
+    temporalStore.resume();
+    temporalStore.clear();
   } finally {
     loading = false;
   }
@@ -279,11 +283,7 @@ async function poll(url: string): Promise<void> {
 
   syncedRevision = stored.revision;
   syncedDoc = stored.document;
-  // Somebody else wrote: that document is the new base, so old undo steps would
-  // replay against a tree they were not recorded on.
-  const temporalStore = useBlueprint.temporal.getState();
-  temporalStore.pause();
-  useBlueprint.setState({ doc: stored.document });
-  temporalStore.resume();
-  temporalStore.clear();
+  // External writes (such as AI or another client) are adopted smoothly into
+  // the undo stack so Cmd/Ctrl+Z can undo the AI change without clearing previous history.
+  adoptExternalDocument(stored.document);
 }

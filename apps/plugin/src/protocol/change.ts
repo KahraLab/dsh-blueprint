@@ -22,6 +22,9 @@ export interface ChangeInput {
   ops?: readonly DocumentOp[];
   /** Revision the caller read. When omitted, the file's current revision is used. */
   baseRevision?: number;
+  reason?: string;
+  by?: string;
+  maxAutoSnapshots?: number;
 }
 
 export interface ChangeOutcome {
@@ -37,6 +40,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
   let ops: readonly DocumentOp[];
   let ids: Record<string, string> = {};
   let baseRevision = input.baseRevision;
+  let reason = input.reason;
 
   if (input.request !== undefined) {
     const request = parseRequest(input.request);
@@ -44,6 +48,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
     ops = prepared.ops;
     ids = prepared.ids;
     baseRevision = request.baseRevision;
+    if (request.reason) reason = request.reason;
   } else if (input.ops !== undefined) {
     validateOps(stored.document, input.ops);
     ops = input.ops;
@@ -54,7 +59,9 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
   const result = changeDocument(filePath, {
     baseRevision: baseRevision ?? stored.revision,
     ops: withIconDrawings(stored.document, ops),
-    by: 'cli',
+    by: input.by ?? 'cli',
+    reason,
+    maxAutoSnapshots: input.maxAutoSnapshots,
   });
 
   if (!result.ok) {

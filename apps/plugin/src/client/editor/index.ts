@@ -5,6 +5,6 @@
  * Views import the piece they need; this barrel is the seam the Node-side test
  * bundles, so the store and its sync share one instance.
  */
-export { replaceDocument, redo, undo, useBlueprint } from './store';
+export { adoptExternalDocument, replaceDocument, redo, undo, useBlueprint } from './store';
 export { loadDocument, startSession } from './sync';
-export { installKeys } from './keys';
+export { installKeys, handleHistoryKey, handleDeleteKey, handleToolKey } from './keys';

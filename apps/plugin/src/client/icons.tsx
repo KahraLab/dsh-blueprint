@@ -23,6 +23,8 @@ import StretchVertical from 'lucide-react/icons/stretch-vertical';
 import ChevronDown from 'lucide-react/icons/chevron-down';
 import Eye from 'lucide-react/icons/eye';
 import EyeOff from 'lucide-react/icons/eye-off';
+import Undo2 from 'lucide-react/icons/undo-2';
+import Redo2 from 'lucide-react/icons/redo-2';
 import Frame from 'lucide-react/icons/frame';
 import Folder from 'lucide-react/icons/folder';
 import Check from 'lucide-react/icons/check';
@@ -270,6 +272,14 @@ export function BackIcon({ size = 15 }: IconProps): ReactElement {
       <path d="M10.5 3.5 6 8l4.5 4.5" />
     </svg>
   );
+}
+
+export function UndoIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Undo2 size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+export function RedoIcon({ size = 15, className }: IconProps): ReactElement {
+  return <Redo2 size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }
 
 /** Toolbar glyph for "icons": the tool that is a set of drawn shapes. */

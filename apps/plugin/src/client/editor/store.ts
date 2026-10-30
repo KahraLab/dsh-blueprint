@@ -66,6 +66,8 @@ interface BlueprintState {
   reorderFrame(frameId: string, beforeId: string | null): void;
 }
 
+let flushPendingHistory: () => void = () => {};
+
 export const useBlueprint = create<BlueprintState>()(
   temporal<BlueprintState, [], [], { doc: BlueprintDocument }>(
     (set, get) => ({
@@ -187,7 +189,20 @@ export const useBlueprint = create<BlueprintState>()(
       handleSet: (handleSet) => {
         let timer: ReturnType<typeof setTimeout> | null = null;
         let pending: Parameters<typeof handleSet> | null = null;
+        flushPendingHistory = () => {
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          if (pending) {
+            handleSet(...pending);
+            pending = null;
+          }
+        };
         return (...args: Parameters<typeof handleSet>): void => {
+          if (useBlueprint.temporal.getState().futureStates.length > 0) {
+            useBlueprint.temporal.setState({ futureStates: [] });
+          }
           pending = args;
           if (timer) clearTimeout(timer);
           timer = setTimeout(() => {
@@ -211,7 +226,34 @@ export function replaceDocument(doc: BlueprintDocument): void {
   temporalStore.resume();
 }
 
+/**
+ * Adopt an external document (e.g. from AI or another writer) into history
+ * smoothly: the current state is retained as a past undo step, allowing
+ * immediate Cmd+Z to undo the external change without wiping previous undo history.
+ */
+export function adoptExternalDocument(doc: BlueprintDocument): void {
+  flushPendingHistory();
+  const currentDoc = useBlueprint.getState().doc;
+  if (currentDoc === doc || JSON.stringify(currentDoc) === JSON.stringify(doc)) {
+    return;
+  }
+  const temporalStore = useBlueprint.temporal.getState();
+  const pastStates = [...temporalStore.pastStates, { doc: currentDoc }];
+  if (pastStates.length > 30) {
+    pastStates.shift();
+  }
+  useBlueprint.temporal.setState({
+    pastStates,
+    futureStates: [],
+  });
+
+  temporalStore.pause();
+  useBlueprint.setState({ doc, editing: null });
+  temporalStore.resume();
+}
+
 export function undo(): boolean {
+  flushPendingHistory();
   const temporalStore = useBlueprint.temporal.getState();
   if (temporalStore.pastStates.length === 0) return false;
   temporalStore.undo();
@@ -220,6 +262,7 @@ export function undo(): boolean {
 }
 
 export function redo(): boolean {
+  flushPendingHistory();
   const temporalStore = useBlueprint.temporal.getState();
   if (temporalStore.futureStates.length === 0) return false;
   temporalStore.redo();

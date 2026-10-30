@@ -25,6 +25,8 @@
   "header.gallery": "蓝图列表",
   "header.expand": "展开界面",
   "header.collapse": "收起界面",
+  "header.undo": "撤销",
+  "header.redo": "重做",
   "tools.frame": "画板",
   "tools.shape": "形状",
   "tools.text": "文字",
