@@ -843,8 +843,8 @@
   background: rgba(255, 255, 255, 0.1);
   color: var(--dsw-alias-label-primary, #eee);
 }
-.bp-layer-row[data-hidden='true'] .bp-layer-action[title='显示'],
-.bp-layer-row[data-locked='true'] .bp-layer-action[title='解锁'] {
+.bp-layer-row[data-hidden='true'] .bp-layer-action[data-action='visibility'],
+.bp-layer-row[data-locked='true'] .bp-layer-action[data-action='lock'] {
   color: #4fc3f7;
 }
 /* hidden or locked rows keep their state visible */

@@ -94,6 +94,7 @@ export function LayerRow({
         <button
           type="button"
           className="bp-layer-action"
+          data-action="visibility"
           title={visible ? t('layers.hide') : t('layers.show')}
           aria-label={visible ? t('layers.hideTarget', { name: visibleLabel }) : t('layers.showTarget', { name: visibleLabel })}
           onClick={onToggleVisible}
@@ -103,6 +104,7 @@ export function LayerRow({
         <button
           type="button"
           className="bp-layer-action"
+          data-action="lock"
           title={locked ? t('layers.unlock') : t('layers.lock')}
           aria-label={locked ? t('layers.unlockTarget', { name: lockedLabel }) : t('layers.lockTarget', { name: lockedLabel })}
           onClick={onToggleLock}
