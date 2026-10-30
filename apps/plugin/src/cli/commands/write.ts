@@ -59,7 +59,7 @@ function parseJson(text: string): unknown {
 export const addCommand = defineCommand({
   meta: { name: 'add', description: '新建一个画板或元素；必须用 --name 说明它是什么' },
   args: {
-    kind: { type: 'positional', description: '种类：frame（画板） rect text ellipse line arrow polygon star icon', required: true },
+    kind: { type: 'positional', description: '种类：frame（画板） rect text ellipse line arrow polygon star icon group', required: true },
     name: { type: 'string', description: '语义化名字，比如「登录页」「登录按钮」' },
     into: { type: 'string', description: '放进哪块画板或哪个容器；不给就放在画布最外层' },
     at: { type: 'string', valueHint: 'x,y', description: '左上角位置，比如 24,120' },

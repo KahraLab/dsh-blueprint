@@ -8,6 +8,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { temporal } from 'zundo';
+import { groupLayers } from '../../model/group';
 import {
   addFrameRect,
   addLayer,
@@ -15,6 +16,7 @@ import {
   createLayer,
   findFrame,
   findLayer,
+  findParent,
   insertLayer,
   makeFill,
   moveLayer,
@@ -63,6 +65,8 @@ interface BlueprintState {
   setLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
   deleteSelection(): void;
   deleteTarget(selection: Selection): void;
+  /** Group sibling layers; returns the new group so the tree can name it. */
+  groupSelection(selections: readonly Selection[]): { frameId: string | null; layerId: string; name: string } | null;
   reorderLayer(frameId: string | null, parentId: string | null, layerId: string, beforeId: string | null): void;
   reorderFrame(frameId: string, beforeId: string | null): void;
 }
@@ -183,6 +187,26 @@ export const useBlueprint = create<BlueprintState>()(
 
       deleteTarget: (selection) => {
         set({ doc: removeSelection(get().doc, [selection]), selections: [] });
+      },
+
+      groupSelection: (selections) => {
+        if (selections.length < 2) return null;
+        if (selections.some((item) => item.kind !== 'layer')) return null;
+        const layers = selections.flatMap((item) => (item.kind === 'layer' ? [item] : []));
+        const frameId = layers[0]!.frameId;
+        if (layers.some((item) => item.frameId !== frameId)) return null;
+
+        const parents = layers.map((item) => findParent(get().doc, item.frameId, item.layerId));
+        const parentId = parents[0]?.parentId ?? null;
+        if (parents.some((parent) => (parent?.parentId ?? null) !== parentId)) return null;
+
+        const result = groupLayers(get().doc, frameId, parentId, layers.map((item) => item.layerId));
+        if (!result.ok) return null;
+        set({
+          doc: result.doc,
+          selections: [{ kind: 'layer', frameId, layerId: result.group.id }],
+        });
+        return { frameId, layerId: result.group.id, name: result.group.name };
       },
     }),
     {

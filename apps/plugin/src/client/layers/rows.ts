@@ -180,3 +180,70 @@ function findPath(layers: readonly Layer[], id: string, parents: readonly string
   }
   return null;
 }
+
+/** The selection a row stands for. */
+export function selectionOfRow(row: LayerRowData): Selection {
+  return row.kind === 'frame'
+    ? { kind: 'frame', frameId: row.id }
+    : { kind: 'layer', frameId: row.frameId, layerId: row.id };
+}
+
+/**
+ * Every row between two rows, in tree order.
+ *
+ * Shift-click and shift-drag both mean "this range", so the rule lives here
+ * rather than in pointer handlers.
+ */
+export function rangeSelection(
+  rows: readonly LayerRowData[],
+  anchorId: string,
+  focusId: string,
+): Selection[] {
+  const from = rows.findIndex((row) => row.id === anchorId);
+  const to = rows.findIndex((row) => row.id === focusId);
+  if (to < 0) return from < 0 ? [] : [selectionOfRow(rows[from]!)];
+  if (from < 0) return [selectionOfRow(rows[to]!)];
+  const [start, end] = from <= to ? [from, to] : [to, from];
+  return rows.slice(start, end + 1).map(selectionOfRow);
+}
+
+export interface GroupTarget {
+  frameId: string | null;
+  parentId: string | null;
+  layerIds: readonly string[];
+}
+
+/**
+ * Whether the current selection is one group of sibling layers.
+ *
+ * Grouping needs direct siblings in a free-flowing parent; a row inside a stack
+ * is laid out by the parent and has no free x/y to preserve.
+ */
+export function groupTargetOf(
+  rows: readonly LayerRowData[],
+  selections: readonly Selection[],
+): GroupTarget | null {
+  if (selections.length < 2) return null;
+  if (selections.some((item) => item.kind !== 'layer')) return null;
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const picked = selections.map((item) => byId.get(item.kind === 'layer' ? item.layerId : item.frameId));
+  if (picked.some((row) => row === undefined || row.kind !== 'layer')) return null;
+
+  const first = picked[0]!;
+  if (picked.some((row) => row!.frameId !== first.frameId || row!.parentId !== first.parentId)) return null;
+
+  if (first.parentId === null) {
+    const frame = first.frameId === null ? null : byId.get(first.frameId)?.frame ?? null;
+    if (frame !== null && frame.layout !== null) return null;
+  } else {
+    const parent = byId.get(first.parentId);
+    if (parent === undefined || parent.layer === undefined || parent.layer.layout !== null) return null;
+  }
+
+  return {
+    frameId: first.frameId,
+    parentId: first.parentId,
+    layerIds: picked.map((row) => row!.id),
+  };
+}

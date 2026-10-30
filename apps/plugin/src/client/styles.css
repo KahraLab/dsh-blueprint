@@ -684,7 +684,7 @@
   background: rgba(255, 255, 255, 0.06);
 }
 .bp-layer-row[data-inside='true'] {
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.028);
 }
 .bp-layer-row[data-selected='true'] {
   background: rgba(255, 255, 255, 0.11);
@@ -2313,4 +2313,50 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
 .bp-dialog-confirm[data-danger='true'] {
   background: #e5484d;
   color: #fff;
+}
+
+/* ---------- layer groups ---------- */
+/* A group is structure only: its box lets a tree row exist, but the canvas
+   must see through it to the children. */
+.bp-el-group {
+  pointer-events: none;
+}
+.bp-el-group > .bp-el {
+  pointer-events: auto;
+}
+.bp-layer-row[data-group='true'] .bp-layer {
+  font-weight: 500;
+}
+/* Renaming in place: a soft field, never a focus ring. */
+.bp-layer-rename {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary, #fff);
+  background: rgba(79, 195, 247, 0.14);
+  border: 0;
+  border-radius: 4px;
+  padding: 0 4px;
+  outline: none;
+  box-shadow: none;
+}
+
+/* ---------- layer tree density ---------- */
+.bp-layer-list {
+  gap: 0;
+}
+.bp-layer-row {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---------- destructive menu items ---------- */
+.bp-menu {
+  gap: 4px;
+}
+.bp-menu-item[data-danger='true']:hover:not(:disabled) {
+  background: rgba(229, 72, 77, 0.16);
+  color: #ff9a9a;
 }

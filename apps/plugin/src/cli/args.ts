@@ -56,7 +56,7 @@ export interface AddArgs {
   icon?: string;
 }
 
-const LAYER_KINDS = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon'];
+const LAYER_KINDS = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon', 'group'];
 
 /** Turn `add` flags into the node payload `apply` would receive. */
 export function addPayload(args: AddArgs): Record<string, unknown> {

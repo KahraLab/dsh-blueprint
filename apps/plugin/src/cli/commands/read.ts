@@ -38,7 +38,7 @@ export const findCommand = defineCommand({
   meta: { name: 'find', description: '按名字、类型或所在容器找元素' },
   args: {
     name: { type: 'string', description: '名字里包含这段文字' },
-    kind: { type: 'string', description: 'frame 或者 rect text ellipse line arrow polygon star' },
+    kind: { type: 'string', description: 'frame 或者 rect text ellipse line arrow polygon star icon group' },
     in: { type: 'string', description: '只在这个画板或容器里找，给 id' },
     blueprint: BLUEPRINT_ARG,
   },

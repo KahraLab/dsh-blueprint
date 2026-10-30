@@ -7,7 +7,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${counter}`;
 }
 
-export type LayerKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'icon';
+export type LayerKind = 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'icon' | 'group';
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
@@ -166,12 +166,15 @@ const LINE_DEFAULTS = { width: 160, height: 16, radius: 0 } as const;
 const FIGURE_DEFAULTS = { width: 120, height: 120, radius: 0 } as const;
 /** Icons are drawn at their own viewBox size, 24 px by iconify convention. */
 const ICON_DEFAULTS = { width: 24, height: 24, radius: 0 } as const;
+/** A group is structure, not paint: its box only bounds the layers inside. */
+const GROUP_DEFAULTS = { width: 1, height: 1, radius: 0 } as const;
 
 function defaultsFor(kind: LayerKind): { width: number; height: number; radius: number } {
   if (kind === 'text') return TEXT_DEFAULTS;
   if (kind === 'line' || kind === 'arrow') return LINE_DEFAULTS;
   if (kind === 'polygon' || kind === 'star') return FIGURE_DEFAULTS;
   if (kind === 'icon') return ICON_DEFAULTS;
+  if (kind === 'group') return GROUP_DEFAULTS;
   return RECT_DEFAULTS;
 }
 
@@ -209,13 +212,17 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
   const normalizeLayer = (layer: Layer): Layer => {
     const raw = layer as Layer & { fill?: unknown; layers?: readonly Layer[] };
     const isText = layer.kind === 'text';
+    const isGroup = layer.kind === 'group';
     return {
       ...layer,
       sizeW: layer.sizeW ?? 'fixed',
       sizeH: layer.sizeH ?? (isText ? 'hug' : 'fixed'),
       children: (layer.children ?? raw.layers ?? []).map(normalizeLayer),
       layout: normalizeLayout(layer.layout),
-      fills: normalizeFills(layer.fills, raw.fill, isText ? DEFAULT_TEXT_FILL : layer.kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL),
+      // A group paints nothing; a missing fill must not grow one.
+      fills: isGroup && !Array.isArray(layer.fills)
+        ? []
+        : normalizeFills(layer.fills, raw.fill, isText ? DEFAULT_TEXT_FILL : layer.kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL),
       opacity: layer.opacity ?? 1,
       fontFamily: layer.fontFamily ?? 'Figtree',
       fontSize: layer.fontSize ?? 14,
@@ -647,6 +654,7 @@ const LAYER_NAMES: Record<LayerKind, string> = {
   star: '星形',
   text: '文本',
   icon: '图标',
+  group: '编组',
 };
 
 function collectNames(layers: readonly Layer[], into: string[]): string[] {
@@ -671,6 +679,7 @@ function nextName(existing: readonly string[], base: string): string {
 function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: string): Layer {
   const defaults = defaultsFor(kind);
   const isText = kind === 'text';
+  const isGroup = kind === 'group';
   return {
     id: nextId('layer'),
     kind,
@@ -683,7 +692,7 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
     sizeH: isText ? 'hug' : 'fixed',
     children: [],
     layout: null,
-    fills: [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL))],
+    fills: isGroup ? [] : [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL))],
     radius: defaults.radius,
     opacity: 1,
     text: '',

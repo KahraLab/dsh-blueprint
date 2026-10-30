@@ -71,7 +71,7 @@ export function ContextMenuHost(): ReactElement | null {
           className="bp-menu-item"
           data-danger={item.danger || undefined}
           disabled={item.disabled}
-          style={item.separator ? { marginTop: 4, borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,0.1))', paddingTop: 7 } : undefined}
+          style={item.separator ? { marginTop: 6 } : undefined}
           onClick={() => pickMenuItem(item.id)}
         >
           <span className="bp-menu-label">{item.label}</span>

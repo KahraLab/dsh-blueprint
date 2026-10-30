@@ -25,6 +25,7 @@ export function LayersPane({ width, blueprintId, blueprintTitle }: LayersPanePro
   const reorderLayer = useBlueprint((state) => state.reorderLayer);
   const reorderFrame = useBlueprint((state) => state.reorderFrame);
   const deleteTarget = useBlueprint((state) => state.deleteTarget);
+  const groupSelection = useBlueprint((state) => state.groupSelection);
   const setLayersWidth = usePanelUi((state) => state.setLayersWidth);
 
   return (
@@ -46,6 +47,7 @@ export function LayersPane({ width, blueprintId, blueprintTitle }: LayersPanePro
         onUpdateFrame={updateFrame}
         onUpdateLayer={updateLayer}
         onDelete={deleteTarget}
+        onGroup={groupSelection}
         onReorderLayer={reorderLayer}
         onReorderFrame={reorderFrame}
       />

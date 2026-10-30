@@ -166,9 +166,6 @@
   "gallery.nameInvalid": "名字要 1–{{max}} 个字",
   "gallery.deleteTitle": "删除蓝图？",
   "gallery.deleteMessage": "「{{title}}」会从这个工作区删除，不能恢复。",
-  "layers.renameTitle": "重命名图层",
-  "layers.renameMessage": "只改图层名称，不影响画面。",
-  "layers.nameInvalid": "名字要 1–{{max}} 个字",
   "layers.deleteTitle": "删除图层？",
   "layers.deleteMessage": "「{{name}}」及其子图层会一起删除，不能恢复。",
   "tools.insert": "插入",
@@ -177,5 +174,9 @@
   "chat.updated": "蓝图已更新",
   "chat.open": "打开蓝图",
   "gallery.renameFailed": "改名失败",
-  "gallery.deleteFailed": "删除失败"
+  "gallery.deleteFailed": "删除失败",
+  "menu.group": "编组",
+  "layers.renameAria": "重命名图层",
+  "inspector.group": "编组",
+  "inspector.groupNote": "编组只组织图层，不画任何东西。"
 }

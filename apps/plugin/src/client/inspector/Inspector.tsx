@@ -76,6 +76,7 @@ export function Inspector({
   const parent = isFrame ? null : findParent(doc, picked.frameId, layer!.id);
   const inFlow = parent !== null && parent.layout !== null;
   const isText = !isFrame && layer!.kind === 'text';
+  const isGroup = !isFrame && layer!.kind === 'group';
   const fills = isFrame ? frame!.fills : layer!.fills;
 
   const actions: InspectorActions = {
@@ -111,7 +112,12 @@ export function Inspector({
         updateLayer={actions.updateLayer}
       />
 
-      {isText ? (
+      {isGroup ? (
+        <section className="bp-inspector-section">
+          <h5>{t('inspector.group')}</h5>
+          <div className="bp-inspector-note">{t('inspector.groupNote')}</div>
+        </section>
+      ) : isText ? (
         <TextAlignSection layer={layer!} updateLayer={actions.updateLayer} />
       ) : (
         <LayoutSection
@@ -120,6 +126,7 @@ export function Inspector({
         />
       )}
 
+      {isGroup ? null : (
       <FillSection
         fills={fills}
         isRect={!isFrame && layer!.kind === 'rect'}
@@ -128,6 +135,7 @@ export function Inspector({
         onChange={(next) => (isFrame ? actions.updateFrame({ fills: next }) : actions.updateLayer({ fills: next }))}
         onRadius={(radius) => actions.updateLayer({ radius })}
       />
+      )}
 
       {isText ? (
         <>

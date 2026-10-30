@@ -1,7 +1,7 @@
 /**
  * One row of the layer tree: name, visibility, lock, and the caret that folds it.
  */
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
+import type { ChangeEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
 import type { RowInfo } from './rows';
@@ -25,10 +25,19 @@ export interface LayerRowProps {
   collapsed: boolean;
   info: RowInfo;
   dragging: boolean;
+  /** A group draws nothing; its row reads a little stronger. */
+  group?: boolean;
+  /** Present while this row is being renamed in place. */
+  rename?: {
+    value: string;
+    onChange(value: string): void;
+    onCommit(): void;
+    onCancel(): void;
+  };
   onToggleCollapsed(): void;
   onPress(event: ReactPointerEvent<HTMLDivElement>): void;
   onContextMenu(event: ReactMouseEvent<HTMLDivElement>): void;
-  onClick(): void;
+  onClick(event: ReactMouseEvent<HTMLButtonElement>): void;
   onDoubleClick?(): void;
   onToggleVisible(): void;
   onToggleLock(): void;
@@ -49,6 +58,8 @@ export function LayerRow({
   collapsed,
   info,
   dragging,
+  group,
+  rename,
   onToggleCollapsed,
   onPress,
   onContextMenu,
@@ -72,6 +83,7 @@ export function LayerRow({
       data-block-start={blockStart || undefined}
       data-block-end={blockEnd || undefined}
       data-dragging={dragging || undefined}
+      data-group={group || undefined}
       style={{ paddingLeft: BASE_INDENT + depth * INDENT }}
       onPointerDown={onPress}
       onContextMenu={onContextMenu}
@@ -91,9 +103,32 @@ export function LayerRow({
           </button>
         ) : null}
       </span>
-      <button type="button" className="bp-layer" onClick={onClick} onDoubleClick={onDoubleClick}>
-        {name}
-      </button>
+      {rename ? (
+        <input
+          className="bp-layer-rename"
+          value={rename.value}
+          autoFocus
+          aria-label={t('layers.renameAria')}
+          onFocus={(event) => event.currentTarget.select()}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => rename.onChange(event.target.value)}
+          onBlur={rename.onCommit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              rename.onCommit();
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              rename.onCancel();
+            }
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      ) : (
+        <button type="button" className="bp-layer" onClick={onClick} onDoubleClick={onDoubleClick}>
+          {name}
+        </button>
+      )}
       <span className="bp-layer-actions">
         <button
           type="button"

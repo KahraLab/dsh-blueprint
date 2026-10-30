@@ -166,9 +166,6 @@
   "gallery.nameInvalid": "Name must be 1–{{max}} characters",
   "gallery.deleteTitle": "Delete blueprint?",
   "gallery.deleteMessage": "“{{title}}” will be removed from this workspace. This cannot be undone.",
-  "layers.renameTitle": "Rename layer",
-  "layers.renameMessage": "Changes the layer name only; the canvas is untouched.",
-  "layers.nameInvalid": "Name must be 1–{{max}} characters",
   "layers.deleteTitle": "Delete layer?",
   "layers.deleteMessage": "“{{name}}” and its children will be removed. This cannot be undone.",
   "tools.insert": "Insert",
@@ -177,5 +174,9 @@
   "chat.updated": "Blueprint updated",
   "chat.open": "Open blueprint",
   "gallery.renameFailed": "Could not rename",
-  "gallery.deleteFailed": "Could not delete"
+  "gallery.deleteFailed": "Could not delete",
+  "menu.group": "Group",
+  "layers.renameAria": "Rename layer",
+  "inspector.group": "Group",
+  "inspector.groupNote": "A group organizes layers; it draws nothing."
 }

@@ -15,7 +15,7 @@ import { ALIGNS, DERIVED_FIELDS, DIRECTIONS, FRAME_FIELDS, JUSTIFIES, LAYER_FIEL
 import { ProtocolError } from './errors';
 
 /** Names the canvas makes up: 画板1, 矩形2, … A model has to do better. */
-const AUTO_NAME = /^(画板|矩形|文字|椭圆|直线|箭头|多边形|星形|图标|frame|rect|text|ellipse|line|arrow|polygon|star|icon)\s*\d*$/i;
+const AUTO_NAME = /^(画板|矩形|文字|椭圆|直线|箭头|多边形|星形|图标|编组|frame|rect|text|ellipse|line|arrow|polygon|star|icon|group)\s*\d*$/i;
 
 /** Batch-local names, as used by `ref` and `@name`. */
 const REF_NAME = /^[A-Za-z0-9_-]+$/;
