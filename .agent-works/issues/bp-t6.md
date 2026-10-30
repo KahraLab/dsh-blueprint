@@ -2,8 +2,8 @@
 id: bp-t6
 title: 写入基准与并发
 labels: [wayfinder:task]
-status: open
-assignee:
+status: closed
+assignee: worker
 blocked_by: []
 ---
 
@@ -38,3 +38,22 @@ blocked_by: []
 - 画布在 `rebased` 后保留撤销历史，在 `STALE_BASE` 后重新加载并清历史。
 - `architecture`、`ai-editing-protocol`、skill 与 `bp schema` 同步。
 - 契约测试覆盖：摘要相同；摘要过期但可重放；过期且不可重放；`apply` 不带 `base` 是用例错误；文档被手工改过（版本数字相同、内容不同）也能识别。
+
+## Resolution
+
+主控与用户达成一致产品决断：蓝图作为单人+单AI的本地产品设计工作台，非多人协同编辑，彻底废除过度设计的 `revision` 乐观并发锁机制。写入改为按节点 ID 的无锁语义 patch（Last-Write-Wins），彻底消除 `--base-revision` 门槛。
+
+改造内容与成果：
+1. **协议层与 Schema（`apps/plugin/src/protocol/`）**：
+   - `contract.ts`：`apply` 请求 schema 的 `baseRevision` 改为可选；校验逻辑不再拦截缺失 `baseRevision` 的请求，提示文案升级为 `{ "reason": "...", "ops": [...] }`。
+   - `schema.ts`：更新协议说明，明确写入无需带 `baseRevision`，直接按节点 ID 寻址就地无锁应用。
+   - `change.ts`：`baseRevision` 设为可选，不再进行版本比较拦截或抛出 `REVISION_CONFLICT`。
+2. **Node 存储层（`apps/plugin/src/node/docfile.ts`）**：
+   - `changeDocument` 移除版本号对比拦截，无论是否传递 `baseRevision`，均不再返回 `conflict: true`。若操作引用的节点不存在或已被删除，由各语义操作（`insert/remove/set/move/replace`）自身返回具体的定位失败语义错误。
+3. **CLI 与 Host（`apps/plugin/src/cli/`、`src/host/`）**：
+   - `cli/commands/write.ts`：`bp apply` 解析无需 `baseRevision`，`add / move / set / rm` 均走无锁写入。
+   - `host/skill.ts`：更新 AI 技能说明与交互示例，AI 写入只需 `{ "reason": "...", "ops": [...] }`，无需先读取版本再回传。
+4. **前端编辑器与同步（`apps/plugin/src/client/editor/sync.ts`）**：
+   - `sendOps` 与 `flushOnce` 移除冲突阻断与重试逻辑；`poll` 轮询只作为获取外部新变更的触发器，不再作为冲突阻断依据。
+5. **测试闭环**：
+   - 适配 `cli.test.mjs` 与 `history.test.mjs`，断言旧版本号或省略版本号均直接无锁写入成功，全量测试套件 65 项全部通过（0 fail），类型检查与 i18n 检查零错误。

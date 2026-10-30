@@ -438,17 +438,17 @@ describe('批量写入', () => {
   });
 });
 
-describe('版本与冲突', () => {
-  test('baseRevision 对不上就拒绝，不自动重试', () => {
+describe('版本与无锁写入', () => {
+  test('baseRevision 对不上也无锁应用成功（Last-Write-Wins）', () => {
     box.apply(LOGIN_SCREEN);
-    const { status, payload } = box.failed(
+    const payload = box.ok(
       ['apply'],
       JSON.stringify({ baseRevision: 0, ops: [{ op: 'set', id: box.firstId(['--name', '登录按钮']), patch: { radius: 4 } }] }),
     );
-    assert.equal(status, 3);
-    assert.equal(payload.code, 'REVISION_CONFLICT');
-    assert.equal(payload.revision, 1);
-    assert.equal(box.view().revision, 1);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.revision, 2);
+    assert.equal(box.view().revision, 2);
+    assert.equal(box.view(box.firstId(['--name', '登录按钮'])).node.radius, 4);
   });
 
   test('内容没变的提交不写文件，也不涨版本', () => {
@@ -460,11 +460,20 @@ describe('版本与冲突', () => {
     assert.equal(box.documentFile(), before, '再写一遍同样的值，文件不该被重写');
   });
 
-  test('apply 不带 baseRevision 是用法错误', () => {
+  test('apply 不带 baseRevision 直接无锁应用成功', () => {
+    box.apply(LOGIN_SCREEN);
+    const buttonId = box.firstId(['--name', '登录按钮']);
+    const payload = box.ok(['apply'], JSON.stringify({ ops: [{ op: 'set', id: buttonId, patch: { radius: 8 } }] }));
+    assert.equal(payload.ok, true);
+    assert.equal(payload.revision, 2);
+    assert.equal(box.view(buttonId).node.radius, 8);
+  });
+
+  test('apply ops 是空的是用法错误', () => {
     const { status, payload } = box.failed(['apply'], JSON.stringify({ ops: [] }));
     assert.equal(status, 2);
     assert.equal(payload.code, 'USAGE');
-    assert.equal(payload.field, 'baseRevision');
+    assert.equal(payload.field, 'ops');
   });
 });
 

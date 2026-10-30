@@ -47,7 +47,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
     const prepared = prepareOps(stored.document, request.ops);
     ops = prepared.ops;
     ids = prepared.ids;
-    baseRevision = request.baseRevision;
+    baseRevision = request.baseRevision ?? undefined;
     if (request.reason) reason = request.reason;
   } else if (input.ops !== undefined) {
     validateOps(stored.document, input.ops);
@@ -57,7 +57,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
   }
 
   const result = changeDocument(filePath, {
-    baseRevision: baseRevision ?? stored.revision,
+    baseRevision,
     ops: withIconDrawings(stored.document, ops),
     by: input.by ?? 'cli',
     reason,

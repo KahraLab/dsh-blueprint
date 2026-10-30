@@ -51,8 +51,8 @@ export function buildSchema(): Record<string, unknown> {
       ref: '批内临时引用。insert 的节点带 ref，同一批里用 "@名字" 指它；ref 不写进文档。',
     },
     revisions: {
-      meaning: '每次成功写入后 revision 加一；内容没变的提交不写文件、不涨版本。读取得到的 revision 原样带回 baseRevision。',
-      conflict: 'baseRevision 对不上时整批不写，返回 REVISION_CONFLICT。不要自动重试，先重新读。',
+      meaning: '每次成功写入后 revision 加一；内容没变的提交不写文件、不涨版本。',
+      concurrency: '写入无需带 baseRevision，按节点 ID 寻址直接就地应用（无锁语义合并）。',
       atomic: '一次 apply 是一个撤销单元；失败或被拒的 apply 不产生新版本。',
     },
     defaults: {
@@ -68,7 +68,7 @@ export function buildSchema(): Record<string, unknown> {
     errors: {
       USAGE: '命令或请求的用法不对',
       VALIDATION_FAILED: '操作没通过检查，带 index（第几条操作，从 0 数）和 field',
-      REVISION_CONFLICT: '文档在提交前被别人改过，带当前 revision',
+      REVISION_CONFLICT: '版本冲突（保留兼容码，无锁模式下不触发）',
       NOT_FOUND: 'id 或容器不存在',
       INTERNAL: '命令自身出错',
     },

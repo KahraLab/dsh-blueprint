@@ -20,7 +20,7 @@ interface StoredReply {
 
 interface ChangeReply extends StoredReply {
   ok: boolean;
-  conflict: boolean;
+  conflict?: boolean;
   error: string | null;
 }
 
@@ -76,12 +76,12 @@ async function getStored(url: string): Promise<StoredReply | 'missing' | null> {
   }
 }
 
-async function sendOps(url: string, baseRevision: number, ops: ReturnType<typeof diffDocs>): Promise<ChangeReply | null> {
+async function sendOps(url: string, ops: ReturnType<typeof diffDocs>): Promise<ChangeReply | null> {
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ baseRevision, ops, by: 'canvas' }),
+      body: JSON.stringify({ ops, by: 'canvas' }),
     });
     const data = (await response.json()) as ChangeReply & { document?: BlueprintDocument };
     if (!response.ok || !data || typeof data.revision !== 'number') {
@@ -120,21 +120,11 @@ async function flushOnce(url: string): Promise<void> {
   }
 
   const ops = diffDocs(syncedDoc, local);
-  let reply = await sendOps(url, syncedRevision, ops);
+  const reply = await sendOps(url, ops);
   if (!reply) {
     console.warn('[blueprint] 保存失败');
     useBlueprint.setState({ saveState: 'error' });
     return;
-  }
-
-  // Someone else wrote in between — the model, another tab. Replay the same
-  // operations on top of the newer file, so only what the user touched changes.
-  if (!reply.ok && reply.conflict) {
-    reply = await sendOps(url, reply.revision, ops);
-    if (!reply) {
-      useBlueprint.setState({ saveState: 'error' });
-      return;
-    }
   }
 
   if (!reply.ok) {

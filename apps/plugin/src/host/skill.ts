@@ -52,9 +52,9 @@ export function skillFor(command: string): SkillRegistration {
 - 用户说出了名字 → 跑 ${command} find --name 登录按钮。
 - 都没有 → 先 ${command} view 看蓝图；要看整屏再用 ${command} view <画板id>。
 
-然后带上读到的 revision，一次提交完。一批修改写成 { "baseRevision": N, "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply。只有一处小改动时可以用 add / set / move / rm 的快捷写法，它们内部走同一条写入路径。
+然后一次提交完。一批修改写成 { "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply（无需带 baseRevision，按节点 ID 无锁就地写入）。只有一处小改动时可以用 add / set / move / rm 的快捷写法，它们内部走同一条写入路径。
 
-最后用一两句话告诉用户改了什么。成功后不用再 view；只有结果不确定、冲突之后要重读，或者下一步需要更多文档内容时才再读。
+最后用一两句话告诉用户改了什么。成功后不用再 view；只有结果不确定，或者下一步需要更多文档内容时才再读。
 
 ## 图标
 
@@ -81,7 +81,6 @@ ${CORE_RULES.map((rule) => `- ${rule}`).join('\n')}
 
     ${command} apply <<'JSON'
     {
-      "baseRevision": 8,
       "reason": "登录按钮改蓝色并加大圆角",
       "ops": [
         {
@@ -100,7 +99,6 @@ ${CORE_RULES.map((rule) => `- ${rule}`).join('\n')}
 
     ${command} apply <<'JSON'
     {
-      "baseRevision": 0,
       "reason": "生成登录页",
       "ops": [
         {

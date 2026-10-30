@@ -88,8 +88,8 @@ function sleep(ms: number): void {
 // ---------------------------------------------------------------- writes
 
 export interface ChangeRequest {
-  /** The revision this change was written against. `null` skips the check. */
-  baseRevision: number | null;
+  /** The revision this change was written against (optional, optimistic locking removed). */
+  baseRevision?: number | null;
   ops?: readonly DocumentOp[];
   /** Whole document, only for the canvas safety net when a diff cannot be applied. */
   document?: BlueprintDocument;
@@ -104,7 +104,7 @@ export interface ChangeResult {
   revision: number;
   /** The file as it stands now, so a rejected writer can rebase on it. */
   document: BlueprintDocument;
-  /** Set when the caller was writing against an old revision. */
+  /** Kept for compatibility; always false now that optimistic concurrency locking is removed. */
   conflict: boolean;
   error: string | null;
   /** Which operation failed and why, when one did. */
@@ -121,9 +121,6 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
 
   try {
     const current = readDocument(filePath);
-    if (request.baseRevision !== null && request.baseRevision !== current.revision) {
-      return { ok: false, revision: current.revision, document: current.document, conflict: true, error: '文件已经被别处改过了', failure: null, problems: [] };
-    }
 
     let next = current.document;
     if (request.ops) {

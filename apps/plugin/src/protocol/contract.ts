@@ -121,7 +121,7 @@ const moveOpShape = z.strictObject({ op: z.literal('move'), id: idSchema, parent
 const replaceOpShape = z.strictObject({ op: z.literal('replace'), id: idSchema, node: z.unknown() });
 
 const requestShape = z.strictObject({
-  baseRevision: z.int().nonnegative(),
+  baseRevision: z.int().nonnegative().optional(),
   reason: z.string().optional(),
   ops: z.array(z.unknown()).min(1, 'ops 是空的，没有要改的东西'),
 });
@@ -145,7 +145,7 @@ export type WireOp =
   | { op: 'replace'; id: string; node: WireNode };
 
 export interface WireRequest {
-  baseRevision: number;
+  baseRevision?: number | null;
   reason: string | null;
   /** Untouched operations; each is parsed and built against the current document. */
   ops: readonly unknown[];
@@ -162,7 +162,7 @@ export function parseRequest(raw: unknown): WireRequest {
   if (ops.length === 0) {
     throw new ProtocolError('USAGE', 'ops 是空的，没有要改的东西', { field: 'ops', hint: '一次 apply 至少带一条操作' });
   }
-  return { baseRevision: parsed.data.baseRevision, reason: parsed.data.reason ?? null, ops };
+  return { baseRevision: parsed.data.baseRevision ?? null, reason: parsed.data.reason ?? null, ops };
 }
 
 /** One operation's envelope. The document is not consulted here. */
@@ -293,7 +293,7 @@ export function requestJsonSchema(): Record<string, unknown> {
   ]);
 
   const requestDoc = z.strictObject({
-    baseRevision: z.int().nonnegative().meta({ description: '读到的 revision，写入时原样带回' }),
+    baseRevision: z.int().nonnegative().optional().meta({ description: '读到的 revision，可选（无锁写入可省略）' }),
     reason: z.string().optional().meta({ description: '这次修改做了什么，给人和历史看' }),
     ops: z.array(opDoc).min(1),
   });
@@ -313,10 +313,9 @@ function nodeObjectError(issue: { code?: string; keys?: string[] }): string | un
 function envelopeError(error: z.ZodError): ProtocolError {
   const issue = firstLeaf(error.issues);
   const field = fieldOf(issue.path);
-  const message = field === 'baseRevision' ? 'apply 必须带 baseRevision' : messageFor(issue);
-  return new ProtocolError('USAGE', message, {
+  return new ProtocolError('USAGE', messageFor(issue), {
     ...(field ? { field } : {}),
-    hint: field === 'baseRevision' ? '先跑 bp view 拿 revision，再原样带回；对不上时整批不写' : '请求形如 { "baseRevision": 8, "ops": [...] }',
+    hint: '请求形如 { "reason": "...", "ops": [...] }',
   });
 }
 

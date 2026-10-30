@@ -77,6 +77,7 @@ updated: 2026-10-30
 - [入口与页面模型](bp-g11.md): 左侧「蓝图」进设计入口页；发送提示词只开普通会话、不建蓝图；「项目蓝图库」进 Dashboard；创建文件才打开右侧编辑器，左栏顶部显示名称和等宽 id；每个会话记住自己的蓝图；Dashboard 打开蓝图借用普通会话。
 - [界面文案迁到 i18n](bp-t4.md): 界面文案全量迁入 i18next，zh 与 en 156 键对称；图层行操作按钮解耦本地化文案，改用 data-action 选择器高亮状态。
 - [撤销与重做](bp-t2.md): 每次有效修改前落盘完整快照到 history/ 并追加 index.json 元信息，自动修剪保留最近 100 张且永久保留 manual 标记；前端轮询接纳外部写入为撤销单元且不清空历史，Cmd+Z 可一步撤销 AI 修改；撤销与重做落盘递增 revision。
+- [写入基准与并发](bp-t6.md): 彻底废除 revision 乐观并发锁机制，写入改为按节点 ID 无锁语义 patch（Last-Write-Wins），消除 baseRevision 门槛。
 
 ## Not yet specified
 

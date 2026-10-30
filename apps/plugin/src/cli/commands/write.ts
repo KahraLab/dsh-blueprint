@@ -52,7 +52,7 @@ function parseJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    throw new ProtocolError('USAGE', '请求不是合法的 JSON', { hint: '请求形如 { "baseRevision": 8, "ops": [...] }' });
+    throw new ProtocolError('USAGE', '请求不是合法的 JSON', { hint: '请求形如 { "reason": "...", "ops": [...] }' });
   }
 }
 
@@ -83,7 +83,7 @@ export const addCommand = defineCommand({
 
     const created = prepared.ops[0];
     if (!created || created.op !== 'insert') throw new ProtocolError('INTERNAL', 'add 没有产出插入操作');
-    const outcome = change(blueprint.file, { ops: prepared.ops, baseRevision: stored.revision });
+    const outcome = change(blueprint.file, { ops: prepared.ops });
     emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, node: describeNode(created.node) });
   },
 });
@@ -163,7 +163,7 @@ export const moveCommand = defineCommand({
       throw new ProtocolError('USAGE', '画板只能调顺序，不能搬进别的容器', { field: 'into' });
     }
     const parent = args.into === undefined ? (isFrame ? null : (parentOfLayer(stored.document, args.id) ?? null)) : args.into === 'root' ? null : args.into;
-    const outcome = change(blueprint.file, { ops: [{ op: 'move', id: args.id, parent, index }], baseRevision: stored.revision });
+    const outcome = change(blueprint.file, { ops: [{ op: 'move', id: args.id, parent, index }] });
     emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id });
   },
 });

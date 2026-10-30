@@ -4,7 +4,7 @@
  * Checks:
  *   - history/ directory and history/index.json metadata for both human and AI edits
  *   - empty writes do not bump revision or write snapshots
- *   - validation failures and conflicts do not create snapshots
+ *   - validation failures do not create snapshots
  *   - auto pruning retains at most 100 auto snapshots, keeping manual snapshots
  *   - undo and redo produce monotonic revisions
  *   - client undo stack adopts external writes smoothly without clearing history
@@ -178,7 +178,7 @@ describe('历史快照与元数据落盘', () => {
     }
   });
 
-  test('校验失败和冲突不产生快照', async () => {
+  test('baseRevision 不一致无锁写入成功，校验失败不产生快照', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'bp-ws-'));
     try {
       const { createBlueprint, blueprintFile, blueprintDir } = blueprintModule;
@@ -188,15 +188,19 @@ describe('历史快照与元数据落盘', () => {
       const file = blueprintFile(ws, bp.id);
       const dir = blueprintDir(ws, bp.id);
 
-      // 基础版本对不上（冲突）
+      // 即使传入旧的/不一致的 baseRevision，也直接无锁写入成功并产生快照
       const res1 = changeDocument(file, {
         baseRevision: 99,
-        document: { frames: [], layers: [] },
+        document: {
+          frames: [{ id: 'f1', name: '画板1', x: 0, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] }],
+          layers: [],
+        },
         by: 'ai',
+        reason: '无锁写入测试',
       });
-      assert.equal(res1.ok, false);
-      assert.equal(res1.conflict, true);
-      assert.equal(readHistoryIndex(dir).length, 0, '冲突不产生快照');
+      assert.equal(res1.ok, true);
+      assert.equal(res1.conflict, false);
+      assert.equal(readHistoryIndex(dir).length, 1, '无锁写入成功产生快照');
 
       // 文档完整性校验失败（图层坐标非法非数字，或重复 id）
       const res2 = changeDocument(file, {
@@ -211,7 +215,7 @@ describe('历史快照与元数据落盘', () => {
         by: 'ai',
       });
       assert.equal(res2.ok, false);
-      assert.equal(readHistoryIndex(dir).length, 0, '校验失败不产生快照');
+      assert.equal(readHistoryIndex(dir).length, 1, '校验失败不产生新快照');
     } finally {
       await rm(ws, { recursive: true, force: true });
     }
