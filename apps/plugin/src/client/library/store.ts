@@ -131,7 +131,7 @@ export const useBlueprintLibrary = create<BlueprintLibraryState>()((set, get) =>
         { method: 'PATCH', body: { title } },
       );
       if (reply.ok !== true || reply.data?.ok !== true || reply.data.blueprint === undefined) {
-        patch(key, { error: reply.data?.error ?? messages.loadFailed });
+        patch(key, { error: reply.data?.error ?? messages.renameFailed });
         return false;
       }
       const nextTitle = reply.data.blueprint.title;
@@ -151,7 +151,7 @@ export const useBlueprintLibrary = create<BlueprintLibraryState>()((set, get) =>
         { method: 'DELETE' },
       );
       if (reply.ok !== true || reply.data?.ok !== true) {
-        patch(key, { error: reply.data?.error ?? messages.loadFailed });
+        patch(key, { error: reply.data?.error ?? messages.deleteFailed });
         return false;
       }
       forgetPreview(scope, blueprintId);

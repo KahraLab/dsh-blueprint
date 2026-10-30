@@ -17,7 +17,7 @@ export interface WatchOptions {
   previews?: boolean;
 }
 
-const DEFAULT_INTERVAL_MS = 2000;
+const DEFAULT_INTERVAL_MS = 1000;
 
 export function watchLibrary(scope: LibraryScope, messages: LibraryMessages, options: WatchOptions = {}): () => void {
   let stopped = false;

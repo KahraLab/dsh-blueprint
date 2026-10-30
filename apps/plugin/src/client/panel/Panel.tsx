@@ -90,7 +90,12 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const docUrl = blueprintId === null ? null : documentUrl(scope, blueprintId);
   const selectionEndpoint = selectionUrl(scope);
   const messages = useMemo(
-    () => ({ loadFailed: t('gallery.loadFailed'), createFailed: t('gallery.createFailed') }),
+    () => ({
+      loadFailed: t('gallery.loadFailed'),
+      createFailed: t('gallery.createFailed'),
+      renameFailed: t('gallery.renameFailed'),
+      deleteFailed: t('gallery.deleteFailed'),
+    }),
     [t],
   );
 

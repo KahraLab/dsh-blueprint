@@ -42,7 +42,7 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
 
   const openCardMenu = async (event: ReactMouseEvent, blueprint: BlueprintSummary): Promise<void> => {
     const picked = await openMenuAt(event, [
-      { id: 'rename', label: t('menu.rename') },
+      { id: 'rename', label: t('menu.rename'), disabled: blueprint.broken },
       { id: 'delete', label: t('menu.delete'), danger: true, separator: true },
     ]);
     if (picked === 'rename') {

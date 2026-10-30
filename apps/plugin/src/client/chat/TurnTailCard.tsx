@@ -35,7 +35,12 @@ export function TurnTailCard({ ctx, sessionId, turn }: TurnTailCardProps): React
   const key = scopeKey(scope);
   const library = useLibrarySlice(key);
   const messages = useMemo(
-    () => ({ loadFailed: t('gallery.loadFailed'), createFailed: t('gallery.createFailed') }),
+    () => ({
+      loadFailed: t('gallery.loadFailed'),
+      createFailed: t('gallery.createFailed'),
+      renameFailed: t('gallery.renameFailed'),
+      deleteFailed: t('gallery.deleteFailed'),
+    }),
     [t],
   );
 

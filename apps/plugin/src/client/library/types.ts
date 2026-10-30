@@ -18,6 +18,8 @@ export interface BlueprintSummary {
 export interface LibraryMessages {
   loadFailed: string;
   createFailed: string;
+  renameFailed: string;
+  deleteFailed: string;
 }
 
 export interface LibrarySlice {

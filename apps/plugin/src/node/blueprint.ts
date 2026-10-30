@@ -326,11 +326,18 @@ export function renameBlueprint(root: string, id: string, title: string): Bluepr
  * command line do not keep answering with a file that is gone.
  */
 export function deleteBlueprint(root: string, id: string, sessionId?: string | null): void {
-  const blueprint = readBlueprint(root, id); // missing or unreadable is an error, not a silent no-op
-  rmSync(blueprintDir(root, blueprint.id), { recursive: true, force: true });
-  forgetPointer(sessionPointerFileIfAny(sessionId), blueprint.id);
-  forgetPointer(workspaceFile(root), blueprint.id);
-  for (const name of LEGACY_WORKSPACE_FILES) forgetPointer(join(dataDir(root), name), blueprint.id);
+  const blueprintId = assertBlueprintId(id);
+  const dir = blueprintDir(root, blueprintId);
+  // A broken file is exactly the one a user wants to remove; only a missing
+  // directory is an error. The id check above keeps the delete inside the
+  // workspace.
+  if (!existsSync(dir)) {
+    throw new BlueprintError(`找不到蓝图「${blueprintId}」：${dir} 不存在`, 'missing');
+  }
+  rmSync(dir, { recursive: true, force: true });
+  forgetPointer(sessionPointerFileIfAny(sessionId), blueprintId);
+  forgetPointer(workspaceFile(root), blueprintId);
+  for (const name of LEGACY_WORKSPACE_FILES) forgetPointer(join(dataDir(root), name), blueprintId);
 }
 
 function sessionPointerFileIfAny(sessionId?: string | null): string | null {

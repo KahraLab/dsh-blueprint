@@ -175,5 +175,7 @@
   "tools.insertOptions": "插入工具",
   "chat.created": "蓝图已生成",
   "chat.updated": "蓝图已更新",
-  "chat.open": "打开蓝图"
+  "chat.open": "打开蓝图",
+  "gallery.renameFailed": "改名失败",
+  "gallery.deleteFailed": "删除失败"
 }

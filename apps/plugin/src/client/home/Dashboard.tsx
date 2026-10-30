@@ -33,7 +33,12 @@ export function Dashboard({ ctx, workspace, onBack }: DashboardProps): ReactElem
   const setBusy = useHomeUi((state) => state.setSending);
 
   const messages = useMemo(
-    () => ({ loadFailed: t('gallery.loadFailed'), createFailed: t('gallery.createFailed') }),
+    () => ({
+      loadFailed: t('gallery.loadFailed'),
+      createFailed: t('gallery.createFailed'),
+      renameFailed: t('gallery.renameFailed'),
+      deleteFailed: t('gallery.deleteFailed'),
+    }),
     [t],
   );
 
