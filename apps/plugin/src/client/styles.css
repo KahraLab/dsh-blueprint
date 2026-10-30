@@ -5,6 +5,14 @@
   box-sizing: border-box;
 }
 
+/* Panel chrome: Latin runs in Figtree, the same type the canvas paints with;
+   CJK and anything Figtree lacks fall through to the system stack. */
+.bp-root,
+.bp-page-root,
+.bp-ctx {
+  --bp-font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+}
+
 .bp-root {
   position: relative;
   display: flex;
@@ -13,7 +21,7 @@
   min-height: 0;
   background: var(--dsw-alias-bg-base, #1b1b1b);
   color: var(--dsw-alias-label-primary, #eaeaea);
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  font: 13px/1.45 var(--bp-font-sans);
 }
 
 /* ---------- header ---------- */
@@ -1785,7 +1793,7 @@ body[data-ds-dark-theme] .bp-gallery {
   height: 100%;
   background: var(--dsw-alias-bg-base, #1b1b1b);
   color: var(--dsw-alias-label-primary, #eaeaea);
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  font: 13px/1.45 var(--bp-font-sans);
 }
 
 .bp-entry-page {
@@ -2202,7 +2210,7 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
   bottom: auto;
   z-index: 1000;
   min-width: 176px;
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  font: 13px/1.45 var(--bp-font-sans);
 }
 .bp-menu-item[data-danger='true'] {
   color: #e5484d;
