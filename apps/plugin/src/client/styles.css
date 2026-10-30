@@ -1878,6 +1878,90 @@ body[data-ds-dark-theme] .bp-gallery {
   transition: border-color 0.15s ease;
 }
 
+.bp-entry-field {
+  position: relative;
+}
+
+/* The trigger menu opens above the field so it never covers the composer's
+   controls while the user is still typing. */
+.bp-trigger-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 25;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-base, #1f1f1f);
+  box-shadow: var(--dsw-elevation-soft, 0 18px 40px rgba(0, 0, 0, 0.35));
+}
+
+.bp-trigger-list {
+  max-height: 272px;
+  overflow-y: auto;
+}
+
+.bp-trigger-section {
+  margin: 8px 10px 4px;
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
+  font-size: 11px;
+}
+
+.bp-trigger-section:first-child {
+  margin-top: 4px;
+}
+
+.bp-trigger-row {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 18px minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #eaeaea);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.bp-trigger-row[data-active='true'] {
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.09));
+}
+
+.bp-trigger-glyph {
+  display: inline-flex;
+  color: var(--dsw-alias-label-secondary, #9a9a9a);
+}
+
+.bp-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-trigger-desc {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-trigger-empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
+  font-size: 12px;
+  text-align: center;
+}
+
 .bp-entry-input {
   display: block;
   width: 100%;

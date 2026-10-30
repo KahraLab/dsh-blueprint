@@ -17,6 +17,7 @@ usage:
     - inspector.justify*
     - inspector.align*
     - permission.*
+    - menu.*
 # Registered by ctx.locale for the sidebar tab and its guide entry, not by i18next.
 ignoreKeys:
   - panel

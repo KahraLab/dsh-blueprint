@@ -96,6 +96,7 @@ export interface SessionHandle {
 export interface SessionSummary {
   id: string;
   cwd?: string;
+  title?: string;
   blank?: boolean;
   updatedAt?: string;
   retainedBy?: { readonly mainView?: number };
@@ -177,8 +178,17 @@ export interface SkillRegistration {
   path?: string;
 }
 
+export interface SkillSummary {
+  name: string;
+  description: string;
+  path?: string;
+  invocation?: { modelInvocable: boolean; userInvocable: boolean };
+}
+
 export interface SkillsService {
   register(skill: SkillRegistration): Disposable;
+  /** Invocation-neutral catalog for one working directory. */
+  list(options: { cwd?: string }): Promise<readonly SkillSummary[]>;
 }
 
 export interface LayoutService {

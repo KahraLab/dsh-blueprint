@@ -178,5 +178,18 @@
   "permission.readOnly": "仅可查看",
   "permission.workspaceWrite": "工作区内修改",
   "permission.fullAccess": "完全权限",
-  "permission.auto": "自动审查"
+  "permission.auto": "自动审查",
+  "menu.files": "文件",
+  "menu.sessions": "历史会话",
+  "menu.commands": "指令",
+  "menu.skills": "技能",
+  "menu.library": "打开蓝图库",
+  "menu.libraryHint": "看这个工作区里的所有设计稿",
+  "menu.clear": "清空输入",
+  "menu.clearHint": "把输入框里的草稿清掉",
+  "menu.empty": "没有匹配的内容",
+  "menu.searching": "正在查找…",
+  "menu.untitledSession": "未命名会话",
+  "menu.sessionHint": "把这段对话作为背景引用",
+  "menu.filesAndFolders": "文件与文件夹"
 }

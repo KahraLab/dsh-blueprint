@@ -4,10 +4,12 @@
  * One composer, one workspace picker, one prompt. Sending starts an ordinary
  * Session; this page never creates a blueprint of its own.
  */
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PluginContext, WorkspaceListSnapshot, WorkspaceSummary } from '../../types/dsh';
+import type { PluginContext, SessionListSnapshot, WorkspaceListSnapshot, WorkspaceSummary } from '../../types/dsh';
 import { describeNavigationError, startDesignSession, workspaceLabel } from '../blueprintNavigation';
+import { ComposerInput } from './composer/ComposerInput';
+import type { MenuSources } from './composer/sources';
 import { PermissionChip } from './PermissionChip';
 import { loadPermissionChoice, type PermissionChoice } from './permissions';
 import { WorkspacePicker } from './WorkspacePicker';
@@ -17,11 +19,12 @@ import { useHomeUi } from './homeStore';
 interface DesignEntryProps {
   ctx: PluginContext;
   workspaces: WorkspaceListSnapshot;
+  sessions: SessionListSnapshot;
   workspace: WorkspaceSummary | null;
   onDashboard(): void;
 }
 
-export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignEntryProps): ReactElement {
+export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard }: DesignEntryProps): ReactElement {
   const { t } = useTranslation();
   const prompt = useHomeUi((state) => state.prompt);
   const sending = useHomeUi((state) => state.sending);
@@ -48,6 +51,15 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
   }, [ctx, selectWorkspace]);
 
   const [permissionChoice, setPermissionChoice] = useState<PermissionChoice | null>(null);
+
+  const sources = useMemo<MenuSources>(() => ({
+    ctx,
+    workspace,
+    sessions,
+    t,
+    openLibrary: onDashboard,
+    clearPrompt: () => setPrompt(''),
+  }), [ctx, onDashboard, sessions, setPrompt, t, workspace]);
 
   useEffect(() => {
     let alive = true;
@@ -89,18 +101,14 @@ export function DesignEntry({ ctx, workspaces, workspace, onDashboard }: DesignE
         </div>
 
         <div className="bp-entry-composer">
-          <textarea
-            className="bp-entry-input"
-            rows={3}
+          <ComposerInput
             value={prompt}
+            disabled={sending}
             placeholder={t('home.placeholder')}
-            aria-label={t('home.placeholder')}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
-              event.preventDefault();
-              void submit();
-            }}
+            ariaLabel={t('home.placeholder')}
+            sources={sources}
+            onChange={setPrompt}
+            onSubmit={() => void submit()}
           />
           <div className="bp-entry-controls">
             <WorkspacePicker

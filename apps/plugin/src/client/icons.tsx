@@ -45,6 +45,10 @@ import Columns2 from 'lucide-react/icons/columns-2';
 import Rows2 from 'lucide-react/icons/rows-2';
 import LayoutGrid from 'lucide-react/icons/layout-grid';
 import ShieldAlert from 'lucide-react/icons/shield-alert';
+import FileIconBase from 'lucide-react/icons/file';
+import MessageSquare from 'lucide-react/icons/message-square';
+import Command from 'lucide-react/icons/command';
+import Sparkles from 'lucide-react/icons/sparkles';
 import type { ReactElement } from 'react';
 
 interface IconProps {
@@ -79,6 +83,26 @@ export function BlueprintLibraryIcon({ size = 14, className }: IconProps): React
 /** Access mode: the shield marks the permission preset control. */
 export function ShieldIcon({ size = 14, className }: IconProps): ReactElement {
   return <ShieldAlert size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** One file row in the composer's file menu. */
+export function FileIcon({ size = 14, className }: IconProps): ReactElement {
+  return <FileIconBase size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
+}
+
+/** A past session in the reference menu. */
+export function SessionIcon({ size = 14, className }: IconProps): ReactElement {
+  return <MessageSquare size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
+}
+
+/** A command in the slash menu. */
+export function CommandIcon({ size = 14, className }: IconProps): ReactElement {
+  return <Command size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
+}
+
+/** A skill in the slash menu. */
+export function SkillIcon({ size = 14, className }: IconProps): ReactElement {
+  return <Sparkles size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 /** Folder glyph used by the workspace picker. */

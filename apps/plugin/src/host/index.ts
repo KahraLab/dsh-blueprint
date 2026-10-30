@@ -17,6 +17,7 @@ import {
 } from '../node/blueprint.js';
 import { resolveSessionId } from '../node/session.js';
 import { writeSelection, type StoredSelection } from '../node/selection.js';
+import { isWorkspace, searchWorkspaceFiles } from './files.js';
 import { skillFor } from './skill.js';
 
 /**
@@ -46,6 +47,8 @@ const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
+const FILES_ENDPOINT = '/api/blueprint/files';
+const SKILLS_ENDPOINT = '/api/blueprint/skills';
 
 /** A request the route can answer, but the caller got wrong. Becomes a 400. */
 class RequestError extends Error {
@@ -282,6 +285,54 @@ function toSelection(value: unknown): StoredSelection | null {
  * every blueprint: the panel lists what is downloaded, downloads a set on demand,
  * and reads one set's names (or full drawings) only when the picker asks.
  */
+/**
+ * Workspace files for the composer's trigger menus. The caller passes the
+ * workspace explicitly because the entry page has no Session yet.
+ */
+function createFilesRoute(): FetchRoute {
+  return {
+    path: FILES_ENDPOINT,
+    methods: ['GET'],
+
+    fetch: (request) => guarded(async () => {
+      const url = new URL(request.url);
+      const requested = url.searchParams.get('workspace');
+      if (requested === null || requested === '') throw new RequestError('workspace 不能为空');
+      const root = resolve(requested);
+      if (!(await isWorkspace(root))) throw new BlueprintError(`工作区不存在：${root}`, 'missing');
+      const query = url.searchParams.get('q') ?? '';
+      const limit = Number(url.searchParams.get('limit') ?? '20');
+      const files = await searchWorkspaceFiles(root, query, Number.isFinite(limit) ? limit : 20);
+      return Response.json({ ok: true, files });
+    }),
+  };
+}
+
+/** Skills the Host can offer for one workspace, for the `/` menu's skill group. */
+function createSkillsRoute(scope: PluginContext): FetchRoute {
+  return {
+    path: SKILLS_ENDPOINT,
+    methods: ['GET'],
+
+    fetch: (request) => guarded(async () => {
+      const url = new URL(request.url);
+      const requested = url.searchParams.get('workspace');
+      const cwd = requested === null || requested === '' ? scope.workingDirectory.defaultDirectory : resolve(requested);
+      if (!(await isWorkspace(cwd))) throw new BlueprintError(`工作区不存在：${cwd}`, 'missing');
+      const skills = await scope.skills.list({ cwd });
+      return Response.json({
+        ok: true,
+        skills: skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          ...skill.path === undefined ? {} : { path: skill.path },
+          userInvocable: skill.invocation?.userInvocable ?? true,
+        })),
+      });
+    }),
+  };
+}
+
 function createIconsRoute(): FetchRoute {
   return {
     path: ICONS_ENDPOINT,
@@ -363,6 +414,8 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'history', () => createHistoryRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
     register(scope, 'icons', () => createIconsRoute());
+    register(scope, 'files', () => createFilesRoute());
+    register(scope, 'skills', () => createSkillsRoute(scope));
   });
 
   ctx.inject(['skills'], (scope) => {

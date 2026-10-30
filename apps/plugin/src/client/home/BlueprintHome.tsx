@@ -48,6 +48,7 @@ export function BlueprintHome({ ctx }: HomeProps): ReactElement {
         <DesignEntry
           ctx={ctx}
           workspaces={workspaces}
+          sessions={sessions}
           workspace={workspace}
           onDashboard={() => setPage('dashboard')}
         />
