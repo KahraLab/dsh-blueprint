@@ -5,7 +5,7 @@
  * and the panel chrome — and keeps only the effects that touch the outside:
  * follow the list on disk, and keep the open document in step with its file.
  */
-import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import css from '../styles.css';
 import type { Viewport, ViewportInfo } from '../editor/types';
@@ -194,7 +194,10 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
       <PanelHeader onBack={() => void back()} />
 
-      <div className="bp-main">
+      <div
+        className="bp-main"
+        style={{ '--bp-layers-left': `${uiMinimized || tab !== 'canvas' ? 0 : layersWidth}px` } as CSSProperties}
+      >
         {blueprintId === null ? (
           <div className="bp-placeholder">{t('editor.noBlueprint')}</div>
         ) : tab === 'canvas' ? (
