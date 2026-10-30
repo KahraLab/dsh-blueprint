@@ -4,6 +4,8 @@
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
+import type { LayerKind } from '../../model/document';
+import { LayerKindIcon } from './LayerKindIcon';
 import type { RowInfo } from './rows';
 
 const INDENT = 12;
@@ -24,6 +26,7 @@ export interface LayerRowProps {
   hasChildren: boolean;
   collapsed: boolean;
   info: RowInfo;
+  nodeKind: 'frame' | LayerKind;
   dragging: boolean;
   /** A group draws nothing; its row reads a little stronger. */
   group?: boolean;
@@ -57,6 +60,7 @@ export function LayerRow({
   hasChildren,
   collapsed,
   info,
+  nodeKind,
   dragging,
   group,
   rename,
@@ -102,6 +106,9 @@ export function LayerRow({
             <CaretIcon size={10} />
           </button>
         ) : null}
+      </span>
+      <span className="bp-layer-kind" aria-hidden="true">
+        <LayerKindIcon kind={nodeKind} />
       </span>
       {rename ? (
         <input

@@ -101,6 +101,17 @@ export function AddFrameIcon({ size = 15, className }: IconProps): ReactElement 
 }
 
 /** Add a rectangle layer. */
+
+/** A group: two offset frames, since a group is structure around layers. */
+export function GroupIcon({ size = 15, className }: IconProps): ReactElement {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" className={className}>
+      <rect x="3" y="7" width="13" height="13" rx="2" />
+      <path d="M8 4h11a2 2 0 0 1 2 2v11" />
+    </svg>
+  );
+}
+
 export function RectIcon({ size = 15, className }: IconProps): ReactElement {
   return <Square size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
 }

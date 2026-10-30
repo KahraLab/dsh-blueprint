@@ -258,6 +258,7 @@ export function LayerTree({
           hasChildren: row.hasChildren,
           collapsed: row.collapsed,
           info: { kind: row.kind, frameId: row.frameId, parentId: row.parentId, id: row.id },
+          nodeKind: row.kind === 'frame' ? 'frame' : row.layer!.kind,
           dragging: dragging?.id === row.id,
           group: row.layer?.kind === 'group',
           rename,

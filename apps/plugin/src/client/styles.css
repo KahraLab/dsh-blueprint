@@ -2321,6 +2321,10 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
 .bp-el-group {
   pointer-events: none;
 }
+/* Once the group is selected, its empty box is the handle for moving it. */
+.bp-el-group[data-selected='true'] {
+  pointer-events: auto;
+}
 .bp-el-group > .bp-el {
   pointer-events: auto;
 }
@@ -2359,4 +2363,20 @@ body[data-ds-dark-theme] .bp-dashboard-page .bp-gallery {
 .bp-menu-item[data-danger='true']:hover:not(:disabled) {
   background: rgba(229, 72, 77, 0.16);
   color: #ff9a9a;
+}
+
+/* Layer type glyphs keep a row readable without opening it. */
+.bp-layer-kind {
+  flex: none;
+  width: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary, #8a8a8a);
+  opacity: 0.85;
+}
+.bp-layer-row[data-selected='true'] .bp-layer-kind,
+.bp-layer-row[data-inside='true'] .bp-layer-kind {
+  color: var(--dsw-alias-label-primary, #fff);
+  opacity: 1;
 }

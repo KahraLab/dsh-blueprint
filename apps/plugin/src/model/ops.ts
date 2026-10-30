@@ -366,6 +366,10 @@ function diffList(before: readonly Node[], after: readonly Node[], parent: strin
     if (beforeById.has(node.id)) return;
     current.splice(index, 0, node.id);
     ops.inserted.push({ op: 'insert', parent, index, node: withoutChildren(node) });
+    // A new container may hold nodes that already existed somewhere else (a
+    // group around existing layers). They are removed from their old list and
+    // re-inserted here, depth first, after the container itself.
+    diffList([], childrenOf(node), node.id, ops);
   });
 
   after.forEach((node, index) => {
