@@ -3,8 +3,8 @@
  *
  * Two facts decide it: the turn must be the newest one in this Session (older
  * tails exist for every completed turn), and the blueprint must have moved since
- * the last time the chat looked. The decision is cached per turn so a later list
- * update cannot make a card appear on the wrong turn or vanish mid-scroll.
+ * the chat last looked. The answer is remembered per turn and re-asked when the
+ * blueprint saves again, so work done in the canvas counts too.
  */
 import { create } from 'zustand';
 import type { BlueprintSummary } from '../library';
@@ -38,7 +38,14 @@ export interface TailCard {
   created: boolean;
 }
 
-const decisions = new Map<string, TailCard | null>();
+interface Decision {
+  card: TailCard | null;
+  /** Revision the answer was based on; a later save asks the question again. */
+  revision: number | null;
+  title: string | null;
+}
+
+const decisions = new Map<string, Decision>();
 const lastRevision = new Map<string, number>();
 const DECISION_LIMIT = 200;
 const RECENT_MS = 10 * 60 * 1000;
@@ -59,20 +66,30 @@ function movedSince(sessionId: string, entry: BlueprintSummary): boolean {
   return Number.isFinite(time) && Date.now() - time < RECENT_MS;
 }
 
+/**
+ * The card for one turn, re-asked whenever the watched blueprint gains a
+ * revision. That way a save made from the canvas — not just one made by the
+ * assistant — still ends the turn with a way back into the design.
+ */
 export function cardForTurn(
   turnKey: string,
   sessionId: string,
   entries: readonly BlueprintSummary[],
   current: string | null,
 ): TailCard | null {
-  const cached = decisions.get(turnKey);
-  if (cached !== undefined) return cached;
-
   const candidate = candidateFor(entries, current);
-  const card = candidate !== null && movedSince(sessionId, candidate)
+  const revision = candidate?.revision ?? null;
+  const title = candidate?.title ?? null;
+  const cached = decisions.get(turnKey);
+  if (cached !== undefined && cached.revision === revision && cached.title === title) return cached.card;
+
+  const moved = candidate !== null && movedSince(sessionId, candidate);
+  const known = cached?.card ?? null;
+  const card: TailCard | null = candidate !== null && (moved || known?.id === candidate.id)
     ? { id: candidate.id, title: candidate.title, created: candidate.revision === 0 }
-    : null;
-  decisions.set(turnKey, card);
+    : known;
+
+  decisions.set(turnKey, { card, revision, title });
   if (candidate !== null) lastRevision.set(sessionId, candidate.revision);
   if (decisions.size > DECISION_LIMIT) {
     const oldest = decisions.keys().next().value;

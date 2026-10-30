@@ -80,3 +80,22 @@ test('新建的蓝图用「已生成」的说法', () => {
   const card = tail.cardForTurn('s5:1', 's5', [entry('fresh', 0, 1_000)], 'fresh');
   assert.equal(card?.created, true);
 });
+
+test('同一轮里用户自己在画布上改了，也会长出卡片', () => {
+  const old = entry('app', 5, 2 * 60 * 60_000);
+  assert.equal(tail.cardForTurn('s6:1', 's6', [old], 'app'), null);
+
+  const saved = { ...old, revision: 6 };
+  const card = tail.cardForTurn('s6:1', 's6', [saved], 'app');
+  assert.equal(card?.id, 'app');
+});
+
+test('卡片留在这张蓝图旁边，改名也跟着更新', () => {
+  const first = entry('app', 7, 1_000);
+  const shown = tail.cardForTurn('s7:1', 's7', [first], 'app');
+  assert.equal(shown?.id, 'app');
+
+  const renamed = { ...first, title: '新名字' };
+  const card = tail.cardForTurn('s7:1', 's7', [renamed], 'app');
+  assert.equal(card?.title, '新名字');
+});
