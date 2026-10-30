@@ -557,6 +557,7 @@
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, #8f8f8f);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.125rem;
 }
 .bp-menu-shapes {
   min-width: 168px;
