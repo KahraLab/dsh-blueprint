@@ -11,10 +11,9 @@ import type { PluginContext } from '../types/dsh';
 import { BlueprintHome } from './home/BlueprintHome';
 import { MarkIcon } from './icons';
 import { setupLocale } from './i18n';
-import { scopeKey, useBlueprintLibrary } from './library';
 import { Panel } from './panel/Panel';
 import { installBlueprintOpenListener } from './panel/blueprintOpen';
-import { installMenuDismissal, usePanelUi } from './panel/panelStore';
+import { installMenuDismissal } from './panel/panelStore';
 import { TurnTailCard } from './chat/TurnTailCard';
 import { TAB_KIND } from './constants';
 
@@ -26,18 +25,13 @@ const ID = '@local/dsh-blueprint';
 const KIND = TAB_KIND;
 const MAIN_ID = 'blueprint-home';
 
-/** The chip in the tab strip names the workspace, once the panel knows it. */
+/** The chip in the tab strip stays short; the page heading names the workspace. */
 function TabTitle(): ReactElement {
   const { t } = useTranslation();
-  const sessionId = usePanelUi((state) => state.activeSession);
-  const workspace = useBlueprintLibrary((state) => (
-    sessionId === null ? null : state.slices[scopeKey({ sessionId })]?.workspace ?? null
-  ));
-  const label = workspace === null ? t('panel') : t('panel.libraryTitle', { workspace });
   return (
-    <span className="bp-tab-title" title={label}>
+    <span className="bp-tab-title" title={t('panel')}>
       <MarkIcon size={14} />
-      <span>{label}</span>
+      <span>{t('panel')}</span>
     </span>
   );
 }

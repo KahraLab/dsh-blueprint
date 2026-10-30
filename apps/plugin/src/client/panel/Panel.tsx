@@ -48,7 +48,6 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const viewportKey = viewportKeyFor(sessionId);
 
   const mode = usePanelUi((state) => state.modes[key] ?? AUTO);
-  const setActiveSession = usePanelUi((state) => state.setActiveSession);
   const saved = useMemo(() => readSavedView(viewKey), [viewKey]);
   const library = useLibrarySlice(key);
   const { entries, previews, current, workspace, error: libraryError, loading: libraryLoading } = library;
@@ -97,10 +96,6 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     }),
     [t],
   );
-
-  useEffect(() => {
-    setActiveSession(sessionId);
-  }, [sessionId, setActiveSession]);
 
   // The command line writes files while this is open: keep the list and the card
   // pictures in step, quietly, and read pictures only where they are drawn.
