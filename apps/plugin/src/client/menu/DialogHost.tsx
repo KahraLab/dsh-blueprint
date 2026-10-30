@@ -3,6 +3,7 @@
  * every caller gets Escape, Enter and a focused field for free.
  */
 import { useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { settleDialog, useDialog } from './dialogStore';
 import { registerHost, unregisterHost, useIsFirstHost } from './hosts';
 
@@ -65,7 +66,7 @@ export function DialogHost(): ReactElement | null {
     settleDialog(text);
   };
 
-  return (
+  return createPortal(
     <div
       className="bp-dialog-backdrop"
       onPointerDown={(event) => {
@@ -111,6 +112,7 @@ export function DialogHost(): ReactElement | null {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

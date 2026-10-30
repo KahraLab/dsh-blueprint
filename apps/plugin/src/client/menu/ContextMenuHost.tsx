@@ -6,6 +6,7 @@
  * opened it.
  */
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { registerHost, unregisterHost, useIsFirstHost } from './hosts';
 import { dismissMenu, pickMenuItem, useContextMenu } from './menuStore';
 
@@ -50,19 +51,17 @@ export function ContextMenuHost(): ReactElement | null {
     // Capture: a click on a card underneath must dismiss, not open it.
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('keydown', onKey, true);
-    window.addEventListener('scroll', dismissMenu, true);
     window.addEventListener('resize', dismissMenu);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('scroll', dismissMenu, true);
       window.removeEventListener('resize', dismissMenu);
     };
   }, [anchor]);
 
   if (anchor === null || !first) return null;
 
-  return (
+  return createPortal(
     <div className="bp-ctx bp-menu" role="menu" ref={ref} style={{ left: anchor.x, top: anchor.y }}>
       {items.map((item) => (
         <button
@@ -78,6 +77,7 @@ export function ContextMenuHost(): ReactElement | null {
           <span className="bp-menu-label">{item.label}</span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

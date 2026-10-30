@@ -59,7 +59,7 @@ const clientOptions = {
   jsx: 'automatic',
   // Supplied by the Harness browser module table. Everything else is inlined so
   // the plugin never loads a second React and never reaches a CDN.
-  external: ['react', 'react/jsx-runtime'],
+  external: ['react', 'react/jsx-runtime', 'react-dom'],
   loader: { '.css': 'text' },
   legalComments: 'none',
   sourcemap: false,
