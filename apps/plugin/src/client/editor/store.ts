@@ -62,6 +62,7 @@ interface BlueprintState {
   setFrameLayout(frameId: string, layout: StackLayout | null): void;
   setLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
   deleteSelection(): void;
+  deleteTarget(selection: Selection): void;
   reorderLayer(frameId: string | null, parentId: string | null, layerId: string, beforeId: string | null): void;
   reorderFrame(frameId: string, beforeId: string | null): void;
 }
@@ -178,6 +179,10 @@ export const useBlueprint = create<BlueprintState>()(
         const { doc, selections } = get();
         if (selections.length === 0) return;
         set({ doc: removeSelection(doc, selections), selections: [] });
+      },
+
+      deleteTarget: (selection) => {
+        set({ doc: removeSelection(get().doc, [selection]), selections: [] });
       },
     }),
     {

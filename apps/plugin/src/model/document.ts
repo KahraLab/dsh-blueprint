@@ -110,8 +110,9 @@ export type Selection =
   | { kind: 'frame'; frameId: string }
   | { kind: 'layer'; frameId: string | null; layerId: string };
 
-type FrameFields = 'x' | 'y' | 'width' | 'height' | 'fills' | 'opacity' | 'visible' | 'locked' | 'layout' | 'children';
+type FrameFields = 'name' | 'x' | 'y' | 'width' | 'height' | 'fills' | 'opacity' | 'visible' | 'locked' | 'layout' | 'children';
 type LayerFields =
+  | 'name'
   | 'x'
   | 'y'
   | 'width'

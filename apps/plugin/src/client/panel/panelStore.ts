@@ -22,16 +22,19 @@ export const INSPECTOR_MIN_WIDTH = 160;
 export const INSPECTOR_MAX_WIDTH = 340;
 export const INSPECTOR_DEFAULT_WIDTH = 200;
 
-type MenuName = 'move' | 'shape' | 'iconPicker';
+type MenuName = 'move' | 'shape' | 'insert' | 'iconPicker';
 
 interface PanelUiState {
   /** One mode per Session, so two panels cannot fight over what is in front. */
   modes: Readonly<Record<string, PanelMode>>;
+  /** The Session the mounted panel is showing, for the tab title. */
+  activeSession: string | null;
   layersWidth: number;
   inspectorWidth: number;
   menus: Readonly<Record<MenuName, boolean>>;
 
   modeOf(key: string): PanelMode;
+  setActiveSession(sessionId: string | null): void;
   openBlueprint(key: string, blueprintId: string): void;
   showGallery(key: string, blueprintId: string | null): void;
   setLayersWidth(width: number): void;
@@ -43,18 +46,20 @@ interface PanelUiState {
 
 export const usePanelUi = create<PanelUiState>()((set, get) => ({
   modes: {},
+  activeSession: null,
   layersWidth: LAYERS_DEFAULT_WIDTH,
   inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
-  menus: { move: false, shape: false, iconPicker: false },
+  menus: { move: false, shape: false, insert: false, iconPicker: false },
 
   modeOf: (key) => get().modes[key] ?? AUTO,
+  setActiveSession: (activeSession) => set({ activeSession }),
   openBlueprint: (key, blueprintId) => set((state) => ({
     modes: { ...state.modes, [key]: { kind: 'editor', blueprintId } },
-    menus: { move: false, shape: false, iconPicker: false },
+    menus: { move: false, shape: false, insert: false, iconPicker: false },
   })),
   showGallery: (key, blueprintId) => set((state) => ({
     modes: { ...state.modes, [key]: { kind: 'gallery', blueprintId } },
-    menus: { move: false, shape: false, iconPicker: false },
+    menus: { move: false, shape: false, insert: false, iconPicker: false },
   })),
   setLayersWidth: (layersWidth) => set({ layersWidth }),
   setInspectorWidth: (inspectorWidth) => set({ inspectorWidth }),
@@ -62,12 +67,14 @@ export const usePanelUi = create<PanelUiState>()((set, get) => ({
     menus: {
       ...state.menus,
       [menu]: !state.menus[menu],
-      // The move and shape menus are peers: opening one closes the other.
-      ...(menu === 'move' ? { shape: false } : {}),
-      ...(menu === 'shape' ? { move: false } : {}),
+      // The tool menus are peers: opening one closes the others.
+      ...(menu === 'iconPicker' ? {} : { iconPicker: false }),
+      ...(menu === 'move' ? {} : { move: false }),
+      ...(menu === 'shape' ? {} : { shape: false }),
+      ...(menu === 'insert' ? {} : { insert: false }),
     },
   })),
-  closeMenus: () => set({ menus: { move: false, shape: false, iconPicker: false } }),
+  closeMenus: () => set({ menus: { move: false, shape: false, insert: false, iconPicker: false } }),
   setIconPicker: (iconPicker) => set((state) => ({ menus: { ...state.menus, iconPicker } })),
 }));
 
@@ -83,7 +90,7 @@ export function clampPane(width: number, min: number, max: number): number {
 export function installMenuDismissal(): () => void {
   const onPointerDown = (event: PointerEvent): void => {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.bp-menu, .bp-caret, .bp-layer-action')) return;
+    if (target?.closest('.bp-menu, .bp-caret, .bp-layer-action, .bp-ip-backdrop')) return;
     usePanelUi.getState().closeMenus();
   };
   window.addEventListener('pointerdown', onPointerDown, true);

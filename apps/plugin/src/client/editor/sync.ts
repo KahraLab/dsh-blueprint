@@ -238,20 +238,44 @@ export function startSession(url: string, selectionUrl: string): () => void {
     void poll(url);
   }, POLL_MS);
 
+  // The browser closes the tab; tests and the host have no document.
+  const onHidden = (): void => {
+    if (document.visibilityState === 'hidden') void flushPending();
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHidden);
+
   return () => {
     unsubscribe();
     unsubscribeSelection();
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHidden);
     clearInterval(timer);
     if (selectionTimer) {
       clearTimeout(selectionTimer);
       selectionTimer = null;
     }
+    // Leaving the tab must not drop the last few hundred milliseconds of work:
+    // the gallery reads the file, not this component.
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
+      void flush(url);
     }
     if (activeUrl === url) activeUrl = null;
   };
+}
+
+/**
+ * Write whatever is still waiting in the debounce, then return.
+ *
+ * Switching blueprints or going back to the gallery awaits this, so the next
+ * screen reads the file the user just left rather than the revision before it.
+ */
+export async function flushPending(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (activeUrl !== null) await flush(activeUrl);
 }
 
 /** Take a newer revision from the file, unless the user is in the middle of something. */

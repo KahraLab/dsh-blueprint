@@ -15,7 +15,7 @@ export interface JsonReply<T> {
 }
 
 export interface JsonRequest {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** How many times to try in total. Reads retry; writes do not. */
   attempts?: number;

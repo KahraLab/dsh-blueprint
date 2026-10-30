@@ -1,7 +1,7 @@
 /**
  * One row of the layer tree: name, visibility, lock, and the caret that folds it.
  */
-import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
 import type { RowInfo } from './rows';
@@ -27,6 +27,7 @@ export interface LayerRowProps {
   dragging: boolean;
   onToggleCollapsed(): void;
   onPress(event: ReactPointerEvent<HTMLDivElement>): void;
+  onContextMenu(event: ReactMouseEvent<HTMLDivElement>): void;
   onClick(): void;
   onDoubleClick?(): void;
   onToggleVisible(): void;
@@ -50,6 +51,7 @@ export function LayerRow({
   dragging,
   onToggleCollapsed,
   onPress,
+  onContextMenu,
   onClick,
   onDoubleClick,
   onToggleVisible,
@@ -71,6 +73,7 @@ export function LayerRow({
       data-dragging={dragging || undefined}
       style={{ paddingLeft: BASE_INDENT + depth * INDENT }}
       onPointerDown={onPress}
+      onContextMenu={onContextMenu}
     >
       <span className="bp-layer-caret-slot">
         {hasChildren ? (

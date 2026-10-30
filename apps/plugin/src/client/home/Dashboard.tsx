@@ -10,7 +10,9 @@ import type { PluginContext, WorkspaceSummary } from '../../types/dsh';
 import { describeNavigationError, openBlueprintInEditor, workspaceFolderName } from '../blueprintNavigation';
 import { BlueprintGallery } from '../components/Gallery';
 import { BackIcon } from '../icons';
-import { scopeKey, useBlueprintLibrary, useLibrarySlice } from '../library';
+import { scopeKey, useBlueprintLibrary, useLibrarySlice, watchLibrary } from '../library';
+import { ContextMenuHost } from '../menu/ContextMenuHost';
+import { DialogHost } from '../menu/DialogHost';
 import { useHomeUi } from './homeStore';
 
 interface DashboardProps {
@@ -35,9 +37,11 @@ export function Dashboard({ ctx, workspace, onBack }: DashboardProps): ReactElem
     [t],
   );
 
+  // The Dashboard is the place that shows every file: follow the directory
+  // instead of reading it once, so a blueprint created in a Session shows up.
   useEffect(() => {
     if (workspacePath === null) return;
-    void useBlueprintLibrary.getState().load(scope, messages);
+    return watchLibrary(scope, messages);
   }, [key, messages, scope, workspacePath]);
 
   const open = useCallback(async (id: string): Promise<void> => {
@@ -87,8 +91,12 @@ export function Dashboard({ ctx, workspace, onBack }: DashboardProps): ReactElem
         onBack={onBack}
         onOpen={(id) => void open(id)}
         onNew={() => void create()}
-        onRetry={() => void useBlueprintLibrary.getState().reload(scope, messages)}
+        onRetry={() => void useBlueprintLibrary.getState().load(scope, messages)}
+        onRename={(id, title) => void useBlueprintLibrary.getState().rename(scope, id, title, messages)}
+        onDelete={(id) => void useBlueprintLibrary.getState().remove(scope, id, messages)}
       />
+      <ContextMenuHost />
+      <DialogHost />
     </div>
   );
 }

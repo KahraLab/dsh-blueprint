@@ -5,13 +5,17 @@
  * card opens the editor; the editor's header keeps only window chrome, so this is
  * where choosing a design file happens.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument } from '../../model/document';
 import type { BlueprintSummary } from '../library';
+import { askName, confirmAction } from '../menu/dialogStore';
+import { openMenuAt } from '../menu/menuStore';
 import { cachedThumbnail, rasterizeThumbnail } from '../thumbnail';
 import { BackIcon } from '../icons';
 import { BlueprintPreview, previewSize } from './BlueprintPreview';
+
+const TITLE_MAX = 80;
 
 export interface GalleryProps {
   blueprints: readonly BlueprintSummary[];
@@ -24,14 +28,46 @@ export interface GalleryProps {
   onOpen(blueprintId: string): void;
   onNew(): void;
   onRetry(): void;
+  /** Rename the display name only; the id and directory stay put. */
+  onRename(blueprintId: string, title: string): void;
+  onDelete(blueprintId: string): void;
   /** Present when the gallery fills the central Dashboard rather than the editor. */
   onBack?(): void;
   /** The Dashboard names its workspace here; the editor keeps the default. */
   title?: string;
 }
 
-export function BlueprintGallery({ blueprints, previews, lastOpened, loading, error, onOpen, onNew, onRetry, onBack, title }: GalleryProps): ReactElement {
+export function BlueprintGallery({ blueprints, previews, lastOpened, loading, error, onOpen, onNew, onRetry, onRename, onDelete, onBack, title }: GalleryProps): ReactElement {
   const { t } = useTranslation();
+
+  const openCardMenu = async (event: ReactMouseEvent, blueprint: BlueprintSummary): Promise<void> => {
+    const picked = await openMenuAt(event, [
+      { id: 'rename', label: t('menu.rename') },
+      { id: 'delete', label: t('menu.delete'), danger: true, separator: true },
+    ]);
+    if (picked === 'rename') {
+      const title = await askName({
+        title: t('gallery.renameTitle'),
+        message: t('gallery.renameMessage'),
+        value: blueprint.title,
+        confirmLabel: t('menu.rename'),
+        cancelLabel: t('dialog.cancel'),
+        validate: (value) => (value === '' || value.length > TITLE_MAX ? t('gallery.nameInvalid', { max: TITLE_MAX }) : null),
+      });
+      if (title !== null && title !== blueprint.title) onRename(blueprint.id, title);
+    }
+    if (picked === 'delete') {
+      const confirmed = await confirmAction({
+        title: t('gallery.deleteTitle'),
+        message: t('gallery.deleteMessage', { title: blueprint.title }),
+        confirmLabel: t('menu.delete'),
+        cancelLabel: t('dialog.cancel'),
+        danger: true,
+      });
+      if (confirmed) onDelete(blueprint.id);
+    }
+  };
+
   return (
     <div className="bp-gallery">
       <header className="bp-gallery-head">
@@ -72,12 +108,20 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
       ) : (
         <div className="bp-gallery-grid">
           {blueprints.map((blueprint) => (
-            <button
+            <div
               key={blueprint.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               className="bp-card"
               data-last-opened={blueprint.id === lastOpened}
+              aria-label={blueprint.title}
               onClick={() => onOpen(blueprint.id)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                onOpen(blueprint.id);
+              }}
+              onContextMenu={(event) => void openCardMenu(event, blueprint)}
               title={blueprint.title}
             >
               <span className="bp-card-thumb">
@@ -90,7 +134,7 @@ export function BlueprintGallery({ blueprints, previews, lastOpened, loading, er
                 <span className="bp-card-title">{blueprint.title}</span>
                 <span className="bp-card-sub">{updatedLabel(blueprint, t)}</span>
               </span>
-            </button>
+            </div>
           ))}
         </div>
       )}

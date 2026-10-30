@@ -6,21 +6,41 @@
  * which slot.
  */
 import type { ComponentType, ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PluginContext } from '../types/dsh';
 import { BlueprintHome } from './home/BlueprintHome';
 import { MarkIcon } from './icons';
 import { setupLocale } from './i18n';
+import { scopeKey, useBlueprintLibrary } from './library';
 import { Panel } from './panel/Panel';
 import { installBlueprintOpenListener } from './panel/blueprintOpen';
-import { installMenuDismissal } from './panel/panelStore';
+import { installMenuDismissal, usePanelUi } from './panel/panelStore';
+import { TurnTailCard } from './chat/TurnTailCard';
+import { TAB_KIND } from './constants';
 
 export const inject = ['slots', 'locale', 'layout', 'sessions', 'workspaces', 'conversation', 'uiWorkspace', 'sidebarRight', 'sidebarRightTabs'];
 
 export const NS = 'blueprint';
 
 const ID = '@local/dsh-blueprint';
-const KIND = 'blueprint';
+const KIND = TAB_KIND;
 const MAIN_ID = 'blueprint-home';
+
+/** The chip in the tab strip names the workspace, once the panel knows it. */
+function TabTitle(): ReactElement {
+  const { t } = useTranslation();
+  const sessionId = usePanelUi((state) => state.activeSession);
+  const workspace = useBlueprintLibrary((state) => (
+    sessionId === null ? null : state.slices[scopeKey({ sessionId })]?.workspace ?? null
+  ));
+  const label = workspace === null ? t('panel') : t('panel.libraryTitle', { workspace });
+  return (
+    <span className="bp-tab-title" title={label}>
+      <MarkIcon size={14} />
+      <span>{label}</span>
+    </span>
+  );
+}
 const AUTO_OPEN_KEY = 'blueprint.panel.opened.v1';
 
 /** The glyph in the left navigation row. */
@@ -29,16 +49,7 @@ function EntryIcon({ size = 16 }: { size?: number; active?: boolean }): ReactEle
 }
 
 /** The chip inside the right-sidebar tab strip. */
-function createTabTitle(t: (key: string) => string) {
-  return function TabTitle(): ReactElement {
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <MarkIcon size={14} />
-        <span>{t('panel')}</span>
-      </span>
-    );
-  };
-}
+
 
 /** The central two-page surface: design entry and Dashboard. */
 function createMainPanel(ctx: PluginContext): ComponentType {
@@ -61,6 +72,21 @@ export function apply(ctx: PluginContext): void {
   );
 
   ctx.effect(() => installMenuDismissal(), 'blueprint:menu-dismiss');
+
+  // A finished turn that touched a blueprint ends with a card back into it. The
+  // chat slot is session-scoped, so the card knows which Session to open.
+  ctx.effect(
+    () =>
+      ctx.slots.inject('conversation.chat.turnTail', () =>
+        ctx.slots.register(
+          { name: 'conversation.chat.turnTail', id: ID, locale: NS },
+          (props: { sessionId?: string; turn?: number }) => (
+            <TurnTailCard ctx={ctx} sessionId={props.sessionId} turn={props.turn} />
+          ),
+        ),
+      ),
+    'blueprint:chat-tail',
+  );
   ctx.effect(() => installBlueprintOpenListener(), 'blueprint:open-listener');
 
   ctx.effect(
@@ -115,7 +141,7 @@ export function apply(ctx: PluginContext): void {
   ctx.effect(
     () =>
       ctx.slots.inject('sidebar.right.pane.tab.title', () =>
-        ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: ID }, createTabTitle(t)),
+        ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: ID, locale: NS }, TabTitle),
       ),
     'blueprint:tab-title',
   );

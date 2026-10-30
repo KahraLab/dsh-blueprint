@@ -305,6 +305,44 @@ export function writeBlueprintPointer(root: string, id: string, sessionId?: stri
   for (const name of LEGACY_WORKSPACE_FILES) rmSync(join(dataDir(root), name), { force: true });
 }
 
+/** Long enough for a sentence, short enough for a card and a tab title. */
+export const TITLE_MAX_LENGTH = 80;
+
+/** Rename only the display name: the id stays the directory and file name. */
+export function renameBlueprint(root: string, id: string, title: string): BlueprintFile {
+  const trimmed = title.trim();
+  if (trimmed === '' || trimmed.length > TITLE_MAX_LENGTH) {
+    throw new BlueprintError(`蓝图标题要 1–${TITLE_MAX_LENGTH} 个字`, 'id');
+  }
+  const blueprint = readBlueprint(root, id);
+  blueprint.title = trimmed;
+  blueprint.updatedAt = new Date().toISOString();
+  writeBlueprint(root, blueprint);
+  return blueprint;
+}
+
+/**
+ * Remove a blueprint and any pointer that still names it, so the panel and the
+ * command line do not keep answering with a file that is gone.
+ */
+export function deleteBlueprint(root: string, id: string, sessionId?: string | null): void {
+  const blueprint = readBlueprint(root, id); // missing or unreadable is an error, not a silent no-op
+  rmSync(blueprintDir(root, blueprint.id), { recursive: true, force: true });
+  forgetPointer(sessionPointerFileIfAny(sessionId), blueprint.id);
+  forgetPointer(workspaceFile(root), blueprint.id);
+  for (const name of LEGACY_WORKSPACE_FILES) forgetPointer(join(dataDir(root), name), blueprint.id);
+}
+
+function sessionPointerFileIfAny(sessionId?: string | null): string | null {
+  return isSessionId(sessionId) ? sessionPointerFile(sessionId) : null;
+}
+
+function forgetPointer(file: string | null, id: string): void {
+  if (file === null) return;
+  if (readPointer(file) !== id) return;
+  rmSync(file, { force: true });
+}
+
 // ---------------------------------------------------------------- import
 
 /**

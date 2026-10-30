@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FetchRoute, PluginContext, SessionHandle } from '../types/dsh.js';
 import { fetchCatalog, installSet, installedSets, isInstalled, readIndex, readSet } from '../icons/store.js';
@@ -7,10 +7,12 @@ import { changeDocument, readDocument, readHistoryIndex } from '../node/docfile.
 import {
   BlueprintError,
   createBlueprint,
+  deleteBlueprint,
   listBlueprints,
   blueprintDir,
   blueprintFile,
   readBlueprintPointer,
+  renameBlueprint,
   writeBlueprintPointer,
 } from '../node/blueprint.js';
 import { resolveSessionId } from '../node/session.js';
@@ -142,7 +144,12 @@ function createBlueprintRoute(scope: PluginContext): FetchRoute {
       const { root, sessionId } = scopeOf(scope, request);
 
       if (request.method === 'GET') {
-        return Response.json({ ok: true, blueprints: listBlueprints(root), current: readBlueprintPointer(root, sessionId) });
+        return Response.json({
+          ok: true,
+          workspace: basename(root),
+          blueprints: listBlueprints(root),
+          current: readBlueprintPointer(root, sessionId),
+        });
       }
 
       const body = await bodyOf<{ title?: unknown; id?: unknown }>(request);
@@ -177,11 +184,11 @@ function createCurrentRoute(scope: PluginContext): FetchRoute {
 function createDocumentRoute(scope: PluginContext): FetchRoute {
   return {
     path: DOC_ENDPOINT,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     requestBody: 'buffered',
 
     fetch: (request) => guarded(async () => {
-      const { root } = scopeOf(scope, request);
+      const { root, sessionId } = scopeOf(scope, request);
       const blueprint = new URL(request.url).searchParams.get('blueprint');
       if (!blueprint) throw new RequestError('缺少 blueprint 参数');
       const file = blueprintFile(root, blueprint);
@@ -195,6 +202,18 @@ function createDocumentRoute(scope: PluginContext): FetchRoute {
           updatedAt: stored.updatedAt,
           blueprint: { id: stored.id, title: stored.title },
         });
+      }
+
+      if (request.method === 'PATCH') {
+        const body = await bodyOf<{ title?: unknown }>(request);
+        if (typeof body.title !== 'string') throw new RequestError('title 要写蓝图标题');
+        const renamed = renameBlueprint(root, blueprint, body.title);
+        return Response.json({ ok: true, blueprint: { id: renamed.id, title: renamed.title } });
+      }
+
+      if (request.method === 'DELETE') {
+        deleteBlueprint(root, blueprint, sessionId);
+        return Response.json({ ok: true });
       }
 
       const body = await bodyOf<{ baseRevision?: number | null; ops?: unknown; document?: unknown; by?: string; reason?: string }>(request);

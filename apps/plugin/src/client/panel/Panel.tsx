@@ -2,8 +2,8 @@
  * The blueprint editor tab.
  *
  * It wires three independent stores together — the document, the blueprint list
- * and the panel chrome — and keeps only two effects: load the list for this
- * Session, and keep the open document in step with its file.
+ * and the panel chrome — and keeps only the effects that touch the outside:
+ * follow the list on disk, and keep the open document in step with its file.
  */
 import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,15 +16,18 @@ import { Canvas } from '../canvas/Canvas';
 import { viewportCentre } from '../canvas/useViewport';
 import { installKeys } from '../editor/keys';
 import { useBlueprint } from '../editor/store';
-import { loadDocument, startSession } from '../editor/sync';
+import { flushPending, loadDocument, startSession } from '../editor/sync';
 import {
   documentUrl,
   scopeKey,
   selectionUrl,
   useBlueprintLibrary,
   useLibrarySlice,
+  watchLibrary,
   type LibraryScope,
 } from '../library';
+import { ContextMenuHost } from '../menu/ContextMenuHost';
+import { DialogHost } from '../menu/DialogHost';
 import { EditorToolbar } from './EditorToolbar';
 import { InspectorResizer, LayersPane } from './LayersPane';
 import { PanelHeader } from './PanelHeader';
@@ -46,9 +49,10 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const viewportKey = viewportKeyFor(sessionId);
 
   const mode = usePanelUi((state) => state.modes[key] ?? AUTO);
+  const setActiveSession = usePanelUi((state) => state.setActiveSession);
   const saved = useMemo(() => readSavedView(viewKey), [viewKey]);
   const library = useLibrarySlice(key);
-  const { entries, previews, current, error: libraryError, loading: libraryLoading } = library;
+  const { entries, previews, current, workspace, error: libraryError, loading: libraryLoading } = library;
 
   const view = resolvePanelView({ mode, entries, current, saved });
   const blueprintId = view.blueprintId;
@@ -90,11 +94,16 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     [t],
   );
 
-  // One list read per Session mount; the Dashboard can show the same data without
-  // making this panel read it again.
   useEffect(() => {
-    void useBlueprintLibrary.getState().load(scope, messages);
-  }, [key]);
+    setActiveSession(sessionId);
+  }, [sessionId, setActiveSession]);
+
+  // The command line writes files while this is open: keep the list and the card
+  // pictures in step, quietly, and read pictures only where they are drawn.
+  useEffect(
+    () => watchLibrary(scope, messages, { previews: view.screen === 'gallery' }),
+    [key, messages, scope, view.screen],
+  );
 
   // Read the file, keep writing it back, and listen for editing keys.
   useEffect(() => {
@@ -115,40 +124,66 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     void useBlueprintLibrary.getState().rememberCurrent(scope, blueprintId);
   }, [blueprintId, current, scope]);
 
-  const open = useCallback((id: string): void => {
+  // The file was deleted somewhere else (another tab, the command line); the
+  // editor must not keep showing a document that no longer exists.
+  useEffect(() => {
+    // A failed read is not an empty workspace; only a real answer can say the
+    // open file is gone.
+    if (entries === null || blueprintId === null || libraryError !== null) return;
+    if (entries.some((entry) => entry.id === blueprintId)) return;
+    writeSavedView(viewKey, null);
+    showGallery(key, null);
+  }, [blueprintId, entries, key, libraryError, showGallery, viewKey]);
+
+  // Leaving the editor writes the last debounced edit first, so whatever reads
+  // the file next (the gallery, the Dashboard, the model) sees the same picture.
+  const open = useCallback(async (id: string): Promise<void> => {
+    await flushPending();
     openBlueprint(key, id);
     writeSavedView(viewKey, { blueprint: id, screen: 'editor' });
     void useBlueprintLibrary.getState().rememberCurrent(scope, id);
   }, [key, openBlueprint, scope, viewKey]);
 
-  const back = useCallback((): void => {
+  const back = useCallback(async (): Promise<void> => {
+    await flushPending();
     if (blueprintId !== null) writeSavedView(viewKey, { blueprint: blueprintId, screen: 'gallery' });
     showGallery(key, blueprintId);
-    void useBlueprintLibrary.getState().reload(scope, messages);
+    await useBlueprintLibrary.getState().reload(scope, messages, { quiet: true, previews: true });
   }, [blueprintId, key, messages, scope, showGallery, viewKey]);
 
   const createBlueprint = useCallback(async (): Promise<void> => {
     const entry = await useBlueprintLibrary.getState().create(scope, t('untitled'), messages);
-    if (entry !== null) open(entry.id);
+    if (entry !== null) await open(entry.id);
   }, [messages, open, scope, t]);
 
   const retry = useCallback((): void => {
     void useBlueprintLibrary.getState().load(scope, messages);
   }, [messages, scope]);
 
+  const hosts = (
+    <>
+      <ContextMenuHost />
+      <DialogHost />
+    </>
+  );
+
   if (view.screen === 'gallery') {
     return (
       <div className="bp-root">
         <style>{css}</style>
+        {hosts}
         <BlueprintGallery
           blueprints={entries ?? []}
           previews={previews}
           lastOpened={blueprintId}
           loading={entries === null || libraryLoading}
           error={libraryError}
-          onOpen={open}
+          title={workspace === null ? t('panel.title') : t('panel.libraryTitle', { workspace })}
+          onOpen={(id) => void open(id)}
           onNew={() => void createBlueprint()}
           onRetry={retry}
+          onRename={(id, title) => void useBlueprintLibrary.getState().rename(scope, id, title, messages)}
+          onDelete={(id) => void useBlueprintLibrary.getState().remove(scope, id, messages)}
         />
       </div>
     );
@@ -157,8 +192,9 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   return (
     <div className="bp-root">
       <style>{css}</style>
+      {hosts}
 
-      <PanelHeader onBack={back} />
+      <PanelHeader onBack={() => void back()} />
 
       <div className="bp-main">
         {blueprintId === null ? (
