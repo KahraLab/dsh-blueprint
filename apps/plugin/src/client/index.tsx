@@ -29,9 +29,9 @@ const MAIN_ID = 'blueprint-home';
 function TabTitle(): ReactElement {
   const { t } = useTranslation();
   return (
-    <span className="bp-tab-title" title={t('panel')}>
+    <span className="bp-tab-title" title={t('panel.title')}>
       <MarkIcon size={14} />
-      <span>{t('panel')}</span>
+      <span>{t('panel.title')}</span>
     </span>
   );
 }
