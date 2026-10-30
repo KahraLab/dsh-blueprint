@@ -791,6 +791,45 @@ describe('图标', () => {
     assert.match(box.view(iconId).node.svg, /<path d="M19 12H5"\/>/);
   });
 
+  test('一次插入整棵子树时，嵌套图标的 SVG 也会补上', () => {
+    box.ok(['icon', 'install', 'lucide'], '', env);
+    box.apply({
+      baseRevision: 0,
+      ops: [{
+        op: 'insert',
+        parent: null,
+        node: {
+          name: '图标卡片',
+          width: 390,
+          height: 844,
+          children: [{
+            kind: 'rect',
+            name: '搜索按钮',
+            x: 24,
+            y: 100,
+            width: 120,
+            height: 48,
+            children: [{
+              kind: 'icon',
+              name: '搜索图标',
+              iconSet: 'lucide',
+              iconName: 'search',
+              x: 12,
+              y: 12,
+              width: 24,
+              height: 24,
+            }],
+          }],
+        },
+      }],
+    });
+
+    const stored = JSON.parse(box.documentFile());
+    const icon = stored.document.frames[0].children[0].children[0];
+    assert.equal(icon.kind, 'icon');
+    assert.match(icon.svg, /<circle/, '子图标的绘制要跟着文档一起存');
+  });
+
   test('没下载的集合说明怎么下，不会写出半截图标', () => {
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     const { status, payload } = box.failed(['add', 'icon', '--icon', 'tabler/x', '--name', '不存在的图标', '--into', frameId], '', env);

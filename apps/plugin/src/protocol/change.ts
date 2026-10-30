@@ -89,9 +89,7 @@ export function change(filePath: string, input: ChangeInput): ChangeOutcome {
 function withIconDrawings(doc: BlueprintDocument, ops: readonly DocumentOp[]): readonly DocumentOp[] {
   return ops.map((op) => {
     if (op.op === 'insert' || op.op === 'replace') {
-      const node = op.node;
-      if (!isIcon(node)) return op;
-      return { ...op, node: { ...node, svg: drawingFor(node.iconSet, node.iconName) } };
+      return { ...op, node: withIconDrawingsInTree(op.node) };
     }
     if (op.op === 'set' && (typeof op.patch.iconSet === 'string' || typeof op.patch.iconName === 'string')) {
       const found = locateNode(doc, op.id);
@@ -107,6 +105,14 @@ function withIconDrawings(doc: BlueprintDocument, ops: readonly DocumentOp[]): r
 
 function isIcon(node: Node): node is Layer & { kind: 'icon' } {
   return 'kind' in node && node.kind === 'icon';
+}
+
+/** Fill the drawing for every icon in a subtree, not just the node being inserted. */
+function withIconDrawingsInTree(node: Node): Node {
+  const filled = isIcon(node) ? { ...node, svg: drawingFor(node.iconSet, node.iconName) } : node;
+  const children = filled.children as readonly Node[] | undefined;
+  if (!Array.isArray(children) || children.length === 0) return filled;
+  return { ...filled, children: children.map(withIconDrawingsInTree) } as Node;
 }
 
 function drawingFor(set: string, name: string): string {
