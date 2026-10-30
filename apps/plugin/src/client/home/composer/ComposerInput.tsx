@@ -32,6 +32,15 @@ interface ComposerInputProps {
 const MENU_ID = 'bp-trigger-menu';
 const DEBOUNCE_MS = 120;
 
+/** Walk in one direction until a pickable row; -1 when none exists. */
+function nextEnabled(rows: readonly TriggerRow[], from: number, step: number): number {
+  for (let index = 1; index <= rows.length; index += 1) {
+    const candidate = (from + step * index + rows.length * index) % rows.length;
+    if (rows[candidate]?.disabled !== true) return candidate;
+  }
+  return -1;
+}
+
 export function ComposerInput({
   value,
   disabled,
@@ -86,7 +95,7 @@ export function ComposerInput({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [hit, workspaceId]);
+  }, [hit?.kind, hit?.query, hit?.start, workspaceId]);
 
   useEffect(() => {
     if (pendingCaret.current === null || area.current === null) return;
@@ -97,7 +106,7 @@ export function ComposerInput({
   }, [value]);
 
   const choose = useCallback((row: TriggerRow | undefined): void => {
-    if (row === undefined || hit === null) return;
+    if (row === undefined || row.disabled === true || hit === null) return;
     if (row.action.kind === 'run') {
       row.action.run();
       reset();
@@ -120,7 +129,10 @@ export function ComposerInput({
         event.preventDefault();
         if (rows.length === 0) return;
         const step = event.key === 'ArrowDown' ? 1 : -1;
-        setHighlight((current) => (current + step + rows.length) % rows.length);
+        setHighlight((current) => {
+          const next = nextEnabled(rows, current, step);
+          return next < 0 ? current : next;
+        });
         return;
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
@@ -175,11 +187,6 @@ export function ComposerInput({
         aria-activedescendant={open && rows.length > 0 ? `${MENU_ID}-${highlight}` : undefined}
         onChange={handleChange}
         onKeyDown={onKeyDown}
-        onKeyUp={(event) => {
-          if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') {
-            sync(value, event.currentTarget.selectionStart ?? 0);
-          }
-        }}
         onClick={(event) => sync(value, event.currentTarget.selectionStart ?? 0)}
         onBlur={reset}
       />

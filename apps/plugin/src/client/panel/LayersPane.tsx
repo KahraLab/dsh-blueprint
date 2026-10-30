@@ -30,27 +30,29 @@ export function LayersPane({ width, blueprintId, blueprintTitle }: LayersPanePro
 
   return (
     <aside className="bp-layers" aria-label={t('editor.layers')} style={{ width }}>
-      {blueprintId === null ? null : (
-        <div className="bp-blueprint-head">
-          <div className="bp-blueprint-title" title={blueprintTitle}>{blueprintTitle}</div>
-          <div className="bp-blueprint-id" title={blueprintId}>{blueprintId}</div>
+      <div className="bp-layers-scroll">
+        {blueprintId === null ? null : (
+          <div className="bp-blueprint-head">
+            <div className="bp-blueprint-title" title={blueprintTitle}>{blueprintTitle}</div>
+            <div className="bp-blueprint-id" title={blueprintId}>{blueprintId}</div>
+          </div>
+        )}
+        <div className="bp-layers-head">
+          <h4>{t('editor.layers')}</h4>
         </div>
-      )}
-      <div className="bp-layers-head">
-        <h4>{t('editor.layers')}</h4>
+        <LayerTree
+          doc={doc}
+          selections={selections}
+          onSelect={setSelections}
+          onEditText={(frameId, layerId) => setEditing({ frameId, layerId })}
+          onUpdateFrame={updateFrame}
+          onUpdateLayer={updateLayer}
+          onDelete={deleteTarget}
+          onGroup={groupSelection}
+          onReorderLayer={reorderLayer}
+          onReorderFrame={reorderFrame}
+        />
       </div>
-      <LayerTree
-        doc={doc}
-        selections={selections}
-        onSelect={setSelections}
-        onEditText={(frameId, layerId) => setEditing({ frameId, layerId })}
-        onUpdateFrame={updateFrame}
-        onUpdateLayer={updateLayer}
-        onDelete={deleteTarget}
-        onGroup={groupSelection}
-        onReorderLayer={reorderLayer}
-        onReorderFrame={reorderFrame}
-      />
       <PaneResizer
         className="bp-resizer"
         label={t('resize.layers')}

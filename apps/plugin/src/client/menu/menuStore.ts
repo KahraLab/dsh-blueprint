@@ -5,6 +5,7 @@
  * and a layer row both say "these are the actions", and the surface that asked
  * handles the answer.
  */
+import type { ReactNode } from 'react';
 import { create } from 'zustand';
 
 export interface MenuItem {
@@ -17,6 +18,10 @@ export interface MenuItem {
   separator?: boolean;
   /** Turn the menu into a yes/no question instead of acting immediately. */
   confirm?: { label: string; cancelLabel: string };
+  /** A leading glyph, for menus that pick between kinds of the same thing. */
+  icon?: ReactNode;
+  /** Marks the currently selected option. */
+  checked?: boolean;
 }
 
 export interface MenuAnchor {

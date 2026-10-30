@@ -27,6 +27,8 @@ export interface TriggerRow {
   icon: TriggerIcon;
   section: string;
   action: TriggerAction;
+  /** An explanatory row that cannot be picked. */
+  disabled?: boolean;
 }
 
 export interface MenuSources {
@@ -44,13 +46,18 @@ interface FileHit {
   kind: 'file' | 'directory';
 }
 
-async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
+interface JsonAnswer<T> {
+  status: number;
+  value: T | null;
+}
+
+async function fetchJson<T>(url: string, signal: AbortSignal): Promise<JsonAnswer<T>> {
   try {
     const response = await fetch(url, { signal });
-    if (!response.ok) return null;
-    return await response.json() as T;
+    if (!response.ok) return { status: response.status, value: null };
+    return { status: response.status, value: await response.json() as T };
   } catch {
-    return null;
+    return { status: 0, value: null };
   }
 }
 
@@ -79,9 +86,21 @@ export async function fileRows(
   url.searchParams.set('q', query);
   url.searchParams.set('limit', String(limit));
   const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url.toString(), signal);
-  if (answer === null || answer.files === undefined) return [];
+  if (answer.value?.files === undefined) {
+    if (answer.status === 0 || answer.status === 404) {
+      return [{
+        key: 'files:unavailable',
+        label: sources.t('menu.hostStale'),
+        icon: 'file',
+        section,
+        disabled: true,
+        action: { kind: 'run', run: () => {} },
+      }];
+    }
+    return [];
+  }
 
-  return answer.files.flatMap((file) => {
+  return answer.value.files.flatMap((file) => {
     const mention = fileMention(file.path, file.kind);
     if (mention === null) return [];
     const directory = file.kind === 'directory';
@@ -114,7 +133,6 @@ export function sessionRows(sources: MenuSources, query: string, limit: number):
       return {
         key: `session:${summary.id}`,
         label,
-        description: sources.t('menu.sessionHint'),
         icon: 'session' as const,
         section: sources.t('menu.sessions'),
         action: { kind: 'insert' as const, text: sessionMention(label, summary.id) },
@@ -164,10 +182,22 @@ export async function skillRows(
   const url = new URL('/api/blueprint/skills', window.location.origin);
   url.searchParams.set('workspace', workspace.path);
   const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url.toString(), signal);
-  if (answer === null || answer.skills === undefined) return [];
+  if (answer.value?.skills === undefined) {
+    if (answer.status === 0 || answer.status === 404) {
+      return [{
+        key: 'skills:unavailable',
+        label: sources.t('menu.hostStale'),
+        icon: 'skill',
+        section: sources.t('menu.skills'),
+        disabled: true,
+        action: { kind: 'run', run: () => {} },
+      }];
+    }
+    return [];
+  }
 
   const needle = query.trim().toLowerCase();
-  return answer.skills
+  return answer.value.skills
     .filter((skill) => needle === '' || `${skill.name} ${skill.description}`.toLowerCase().includes(needle))
     .slice(0, limit)
     .flatMap((skill) => {

@@ -300,20 +300,28 @@
 /* ---------- layers sidebar ---------- */
 .bp-layers {
   position: absolute;
-  overflow-x: hidden;
   top: 0;
   bottom: 0;
   left: 0;
   z-index: 12;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
   background: var(--dsw-alias-bg-layer-1, #121212);
   border-right: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.07));
   box-shadow: 4px 0 12px rgba(0, 0, 0, 0.28);
+}
+/* The panel scrolls here, not in `.bp-layers`: an absolutely positioned
+   handle inside a scroll container lines up with the padding edge, which puts
+   it to the left of the scrollbar instead of on the panel's right edge. */
+.bp-layers-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .bp-layers-head {
   display: flex;
@@ -321,9 +329,6 @@
   justify-content: space-between;
   min-height: 24px;
   margin: 0 4px 6px 8px;
-}
-.bp-layers {
-  padding: 10px 6px;
 }
 .bp-layers h4 {
   margin: 0;
@@ -556,6 +561,12 @@
   flex: none;
   display: block;
 }
+.bp-menu-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-secondary, #9a9a9a);
+}
+
 .bp-menu-label {
   flex: 1;
   min-width: 0;

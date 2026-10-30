@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { registerHost, unregisterHost, useIsFirstHost } from './hosts';
+import { CheckIcon } from '../icons';
 import { dismissMenu, pickMenuItem, useContextMenu, type MenuItem } from './menuStore';
 
 const MARGIN = 8;
@@ -88,7 +89,9 @@ export function ContextMenuHost(): ReactElement | null {
           disabled={item.disabled}
           onClick={() => choose(item)}
         >
+          {item.icon === undefined ? null : <span className="bp-menu-icon" aria-hidden="true">{item.icon}</span>}
           <span className="bp-menu-label">{item.label}</span>
+          {item.checked === true ? <CheckIcon size={13} /> : null}
         </button>
       ))}
     </div>,

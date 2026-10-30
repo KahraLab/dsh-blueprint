@@ -5,21 +5,16 @@
  * only handles presentation: the composer owns the keyboard and the choice.
  */
 import { useEffect, useRef, type ReactElement } from 'react';
-import {
-  CommandIcon,
-  FileIcon,
-  FolderIcon,
-  SessionIcon,
-  SkillIcon,
-} from '../../icons';
+import { Icon } from '../../ui/Icon';
 import type { TriggerIcon, TriggerRow } from './sources';
 
-const GLYPHS: Record<TriggerIcon, (props: { size: number }) => ReactElement> = {
-  file: FileIcon,
-  folder: FolderIcon,
-  session: SessionIcon,
-  command: CommandIcon,
-  skill: SkillIcon,
+/** Phosphor names, so one menu rows all draw with the same weight. */
+const GLYPHS: Record<TriggerIcon, string> = {
+  file: 'file',
+  folder: 'folder',
+  session: 'chat-circle',
+  command: 'command',
+  skill: 'sparkle',
 };
 
 interface TriggerMenuProps {
@@ -60,7 +55,6 @@ export function TriggerMenu({
         {rows.length === 0 ? (
           <p className="bp-trigger-empty">{emptyLabel}</p>
         ) : rows.map((row, index) => {
-          const Glyph = GLYPHS[row.icon];
           const first = index === 0 || rows[index - 1]?.section !== row.section;
           return (
             <div key={row.key} role="presentation">
@@ -70,12 +64,18 @@ export function TriggerMenu({
                 role="option"
                 id={`${id}-${index}`}
                 aria-selected={index === highlight}
+                aria-disabled={row.disabled === true}
+                disabled={row.disabled === true}
                 data-active={index === highlight}
                 className="bp-trigger-row"
-                onMouseEnter={() => onHover(index)}
-                onClick={() => onPick(row)}
+                onMouseEnter={() => {
+                  if (row.disabled !== true) onHover(index);
+                }}
+                onClick={() => {
+                  if (row.disabled !== true) onPick(row);
+                }}
               >
-                <span className="bp-trigger-glyph" aria-hidden="true"><Glyph size={14} /></span>
+                <span className="bp-trigger-glyph" aria-hidden="true"><Icon name={GLYPHS[row.icon]} size={14} /></span>
                 <span className="bp-trigger-label">{row.label}</span>
                 {row.description === undefined ? null : <span className="bp-trigger-desc">{row.description}</span>}
               </button>

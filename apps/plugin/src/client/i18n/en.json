@@ -191,5 +191,6 @@
   "menu.searching": "Looking…",
   "menu.untitledSession": "Untitled session",
   "menu.sessionHint": "Reference this conversation as context",
-  "menu.filesAndFolders": "Files and folders"
+  "menu.filesAndFolders": "Files and folders",
+  "menu.hostStale": "File search needs a DSH restart"
 }

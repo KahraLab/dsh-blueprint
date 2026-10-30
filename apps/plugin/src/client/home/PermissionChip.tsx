@@ -8,7 +8,7 @@
  */
 import type { MouseEvent, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CaretIcon, ShieldIcon } from '../icons';
+import { CaretIcon, PermissionShieldIcon } from '../icons';
 import { openMenu, type MenuItem } from '../menu/menuStore';
 import type { PermissionChoice } from './permissions';
 
@@ -32,6 +32,8 @@ export function PermissionChip({ choice, value, disabled, onPick }: PermissionCh
     const items: MenuItem[] = choice.options.map((option) => ({
       id: option.id,
       label: option.label,
+      icon: <PermissionShieldIcon mode={option.id} />,
+      checked: option.id === selected.id,
       ...(option.risky ? { confirm: { label: t('permission.confirm'), cancelLabel: t('menu.cancel') } } : {}),
     }));
     const picked = await openMenu({ x: rect.left, y: rect.bottom + 6 }, items);
@@ -47,7 +49,7 @@ export function PermissionChip({ choice, value, disabled, onPick }: PermissionCh
       title={t('permission.title')}
       onClick={(event) => void showMenu(event)}
     >
-      <ShieldIcon />
+      <PermissionShieldIcon mode={selected.id} />
       <span className="bp-perm-label">{selected.label}</span>
       <CaretIcon size={10} />
     </button>

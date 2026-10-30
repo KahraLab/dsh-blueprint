@@ -44,12 +44,13 @@ import ExternalLink from 'lucide-react/icons/external-link';
 import Columns2 from 'lucide-react/icons/columns-2';
 import Rows2 from 'lucide-react/icons/rows-2';
 import LayoutGrid from 'lucide-react/icons/layout-grid';
-import ShieldAlert from 'lucide-react/icons/shield-alert';
+
 import FileIconBase from 'lucide-react/icons/file';
-import MessageSquare from 'lucide-react/icons/message-square';
+
 import Command from 'lucide-react/icons/command';
 import Sparkles from 'lucide-react/icons/sparkles';
 import type { ReactElement } from 'react';
+import { Icon } from './ui/Icon';
 
 interface IconProps {
   size?: number;
@@ -80,9 +81,12 @@ export function BlueprintLibraryIcon({ size = 14, className }: IconProps): React
   return <LayoutGrid size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
 }
 
-/** Access mode: the shield marks the permission preset control. */
-export function ShieldIcon({ size = 14, className }: IconProps): ReactElement {
-  return <ShieldAlert size={size} className={className} strokeWidth={1.8} aria-hidden="true" />;
+/** Access mode, one glyph per preset: read-only, workspace write, full access. */
+/** Access mode, one Phosphor glyph per preset: view, workspace write, full. */
+export function PermissionShieldIcon({ mode, size = 14, className }: IconProps & { mode: string }): ReactElement | null {
+  if (mode === 'read-only') return <Icon name="shield-check" size={size} className={className} />;
+  if (mode === 'workspace-write') return <Icon name="shield-slash" size={size} className={className} />;
+  return <Icon name="shield-warning" size={size} className={className} />;
 }
 
 /** One file row in the composer's file menu. */
@@ -91,8 +95,8 @@ export function FileIcon({ size = 14, className }: IconProps): ReactElement {
 }
 
 /** A past session in the reference menu. */
-export function SessionIcon({ size = 14, className }: IconProps): ReactElement {
-  return <MessageSquare size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
+export function SessionIcon({ size = 14, className }: IconProps): ReactElement | null {
+  return <Icon name="chat-circle" size={size} className={className} />;
 }
 
 /** A command in the slash menu. */
