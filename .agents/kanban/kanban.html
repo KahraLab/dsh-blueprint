@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="title">项目看板</title>
+  
+  <link id="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><style>@media (prefers-color-scheme: dark){:root{stroke:%23fff}}</style><rect width='18' height='18' x='3' y='3' rx='3'/><path d='M8 7v7'/><path d='M12 7v4'/><path d='M16 7v9'/></svg>" type="image/svg+xml" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- OverlayScrollbars 核心样式 (CDN) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.17.0/styles/overlayscrollbars.min.css" />
+
+  <link href="./kanban-style.css" rel="stylesheet" />
+</head>
+<body data-theme="dark">
+
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <span class="brand-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="3"></rect>
+            <path d="M8 7v7"></path>
+            <path d="M12 7v4"></path>
+            <path d="M16 7v9"></path>
+          </svg>
+        </span>
+        <span class="brand-name" id="brand-title" data-i18n="title">项目看板</span>
+      </div>
+
+      <nav class="nav-actions">
+        <!-- 语言切换 -->
+        <button class="btn-icon-action" id="btn-lang-toggle" data-i18n-title="btn_lang">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32"><!-- Icon from Carbon by IBM - undefined --><path fill="currentColor" d="M16 28h-3c-3.9 0-7-3.1-7-7v-4h2v4c0 2.8 2.2 5 5 5h3zm12 2h2.2l-4.6-11h-2.2l-4.6 11H21l.8-2h5.3zm-5.3-4l1.8-4.4l1.8 4.4zM28 15h-2v-4c0-2.8-2.2-5-5-5h-4V4h4c3.9 0 7 3.1 7 7zM14 5V3H9V1H7v2H2v2h8.2c-.2.9-.8 2.5-2.2 4c-.6-.7-1.1-1.4-1.4-2H4.3c.4 1 1.1 2.2 2.1 3.3c-.8.7-2 1.3-3.4 1.8l.7 1.9c1.8-.7 3.2-1.5 4.3-2.3c1.1.9 2.5 1.7 4.3 2.3l.7-1.9c-1.4-.5-2.6-1.2-3.5-1.8c1.9-2 2.5-4.1 2.7-5.3z"/></svg>
+        </button>
+
+        <!-- 主题切换 -->
+        <button class="btn-icon-action" id="btn-theme-toggle" data-i18n-title="btn_theme">
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="canvas-wrapper">
+    <div class="kanban-scroll-container" id="kanban-scroll-container" data-overlayscrollbars-initialize>
+      <div id="kanban-mount">
+      </div>
+    </div>
+  </main>
+
+  <!-- 任务详情抽屉 -->
+  <div class="drawer-backdrop" id="drawer-backdrop">
+    <div class="task-drawer" id="task-drawer">
+      <div class="drawer-header">
+        <button class="drawer-close-btn" id="btn-drawer-close" data-i18n-aria="close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-content">
+        <div class="drawer-task-id" id="drawer-task-id-text"></div>
+        <h2 class="drawer-task-title" id="drawer-task-title-text"></h2>
+
+        <div class="properties-grid">
+          <span class="prop-label" id="label-priority" data-i18n="drawer.priority_label"></span>
+          <span class="prop-value" id="drawer-prop-priority"></span>
+
+          <span class="prop-label" id="label-assignee" data-i18n="drawer.assignee_label"></span>
+          <span class="prop-value" id="drawer-prop-assignee"></span>
+
+          <span class="prop-label" id="label-status" data-i18n="drawer.status_label"></span>
+          <span class="prop-value" id="drawer-prop-lane"></span>
+        </div>
+
+        <div class="timeline-section-title" id="drawer-timeline-title" data-i18n="drawer.history_title"></div>
+        <div class="timeline-list" id="drawer-timeline">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/mermaid" id="kanban-source">
+kanban
+  backlog[待处理]
+    feat001[第零步：从一句话梳理出整体蓝图骨架]@{ priority: "High" }
+    feat002[吸附与对齐参考线]@{ priority: "High" }
+    feat003[编组与容器图层]@{ priority: "High" }
+    feat004[屏幕多状态差异存储]@{ priority: "High" }
+    feat005[屏幕间流转连接线]@{ priority: "High" }
+    feat006[事件系统：触发、动作、条件]@{ priority: "High" }
+    feat007[动效预览：过渡与转场]@{ priority: "Medium" }
+    feat008[设计语言令牌与导入导出]@{ priority: "Medium" }
+    feat009[交付视图：对外整理版文档]@{ priority: "High" }
+    feat010[画布内预览原型：点着走一遍]@{ priority: "Medium" }
+    feat011[模板卡片套用到画布]@{ priority: "Medium" }
+    feat012[画布点选联动会话上下文]@{ priority: "Medium" }
+    feat013[画布点选快捷评论气泡]@{ priority: "Low" }
+  todo[待开发]
+    refactor010[测试基础设施：Playwright 与关键路径]@{ priority: "High" }
+    refactor011[model 层：实体与值对象拆分]@{ priority: "High" }
+    refactor012[model 层：五种领域操作与补丁]@{ priority: "High" }
+    refactor013[protocol 层：字段表唯一真相]@{ priority: "High" }
+    refactor014[node 层：解循环依赖、锁改异步]@{ priority: "High" }
+    refactor015[client 画布：手势按意图拆分]@{ priority: "High" }
+    refactor016[client 画布：渲染重实现与记忆化]@{ priority: "High" }
+    refactor017[client 其余模块逐个替换]@{ priority: "High" }
+    refactor018[cli 与 host 收口、技能同步]@{ priority: "High" }
+    fix001[缩略图缓存跨工作区串号]@{ priority: "Medium" }
+    fix002[语义名正则不认文本1]@{ priority: "Medium" }
+    fix003[错误码分类按前缀猜错]@{ priority: "Medium" }
+  in_progress[进行中]
+    docs001[建立 .agents 上下文环境与看板]@{ priority: "High", assigned: "AI" }
+  ready_for_review[待验收]
+  </script>
+
+  <!-- OverlayScrollbars 驱动脚本 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.17.0/browser/overlayscrollbars.browser.es6.min.js"></script>
+  <script type="module" src="./kanban-app.js"></script>
+
+</body>
+</html>

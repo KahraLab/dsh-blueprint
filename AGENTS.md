@@ -1,101 +1,68 @@
 # AGENTS.md
 
-在这个仓库里工作的 Agent 从这里开始。先读这一页，再按需要往下翻，不要一次把仓库读完。
+## 项目定调
 
-## 这是什么
+DSH Blueprint 是一个内嵌在 DeepSeek Harness 里的设计工具，目标是把 Figma 那样的设计能力搬进对话里：画布和对话是同一份文档的两个视图，人和 AI 一起改同一个界面。
 
-DSH Blueprint 是一个装在 DeepSeek Harness 里的产品蓝图工作台：一边和 AI 聊，一边在画布上把整个产品的流程做成能点、能改、高保真的蓝图，做完交给编码 Agent 实现。
+它存在的理由是 DSH 缺一手「看得见」的能力。只有对话时，说清一个界面长什么样很费劲；有了画布，一句话就能出图，出的图还能直接改。
 
-完整说明在 [.agent-works/OVERVIEW.md](.agent-works/OVERVIEW.md)。
+完成度按设计工具的标准要求，不按草图要求。技术上是一套 TypeScript 代码，服务端部分跑在 Node，浏览器部分跑在浏览器，用 React 18。
 
-## 按需要往下翻
-
-| 想知道什么 | 读哪里 |
-|---|---|
-| 蓝图要做成什么样、为什么做 | `.agent-works/OVERVIEW.md` |
-| 做到哪一步、下一步做什么 | `.agent-works/issues/bp-map.md`（总看板） |
-| 某个词是什么意思 | `.agent-works/GLOSSARY.md` |
-| 某块已经定稿的规则 | `.agent-works/specs/` |
-| 插件代码（TypeScript） | `apps/plugin/` |
-| 调研笔记、一次性脚本 | `.tmp/`（本机工作副本，不进版本库） |
-
-## 目录
-
-```
-dsh-blueprint/
-├── AGENTS.md              # 你正在读的这一页
-├── .agent-works/          # 给 Agent 的全部资料，随仓库走
-│   ├── OVERVIEW.md        # 蓝图是什么、目标是什么
-│   ├── GLOSSARY.md        # 领域术语
-│   ├── specs/             # 已定稿的规格
-│   └── issues/            # 路线图、票、总看板
-├── apps/plugin/           # DSH 插件：src/host 跑 Node，src/client 跑浏览器
-│   ├── src/protocol/      # AI 面对的读写契约：校验、构建、JSON Schema
-│   ├── src/model/         # 文档模型：元素树、字段规则、五种文档操作
-│   ├── src/node/          # 蓝图与文档落盘：布局、版本号、原子写
-│   ├── src/cli/           # bp 命令行：参数解析、输出、五个命令
-│   ├── src/host/          # 路由、技能注册，把 node 层接到 DSH
-│   └── src/client/        # 浏览器半，按界面分块，见下一节
-└── .tmp/                  # 过程资料，不进版本库
-```
-
-### 浏览器半怎么分块
-
-一个文件负责一类事，界面和逻辑分开；改一块不用翻整棵树。
-
-```
-src/client/
-├── index.tsx        # 只做注册：槽位、Tab、入口页
-├── api.ts           # JSON 请求：统一读错误体、重试、判状态码
-├── library.ts       # 蓝图列表数据，按 Session / 工作区分片
-├── editor/          # 文档状态（zustand + zundo）、落盘同步、快捷键
-├── canvas/          # 画布：几何、命中、手势、图层渲染、浮层
-├── panel/           # 右侧栏：页头、工具栏、图层栏、面板状态
-├── inspector/       # 属性栏，一段一个组件
-├── layers/          # 图层树：纯数据的行、行组件、拖拽 hook
-├── iconpicker/      # 图标选择器：数据 store、虚拟网格、集合栏
-├── home/            # 中央入口页与 Dashboard
-└── components/      # 两个界面共用的视图（画廊、缩略预览、图标 glyph）
-```
-
-规则：状态优先放 zustand，`useState` 只留给「只影响一个组件、随时可丢」的界面状态；`useEffect` 只留给真正的外部同步（网络、窗口事件、DOM 测量）。能算出来的不要存。
-
-## 工作方式
-
-1. 跑 `python3 .agent-works/issues/frontier.py`，看现在能动的票。
-2. 读地图的 Destination、实现进度、Notes、Decisions so far。
-3. 认领一张票：把票 frontmatter 里的 `assignee` 写成自己的名字。
-4. 按票的 `labels` 做事：`research` 派子代理查、结果进 `.tmp/research/`；`grilling` 和用户谈定、不替他决定；`prototype` 在 `.tmp/prototype/` 做个粗糙能看的；`task` 做完产出一句可引用的事实。
-5. 收口：票里补 `## Resolution`，`status` 改 `closed`，在地图 Decisions so far 加一行。
-6. 一个会话只收一张票，research 票可以并行。
-7. 冒出新的问题就新开票；发现某张票超范围就关掉，在地图 Out of scope 留一行。
-
-## 约定
-
-- 用中文，平实的白话，把背景讲清楚，不默认读者懂。
-- **写终态，不写过程。** 讨论留在对话里，进 `.agent-works/` 的只有结论：一条决策一行，不记流水账、不附草稿、不写「上一版改成了什么」。
-- **进度只有一处。** 做到哪一步看地图的「实现进度」；规格和概览不记进度。
-- 前端用 React 18，跟平台走；槽位、渲染器、组件库同一套运行时，不引入别的框架。
-- 界面文案进 `src/client/i18n/zh.json` 与 `en.json`，两边同时写；`x18n.config.yml` 负责检查，新增文案后跑 `i18n:check`。
-- 设计语言的令牌只挂 `[data-bp-dl]` 作用域，不写 `:root`，避免漏进宿主界面。
-- 过程产物一律放 `.tmp/`。`.agent-works/` 只放定稿的东西，仓库根目录不放临时文件、截图、脚本。
-- **按块定、按块做。** 一块动工之前，那块的决定先定完；没定的先开票谈，不在代码里猜。
-
-## 命令
+## 验证与闭环
 
 | 命令 | 作用 |
 |---|---|
-| `python3 .agent-works/issues/frontier.py` | 列出当前能认领的票 |
-| `pnpm -C apps/plugin typecheck` | 类型检查（strict） |
-| `pnpm -C apps/plugin test` | 构建、检查两份语言文件的键、跑命令行契约测试与编辑器纯函数测试（`test/*.test.mjs`） |
-| `pnpm -C apps/plugin i18n:check` | 只跑界面文案检查（缺键、多余键、占位符不一致） |
-| `pnpm -C apps/plugin build` | 构建：client 半打成 `__ModuleLoader__` 包，host 半打成 ESM |
-| `pnpm -C apps/plugin build:watch` | 改动静默重建，DSH 客户端热更新接住 |
-| `npx react-doctor@latest --verbose` | 扫 React 健康分（在 `apps/plugin` 里跑；`doctor.config.json` 跳过构建产物 `lib/`） |
-| `git log --oneline` | 看最近改了什么 |
+| `pnpm -C apps/plugin typecheck` | 类型检查，strict 模式，必须 0 错误 |
+| `pnpm -C apps/plugin test` | 跑全部测试：命令行、文档模型、落盘、编辑器、模板路由 |
+| `pnpm -C apps/plugin i18n:check` | 检查中英文案文件的键与占位符是否一致 |
+| `pnpm -C apps/plugin build` | 构建到 `lib/` |
+| `pnpm -C apps/plugin test:e2e` | 浏览器里跑真实交互（首次要 `npx playwright install chromium`） |
 
-插件是**一个包、两个半**：`src/host` 跑在 Node，`src/client` 跑在浏览器，同一个 `package.json` 两个入口。不要拆成两个 npm 包，平台就是这么设计的。
+改完代码先跑 `typecheck` 和 `test`。`test` 会先构建一次，所以只跑它也能发现编译错误。
 
-装进 DSH 用 `plugin_manager install_bundle`，target 写 `apps/plugin` 的绝对路径（本地 link）。改完代码跑一次 `build`，热更新会接住；不动安装信息时不用重新 link。
+**装进 DSH**：用 `plugin_manager install_bundle`，target 填 `apps/plugin` 的绝对路径。改完代码跑一次 `build`，客户端会热更新。
 
-界面改动怎么验：`build` 之后直接看右侧栏的「蓝图」tab；要截图或跑断言，在 `.tmp/` 里用自己搭的夹具。
+**验证界面**：打开 <http://127.0.0.1:65372>，看右侧栏的「蓝图」标签页。需要写断言就自己搭测试环境放在 `.tmp/`，不要在仓库根目录留截图和脚本。
+
+**命令行工具 `bp`** 构建在 `lib/bin/bp.js`，不在系统 PATH 里。`node lib/bin/bp.js schema` 是完整的字段与错误码说明，`bp help <命令>` 查单个命令的用法。所有命令输出一行 JSON。
+
+## 上下文指引
+
+按需查阅，不要提前全部加载：
+
+| 想了解 | 去哪里看 |
+|---|---|
+| **第一次接手这个项目** | `.agents/specs/product.md`（先读这份了解定位） |
+| 项目的产品定位与范围 | `.agents/specs/` |
+| 改代码前必须遵守的约束 | `.agents/rules/` |
+| 当前进度与待办 | `.agents/kanban/kanban.html` |
+| 项目专用的操作流程 | `.agents/skills/` |
+| 调研笔记与一次性脚本 | `.tmp/`，不进版本库 |
+
+### 看板
+
+```bash
+cd .agents/kanban && python3 -m http.server 5173
+```
+
+然后打开 <http://localhost:5173/kanban.html>。四条泳道分别是待处理、待开发、进行中、待验收。
+
+认领任务时把卡片移到「进行中」并写上自己的名字；做完移到「待验收」，写清改了什么、怎么验证；用户确认后从看板移走，在 `history.md` 补一条归档。
+
+进度只在看板记录。设计文档、规则文档和代码注释都不记进度。看板数据存放在 `kanban.html` 的 `<script type="text/mermaid" id="kanban-source">` 块里，改完保存，页面会自动重绘。
+
+## 绝对红线
+
+1. **插件不调用大模型，不拼装提示词。** 生成能力只来自 `bp` 命令行和静态的技能文本。插件本身不组装提示词，也不请求模型。
+2. **写入不加锁，按最后写入者生效。** 按节点 id 就地合并，不做版本号拦截，不整份重写。
+3. **界面文案必须中英同步。** 新文案要同时写进 `src/client/i18n/zh.json` 和 `en.json`，否则 `i18n:check` 会报错。
+
+## 工作方式
+
+1. 第一次接手，先读 `.agents/specs/product.md` 了解定位。
+2. 从看板的「待开发」里挑一张卡片开工。「待处理」的卡片要先排期，不要直接动手。
+3. 一次只做一张卡片。发现超出范围就拆卡退回「待处理」，不要在代码里猜。
+4. 需要用户决定的事情一次问完，每个问题给出你的推荐答案。
+5. 文档只写最终结论，不写过程。讨论留在对话里。
+
+全部使用中文，平实的白话，把背景讲清楚。
