@@ -4,13 +4,13 @@
  * Row data comes from `rows.ts` (pure), dragging from `useRowDrag`, and this
  * component only turns the result into rows plus the right-click actions.
  */
-import { useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BlueprintDocument, LayerRectPatch, RectPatch, Selection } from '../../model/document';
 import { askName, confirmAction } from '../menu/dialogStore';
 import { openMenuAt } from '../menu/menuStore';
 import { LayerRow } from './LayerRow';
-import { buildLayerRows } from './rows';
+import { buildLayerRows, revealPath } from './rows';
 import { useRowDrag } from './useRowDrag';
 
 interface LayerTreeProps {
@@ -48,6 +48,7 @@ export function LayerTree({
 }: LayerTreeProps): ReactElement {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const revealedFor = useRef<readonly Selection[] | null>(null);
   const { dragging, dropY, listRef, beginPress } = useRowDrag({ doc, onReorderFrame, onReorderLayer });
 
   const toggleCollapsed = (id: string): void => {
@@ -91,6 +92,37 @@ export function LayerTree({
     if (picked === 'rename') await rename(target);
     if (picked === 'delete') await remove(target);
   };
+
+  // Selecting on the canvas can point inside a collapsed container: open the
+  // path first, then let the row itself scroll into view.
+  useEffect(() => {
+    // Only a new selection expands the tree. A doc edit must not re-open a
+    // container the user just folded away.
+    if (revealedFor.current === selections) return;
+    revealedFor.current = selections;
+    if (selections.length === 0) return;
+    const needed = new Set<string>();
+    for (const selection of selections) {
+      for (const id of revealPath(doc, selection)) needed.add(id);
+    }
+    if (needed.size === 0) return;
+    setCollapsed((current) => {
+      let changed = false;
+      const next = new Set(current);
+      for (const id of needed) {
+        if (next.delete(id)) changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [doc, selections]);
+
+  useEffect(() => {
+    if (selections.length === 0) return;
+    const first = selections[0]!;
+    const id = first.kind === 'frame' ? first.frameId : first.layerId;
+    const row = listRef.current?.querySelector<HTMLElement>(`[data-layer-id="${CSS.escape(id)}"]`);
+    row?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [collapsed, selections]);
 
   const rows = buildLayerRows(doc, collapsed, selections);
 

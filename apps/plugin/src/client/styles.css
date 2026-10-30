@@ -114,6 +114,7 @@
   min-width: 0;
   overflow: hidden;
   touch-action: none;
+  overscroll-behavior: contain;
   cursor: default;
   background-color: var(--dsw-alias-bg-base, #f2f2f2);
   background-image: radial-gradient(circle at 1px 1px, var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.12)) 1px, transparent 0);

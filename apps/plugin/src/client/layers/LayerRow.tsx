@@ -64,6 +64,7 @@ export function LayerRow({
     <div
       className="bp-layer-row"
       data-row={JSON.stringify(info)}
+      data-layer-id={info.id}
       data-hidden={String(!visible)}
       data-locked={String(locked)}
       data-selected={selected || undefined}

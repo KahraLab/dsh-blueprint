@@ -152,3 +152,31 @@ export function nextSiblingId(doc: BlueprintDocument, info: RowInfo): string | n
   const index = list.findIndex((item) => item.id === info.id);
   return index >= 0 && index + 1 < list.length ? list[index + 1]!.id : null;
 }
+
+/**
+ * The containers a row sits inside, outermost first.
+ *
+ * A selection made on the canvas can be inside a collapsed frame or layer; the
+ * tree expands exactly these rows so the selected one becomes drawable. A frame
+ * is already a top-level row, so selecting one needs no expansion.
+ */
+export function revealPath(doc: BlueprintDocument, selection: Selection): readonly string[] {
+  if (selection.kind === 'frame') return [];
+  const found = findPath(doc.layers, selection.layerId, []);
+  if (found !== null) return found;
+  for (const frame of doc.frames) {
+    const inside = findPath(frame.children, selection.layerId, [frame.id]);
+    if (inside !== null) return inside;
+  }
+  return [];
+}
+
+function findPath(layers: readonly Layer[], id: string, parents: readonly string[]): readonly string[] | null {
+  for (const layer of layers) {
+    if (layer.id === id) return parents;
+    if (layer.children.length === 0) continue;
+    const found = findPath(layer.children, id, [...parents, layer.id]);
+    if (found !== null) return found;
+  }
+  return null;
+}

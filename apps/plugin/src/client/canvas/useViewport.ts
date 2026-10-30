@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type { Viewport, ViewportInfo } from '../editor/types';
 import { clamp } from './geometry';
+import { zoomFactorFor } from './zoom';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
@@ -42,27 +43,56 @@ export function useViewport({ hostRef, initialViewport, onViewportChange }: View
   live.current = viewport;
 
   // Wheel pans; ctrl/meta zooms around the pointer. Non-passive so the page does not scroll.
+  // A trackpad sends many small events per frame; accumulate them and paint once
+  // per frame, otherwise every one re-renders and re-lays-out the whole world.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    let frame = 0;
+    let factor = 1;
+    let panX = 0;
+    let panY = 0;
+    let pointerX = 0;
+    let pointerY = 0;
+
+    const apply = (): void => {
+      frame = 0;
+      const current = live.current;
+      if (factor !== 1) {
+        const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+        if (zoom !== current.zoom) {
+          const worldX = (pointerX - current.x) / current.zoom;
+          const worldY = (pointerY - current.y) / current.zoom;
+          setViewport({ zoom, x: pointerX - worldX * zoom, y: pointerY - worldY * zoom });
+        }
+      } else if (panX !== 0 || panY !== 0) {
+        setViewport({ ...current, x: current.x - panX, y: current.y - panY });
+      }
+      factor = 1;
+      panX = 0;
+      panY = 0;
+    };
+
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
       const rect = host.getBoundingClientRect();
-      const pointerX = event.clientX - rect.left;
-      const pointerY = event.clientY - rect.top;
-      const current = live.current;
+      pointerX = event.clientX - rect.left;
+      pointerY = event.clientY - rect.top;
       if (event.ctrlKey || event.metaKey) {
-        const factor = Math.exp(-event.deltaY * 0.006);
-        const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-        const worldX = (pointerX - current.x) / current.zoom;
-        const worldY = (pointerY - current.y) / current.zoom;
-        setViewport({ zoom, x: pointerX - worldX * zoom, y: pointerY - worldY * zoom });
-        return;
+        factor *= zoomFactorFor(event.deltaY, event.deltaMode, host.clientHeight);
+      } else {
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? host.clientHeight : 1;
+        panX += event.deltaX * unit;
+        panY += event.deltaY * unit;
       }
-      setViewport({ ...current, x: current.x - event.deltaX, y: current.y - event.deltaY });
+      if (frame === 0) frame = requestAnimationFrame(apply);
     };
+
     host.addEventListener('wheel', onWheel, { passive: false });
-    return () => host.removeEventListener('wheel', onWheel);
+    return () => {
+      host.removeEventListener('wheel', onWheel);
+      if (frame !== 0) cancelAnimationFrame(frame);
+    };
   }, [hostRef]);
 
   // Remember where the user was, but not on every wheel tick.
