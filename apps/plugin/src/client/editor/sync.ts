@@ -301,3 +301,19 @@ async function poll(url: string): Promise<void> {
   // the undo stack so Cmd/Ctrl+Z can undo the AI change without clearing previous history.
   adoptExternalDocument(stored.document);
 }
+
+/**
+ * Check the open file because the host saw a change.
+ *
+ * The poll stays as a fallback; this only shortens the wait. A signal that
+ * names other blueprints is ignored, and a signal without ids (a reconnect)
+ * checks everything.
+ */
+export function syncNow(ids: string[] | null): void {
+  if (activeUrl === null) return;
+  if (ids !== null) {
+    const id = new URL(activeUrl, 'http://blueprint.local').searchParams.get('blueprint');
+    if (id === null || !ids.includes(id)) return;
+  }
+  void poll(activeUrl);
+}

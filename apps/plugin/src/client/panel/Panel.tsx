@@ -16,7 +16,7 @@ import { Canvas } from '../canvas/Canvas';
 import { viewportCentre } from '../canvas/useViewport';
 import { installKeys } from '../editor/keys';
 import { useBlueprint } from '../editor/store';
-import { flushPending, loadDocument, startSession } from '../editor/sync';
+import { flushPending, loadDocument, startSession, syncNow } from '../editor/sync';
 import {
   documentUrl,
   scopeKey,
@@ -98,9 +98,13 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   );
 
   // The command line writes files while this is open: keep the list and the card
-  // pictures in step, quietly, and read pictures only where they are drawn.
+  // pictures in step, quietly, and read pictures only where they are drawn. The
+  // pushed signal also wakes the open document, so it does not wait for its poll.
   useEffect(
-    () => watchLibrary(scope, messages, { previews: view.screen === 'gallery' }),
+    () => watchLibrary(scope, messages, {
+      previews: view.screen === 'gallery',
+      onChange: view.screen === 'editor' ? syncNow : undefined,
+    }),
     [key, messages, scope, view.screen],
   );
 

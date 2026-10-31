@@ -9,7 +9,7 @@
  * refused instead of guessed at: the alternative is silently misreading node
  * fields we do not know yet.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, rmdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, rmdirSync, statSync } from 'node:fs';
 import { customAlphabet } from 'nanoid';
 import { dirname, join, resolve } from 'node:path';
 import { type BlueprintDocument, createDocument, normalizeDocument } from '../model/document';
@@ -193,6 +193,32 @@ export function parseBlueprintFile(text: string, path: string, id: string): Blue
   };
 }
 
+/**
+ * The list is read on every signal, so a document is parsed only when its
+ * file changed. The stamp covers the atomic rename (inode), ordinary edits
+ * (mtime/ctime) and replacement by another tool (size), while a missing file
+ * is never cached so it can be noticed as soon as it appears.
+ */
+interface SummaryCacheEntry {
+  stamp: string;
+  summary: BlueprintSummary;
+}
+
+const summaryCaches = new Map<string, Map<string, SummaryCacheEntry>>();
+
+function fileStamp(file: string): string | null {
+  try {
+    const info = statSync(file);
+    return `${info.mtimeMs}:${info.ctimeMs}:${info.size}:${info.ino}`;
+  } catch {
+    return null;
+  }
+}
+
+function forgetSummary(root: string, id: string): void {
+  summaryCaches.get(root)?.delete(id);
+}
+
 export function listBlueprints(root: string): BlueprintSummary[] {
   const dir = blueprintsDir(root);
   let entries: string[];
@@ -201,16 +227,40 @@ export function listBlueprints(root: string): BlueprintSummary[] {
   } catch {
     return [];
   }
+  const cache = summaryCaches.get(root) ?? new Map<string, SummaryCacheEntry>();
+  summaryCaches.set(root, cache);
   const blueprints: BlueprintSummary[] = [];
+  const seen = new Set<string>();
   for (const id of entries.sort()) {
     if (!BLUEPRINT_ID.test(id)) continue;
+    seen.add(id);
+    const stamp = fileStamp(blueprintFile(root, id));
+    const cached = cache.get(id);
+    if (stamp !== null && cached !== undefined && cached.stamp === stamp) {
+      blueprints.push(cached.summary);
+      continue;
+    }
     try {
       const blueprint = readBlueprint(root, id);
-      blueprints.push({ id, title: blueprint.title, revision: blueprint.revision, updatedAt: blueprint.updatedAt, broken: false });
-    } catch (error) {
-      blueprints.push({ id, title: id, revision: 0, updatedAt: '', broken: true });
+      const summary: BlueprintSummary = {
+        id,
+        title: blueprint.title,
+        revision: blueprint.revision,
+        updatedAt: blueprint.updatedAt,
+        broken: false,
+      };
+      if (stamp !== null) cache.set(id, { stamp, summary });
+      blueprints.push(summary);
+    } catch {
+      const summary: BlueprintSummary = { id, title: id, revision: 0, updatedAt: '', broken: true };
+      if (stamp !== null) cache.set(id, { stamp, summary });
+      blueprints.push(summary);
     }
   }
+  for (const id of cache.keys()) {
+    if (!seen.has(id)) cache.delete(id);
+  }
+  if (cache.size === 0) summaryCaches.delete(root);
   return blueprints;
 }
 
@@ -219,6 +269,7 @@ export function listBlueprints(root: string): BlueprintSummary[] {
 export function writeBlueprint(root: string, blueprint: BlueprintFile): void {
   mkdirSync(blueprintDir(root, blueprint.id), { recursive: true });
   writeJsonAtomic(blueprintFile(root, blueprint.id), blueprint);
+  forgetSummary(root, blueprint.id);
 }
 
 export function createBlueprint(
@@ -335,6 +386,7 @@ export function deleteBlueprint(root: string, id: string, sessionId?: string | n
     throw new BlueprintError(`找不到蓝图「${blueprintId}」：${dir} 不存在`, 'missing');
   }
   rmSync(dir, { recursive: true, force: true });
+  forgetSummary(root, blueprintId);
   forgetPointer(sessionPointerFileIfAny(sessionId), blueprintId);
   forgetPointer(workspaceFile(root), blueprintId);
   for (const name of LEGACY_WORKSPACE_FILES) forgetPointer(join(dataDir(root), name), blueprintId);

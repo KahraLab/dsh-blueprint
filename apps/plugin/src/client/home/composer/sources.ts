@@ -36,14 +36,16 @@ export interface MenuSources {
   workspace: WorkspaceSummary | null;
   sessions: SessionListSnapshot;
   t: (key: string) => string;
-  /** The page-level actions the slash menu can run. */
-  openLibrary(): void;
-  clearPrompt(): void;
 }
 
 interface FileHit {
   path: string;
   kind: 'file' | 'directory';
+}
+
+/** Append the HTTP status when there is one, so a stale Host is obvious. */
+function withStatus(label: string, status: number): string {
+  return status === 0 ? label : `${label}（HTTP ${status}）`;
 }
 
 interface JsonAnswer<T> {
@@ -87,10 +89,11 @@ export async function fileRows(
   url.searchParams.set('limit', String(limit));
   const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url.toString(), signal);
   if (answer.value?.files === undefined) {
-    if (answer.status === 0 || answer.status === 404) {
+    console.warn('[blueprint] file menu request failed', answer.status);
+    if (answer.status !== 200) {
       return [{
         key: 'files:unavailable',
-        label: sources.t('menu.hostStale'),
+        label: withStatus(sources.t('menu.hostStale'), answer.status),
         icon: 'file',
         section,
         disabled: true,
@@ -140,30 +143,6 @@ export function sessionRows(sources: MenuSources, query: string, limit: number):
     });
 }
 
-/** The page's own actions. They run here; they are not Host slash commands. */
-export function commandRows(sources: MenuSources, query: string): TriggerRow[] {
-  const commands: TriggerRow[] = [
-    {
-      key: 'command:library',
-      label: sources.t('menu.library'),
-      description: sources.t('menu.libraryHint'),
-      icon: 'command',
-      section: sources.t('menu.commands'),
-      action: { kind: 'run', run: sources.openLibrary },
-    },
-    {
-      key: 'command:clear',
-      label: sources.t('menu.clear'),
-      description: sources.t('menu.clearHint'),
-      icon: 'command',
-      section: sources.t('menu.commands'),
-      action: { kind: 'run', run: sources.clearPrompt },
-    },
-  ];
-  const needle = query.trim().toLowerCase();
-  return commands.filter((command) => needle === '' || command.label.toLowerCase().includes(needle));
-}
-
 interface SkillHit {
   name: string;
   description: string;
@@ -183,10 +162,11 @@ export async function skillRows(
   url.searchParams.set('workspace', workspace.path);
   const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url.toString(), signal);
   if (answer.value?.skills === undefined) {
-    if (answer.status === 0 || answer.status === 404) {
+    console.warn('[blueprint] skill menu request failed', answer.status);
+    if (answer.status !== 200) {
       return [{
         key: 'skills:unavailable',
-        label: sources.t('menu.hostStale'),
+        label: withStatus(sources.t('menu.hostStale'), answer.status),
         icon: 'skill',
         section: sources.t('menu.skills'),
         disabled: true,
@@ -197,6 +177,16 @@ export async function skillRows(
   }
 
   const needle = query.trim().toLowerCase();
+  if (answer.value.skills.length === 0) {
+    return [{
+      key: 'skills:empty',
+      label: sources.t('menu.noSkills'),
+      icon: 'skill',
+      section: sources.t('menu.skills'),
+      disabled: true,
+      action: { kind: 'run', run: () => {} },
+    }];
+  }
   return answer.value.skills
     .filter((skill) => needle === '' || `${skill.name} ${skill.description}`.toLowerCase().includes(needle))
     .slice(0, limit)
@@ -229,9 +219,8 @@ export async function rowsFor(
     return [...files, ...sessions];
   }
 
-  const files = await fileRows(sources, hit.query, 4, signal, sources.t('menu.files'));
+  const files = await fileRows(sources, hit.query, 6, signal, sources.t('menu.files'));
   if (signal.aborted) return [];
-  const commands = commandRows(sources, hit.query);
-  const skills = await skillRows(sources, hit.query, 6, signal);
-  return [...files, ...commands, ...skills];
+  const skills = await skillRows(sources, hit.query, 8, signal);
+  return [...files, ...skills];
 }

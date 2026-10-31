@@ -57,9 +57,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
     workspace,
     sessions,
     t,
-    openLibrary: onDashboard,
-    clearPrompt: () => setPrompt(''),
-  }), [ctx, onDashboard, sessions, setPrompt, t, workspace]);
+  }), [ctx, sessions, t, workspace]);
 
   useEffect(() => {
     let alive = true;

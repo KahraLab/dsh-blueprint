@@ -19,6 +19,8 @@ import { resolveSessionId } from '../node/session.js';
 import { writeSelection, type StoredSelection } from '../node/selection.js';
 import { isWorkspace, searchWorkspaceFiles } from './files.js';
 import { skillFor } from './skill.js';
+import { eventHeaders, openEvents } from './events.js';
+import { WorkspaceWatchers } from './watch.js';
 
 /**
  * Host half.
@@ -32,6 +34,7 @@ import { skillFor } from './skill.js';
  *
  * Routes:
  *   - the blueprint list, so the Dashboard and editor can show and create them;
+ *   - a server-sent event stream that says when that list changed on disk;
  *   - the blueprint pointer, so each Session returns to its own blueprint and the
  *     command line knows the workspace default;
  *   - document read/write for one blueprint, through the same code path the `bp`
@@ -44,6 +47,7 @@ import { skillFor } from './skill.js';
 const DOC_ENDPOINT = '/api/blueprint/doc';
 const HISTORY_ENDPOINT = '/api/blueprint/doc/history';
 const BLUEPRINTS_ENDPOINT = '/api/blueprint/list';
+const EVENTS_ENDPOINT = '/api/blueprint/events';
 const CURRENT_ENDPOINT = '/api/blueprint/current';
 const SELECTION_ENDPOINT = '/api/blueprint/selection';
 const ICONS_ENDPOINT = '/api/blueprint/icons';
@@ -162,6 +166,19 @@ function createBlueprintRoute(scope: PluginContext): FetchRoute {
         sessionId,
       });
       return Response.json({ ok: true, blueprint: { id: blueprint.id, title: blueprint.title, revision: blueprint.revision } });
+    }),
+  };
+}
+
+function createEventsRoute(scope: PluginContext, watchers: WorkspaceWatchers): FetchRoute {
+  return {
+    path: EVENTS_ENDPOINT,
+    methods: ['GET'],
+    requestBody: 'buffered',
+
+    fetch: (request) => guarded(async () => {
+      const { root } = scopeOf(scope, request);
+      return new Response(openEvents(root, watchers, request.signal), { headers: eventHeaders() });
     }),
   };
 }
@@ -407,8 +424,12 @@ function register(ctx: PluginContext, label: string, create: () => FetchRoute): 
 }
 
 export function apply(ctx: PluginContext): void {
+  const watchers = new WorkspaceWatchers();
+  ctx.effect(() => () => watchers.closeAll(), 'blueprint:watchers');
+
   ctx.inject(['connection', 'sessions', 'workingDirectory'], (scope) => {
     register(scope, 'blueprints', () => createBlueprintRoute(scope));
+    register(scope, 'events', () => createEventsRoute(scope, watchers));
     register(scope, 'current', () => createCurrentRoute(scope));
     register(scope, 'document', () => createDocumentRoute(scope));
     register(scope, 'history', () => createHistoryRoute(scope));

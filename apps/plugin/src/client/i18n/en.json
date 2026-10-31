@@ -181,16 +181,12 @@
   "permission.auto": "Auto review",
   "menu.files": "Files",
   "menu.sessions": "Past sessions",
-  "menu.commands": "Commands",
   "menu.skills": "Skills",
-  "menu.library": "Open blueprint library",
-  "menu.libraryHint": "Every design in this workspace",
-  "menu.clear": "Clear prompt",
-  "menu.clearHint": "Remove the draft from this box",
   "menu.empty": "Nothing matches",
   "menu.searching": "Looking…",
   "menu.untitledSession": "Untitled session",
   "menu.sessionHint": "Reference this conversation as context",
   "menu.filesAndFolders": "Files and folders",
-  "menu.hostStale": "File search needs a DSH restart"
+  "menu.hostStale": "File search needs a DSH restart",
+  "menu.noSkills": "No skills for this workspace"
 }

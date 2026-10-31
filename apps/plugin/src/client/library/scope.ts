@@ -31,6 +31,11 @@ export function listUrl(scope: LibraryScope): string {
   return withQuery('/api/blueprint/list', scope);
 }
 
+/** The host's change stream for this same scope. */
+export function eventsUrl(scope: LibraryScope): string {
+  return withQuery('/api/blueprint/events', scope);
+}
+
 export function documentUrl(scope: LibraryScope, blueprintId: string): string {
   const query = scopeQuery(scope);
   query.set('blueprint', blueprintId);
