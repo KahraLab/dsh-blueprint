@@ -6,7 +6,7 @@
  * pointer events, selection or editing stays in `Canvas`.
  */
 import { useId, type CSSProperties, type ReactElement } from 'react';
-import type { FillStyle, Layer, LayerKind, StrokeStyle } from '../../model/document';
+import type { FillStyle, Layer, LayerKind, StrokeStyle } from '../../domain/document';
 import { colorToRgba, fillBackground, topFillColor } from '../model/fill';
 import { backdropOf, boxShadowOf, filterOf } from '../model/effect';
 import { drawnStrokeWidth, strokeShadow } from '../model/stroke';

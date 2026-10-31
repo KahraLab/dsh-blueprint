@@ -6,6 +6,7 @@
  * the option is not shown at all instead of silently doing nothing.
  */
 import { useState, type ReactElement } from 'react';
+import { ratioFromPercent } from '../../shared/number';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, MinusIcon, VisibilityIcon } from '../icons';
 import {
@@ -13,7 +14,7 @@ import {
   makeEffect,
   type EffectStyle,
   type EffectType,
-} from '../../model/document';
+} from '../../domain/document';
 import { colorToRgba } from '../model/fill';
 import { ColorPicker } from './color/ColorPicker';
 import { NumberBox } from './NumberBox';
@@ -156,7 +157,7 @@ export function EffectsSection({ effects, palette, capabilities, onChange }: Eff
                   value={Math.round(effect.opacity * 100)}
                   onChange={(event) => {
                     const parsed = Number.parseFloat(event.target.value);
-                    if (Number.isFinite(parsed)) replace({ ...effect, opacity: Math.min(100, Math.max(0, parsed)) / 100 });
+                    if (Number.isFinite(parsed)) replace({ ...effect, opacity: ratioFromPercent(parsed) });
                   }}
                 />
                 <span className="bp-input-suffix">%</span>

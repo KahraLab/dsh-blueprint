@@ -26,7 +26,7 @@ before(async () => {
       geometry: join(root, 'src', 'client', 'canvas', 'geometry.ts'),
       rows: join(root, 'src', 'client', 'layers', 'rows.ts'),
       view: join(root, 'src', 'client', 'panel', 'view.ts'),
-      icon: join(root, 'src', 'model', 'icon.ts'),
+      icon: join(root, 'src', 'domain', 'icon.ts'),
     },
     outdir: tempDir,
     bundle: true,

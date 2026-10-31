@@ -4,7 +4,7 @@
  * Everything here answers a question about numbers, so it can be reasoned about
  * on its own and reused by the gesture code without dragging a component along.
  */
-import type { BlueprintDocument, Selection } from '../../model/document';
+import type { BlueprintDocument, Selection } from '../../domain/document';
 
 export interface WorldRect {
   x: number;
@@ -14,11 +14,9 @@ export interface WorldRect {
 }
 
 /** Screen pixels a dragged edge must come within to snap. */
-export const SNAP_THRESHOLD_PX = 6;
+export { clamp } from '../../shared/number';
 
-export function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
+export const SNAP_THRESHOLD_PX = 6;
 
 export function intersects(a: WorldRect, b: WorldRect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;

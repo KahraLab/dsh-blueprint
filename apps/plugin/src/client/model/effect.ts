@@ -7,7 +7,7 @@
  * whatever alpha the object actually has. Layer blur is always a filter;
  * background blur is a backdrop filter.
  */
-import type { EffectStyle } from '../../model/document';
+import type { EffectStyle } from '../../domain/document';
 import { colorToRgba } from './fill';
 
 function shadowColor(effect: { color: string; opacity: number }): string {

@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BlueprintDocument, LayerRectPatch, RectPatch, Selection } from '../../model/document';
+import type { BlueprintDocument, LayerRectPatch, RectPatch, Selection } from '../../domain/document';
 import { openMenuAt } from '../menu/menuStore';
 import { LayerRow } from './LayerRow';
 import {

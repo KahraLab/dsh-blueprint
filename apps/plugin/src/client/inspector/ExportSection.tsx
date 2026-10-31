@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, CaretIcon, MinusIcon, MoreIcon } from '../icons';
-import type { BlueprintDocument } from '../../model/document';
+import type { BlueprintDocument } from '../../domain/document';
 import { openMenu } from '../menu/menuStore';
 import { copyNodePng, copyNodeSvg, exportNode, renderPreview } from '../export/download';
 import type { ExportFormat } from '../export/name';

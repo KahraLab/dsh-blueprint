@@ -15,7 +15,7 @@ import { Panel } from './panel/Panel';
 import { installBlueprintOpenListener } from './panel/blueprintOpen';
 import { installMenuDismissal } from './panel/panelStore';
 import { TurnTailCard } from './chat/TurnTailCard';
-import { TAB_KIND } from './constants';
+import { HOME_ID, TAB_KIND } from './panel/tab';
 
 export const inject = ['slots', 'locale', 'layout', 'sessions', 'workspaces', 'conversation', 'uiWorkspace', 'sidebarRight', 'sidebarRightTabs'];
 
@@ -23,7 +23,7 @@ export const NS = 'blueprint';
 
 const ID = '@local/dsh-blueprint';
 const KIND = TAB_KIND;
-const MAIN_ID = 'blueprint-home';
+const MAIN_ID = HOME_ID;
 
 /** The chip in the tab strip stays short; the page heading names the workspace. */
 function TabTitle(): ReactElement {

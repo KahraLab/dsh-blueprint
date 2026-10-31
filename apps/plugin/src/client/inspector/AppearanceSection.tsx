@@ -7,6 +7,7 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ratioFromPercent } from '../../shared/number';
 import { NumberBox } from './NumberBox';
 
 interface AppearanceSectionProps {
@@ -30,7 +31,7 @@ export function AppearanceSection({ opacity, radius, clip, rotation, onChange }:
         label={t('inspector.opacity')}
         value={opacity * 100}
         suffix="%"
-        onChange={(next) => onChange({ opacity: Math.min(100, Math.max(0, next)) / 100 })}
+        onChange={(next) => onChange({ opacity: ratioFromPercent(next) })}
       />
       {radius === null ? null : (
         <NumberBox

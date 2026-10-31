@@ -8,7 +8,7 @@
  * actually changed.
  */
 import { create } from 'zustand';
-import { getJson, requestJson } from '../api';
+import { describeFailure, getJson, requestJson } from '../shared/http';
 import { forgetPreview, readPreviews } from './previews';
 import { currentUrl, documentUrl, listUrl, scopeKey, type LibraryScope } from './scope';
 import { EMPTY_SLICE, type BlueprintSummary, type LibraryMessages, type LibrarySlice } from './types';
@@ -131,7 +131,7 @@ export const useBlueprintLibrary = create<BlueprintLibraryState>()((set, get) =>
         { method: 'PATCH', body: { title } },
       );
       if (reply.ok !== true || reply.data?.ok !== true || reply.data.blueprint === undefined) {
-        patch(key, { error: reply.data?.error ?? `${messages.renameFailed}（HTTP ${reply.status}）` });
+        patch(key, { error: reply.data?.error ?? `${messages.renameFailed}（${describeFailure(reply)}）` });
         return false;
       }
       const nextTitle = reply.data.blueprint.title;
@@ -151,7 +151,7 @@ export const useBlueprintLibrary = create<BlueprintLibraryState>()((set, get) =>
         { method: 'DELETE' },
       );
       if (reply.ok !== true || reply.data?.ok !== true) {
-        patch(key, { error: reply.data?.error ?? `${messages.deleteFailed}（HTTP ${reply.status}）` });
+        patch(key, { error: reply.data?.error ?? `${messages.deleteFailed}（${describeFailure(reply)}）` });
         return false;
       }
       forgetPreview(scope, blueprintId);

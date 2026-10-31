@@ -8,7 +8,8 @@
 import { useCallback, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, MinusIcon, VisibilityIcon } from '../icons';
-import { makeFill, type FillStyle } from '../../model/document';
+import { makeFill, type FillStyle } from '../../domain/document';
+import { ratioFromPercent } from '../../shared/number';
 import { colorToRgba } from '../model/fill';
 import { ColorPicker } from './color/ColorPicker';
 
@@ -94,7 +95,7 @@ export function FillSection({
               value={Math.round(fill.opacity * 100)}
               onChange={(event) => {
                 const parsed = Number.parseFloat(event.target.value);
-                if (Number.isFinite(parsed)) replace(fill.id, { opacity: Math.min(100, Math.max(0, parsed)) / 100 });
+                if (Number.isFinite(parsed)) replace(fill.id, { opacity: ratioFromPercent(parsed) });
               }}
             />
             <span className="bp-input-suffix">%</span>

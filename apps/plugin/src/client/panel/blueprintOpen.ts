@@ -6,7 +6,7 @@
  * blueprint the user picked. A panel that mounts later reads the pointer instead.
  */
 import { OPEN_BLUEPRINT_EVENT, type OpenBlueprintDetail } from '../blueprintNavigation';
-import { scopeKey } from '../library';
+import { scopeKey } from '../library/index';
 import { usePanelUi } from './panelStore';
 import { viewKeyFor, writeSavedView } from './viewMemory';
 

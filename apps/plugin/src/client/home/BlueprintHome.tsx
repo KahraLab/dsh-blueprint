@@ -10,10 +10,10 @@ import type { PluginContext, SessionListSnapshot, WorkspaceListSnapshot, Workspa
 import { preferredWorkspaceId } from '../blueprintNavigation';
 import css from '../styles.css';
 import { ContextMenuHost } from '../menu/ContextMenuHost';
-import { Dashboard } from '../home/Dashboard';
-import { DesignEntry } from '../home/DesignEntry';
-import { useHomeUi } from '../home/homeStore';
-import { useSessions, useWorkspaces } from '../home/useDshSnapshots';
+import { Dashboard } from './Dashboard';
+import { DesignEntry } from './DesignEntry';
+import { useHomeUi } from './homeStore';
+import { useSessions, useWorkspaces } from './useDshSnapshots';
 
 interface HomeProps {
   ctx: PluginContext;

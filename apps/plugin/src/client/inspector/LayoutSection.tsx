@@ -11,7 +11,9 @@ import {
   FlowRowIcon,
   StretchIcon,
 } from '../icons';
-import { makeStackLayout, type StackLayout } from '../../model/document';
+import { makeStackLayout, STACK_LIMITS, type StackLayout } from '../../domain/document';
+import { clampInt } from '../../shared/number';
+import { Segmented } from '../ui/Segmented';
 import { NumberBox } from './NumberBox';
 
 interface LayoutSectionProps {
@@ -55,31 +57,20 @@ export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactEleme
     <section className="bp-inspector-section">
       <h5>{t('inspector.layout')}</h5>
 
-      <div className="bp-flow-row" role="group" aria-label={t('inspector.arrangement')}>
-        {FLOW_MODES.map(({ id, labelKey, Icon }) => {
-          const label = t(labelKey);
-          return (
-            <button
-              key={id}
-              type="button"
-              className="bp-flow-btn"
-              title={label}
-              aria-label={label}
-              aria-pressed={activeMode === id}
-              data-on={activeMode === id}
-              onClick={() => {
-                if (id === 'free') {
-                  if (layout) onSet(null);
-                  return;
-                }
-                onSet(makeStackLayout({ ...current, direction: id }));
-              }}
-            >
-              <Icon />
-            </button>
-          );
-        })}
-      </div>
+      <Segmented
+        className="bp-flow-row"
+        buttonClassName="bp-flow-btn"
+        label={t('inspector.arrangement')}
+        value={activeMode}
+        options={FLOW_MODES.map(({ id, labelKey, Icon }) => ({ id, label: t(labelKey), icon: <Icon /> }))}
+        onSelect={(id) => {
+          if (id === 'free') {
+            if (layout) onSet(null);
+            return;
+          }
+          onSet(makeStackLayout({ ...current, direction: id }));
+        }}
+      />
 
       {layout ? (
         <>
@@ -89,7 +80,7 @@ export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactEleme
                 <NumberBox
                   label={t('inspector.columns')}
                   value={layout.columns}
-                  onChange={(columns) => patch({ columns: Math.min(12, Math.max(1, Math.round(columns))) })}
+                  onChange={(columns) => patch({ columns: clampInt(columns, STACK_LIMITS.minColumns, STACK_LIMITS.maxColumns) })}
                 />
                 <NumberBox label={t('inspector.gap')} value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
               </div>
@@ -116,40 +107,36 @@ export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactEleme
             <>
               <div className="bp-typo-field">
                 <span className="bp-typo-label">{t('inspector.distribute')}</span>
-                <div className="bp-align-box">
-                  {(['start', 'center', 'end', 'between'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className="bp-align-btn"
-                      data-on={layout.justify === mode}
-                      title={t(JUSTIFY_LABEL[mode])}
-                      aria-label={mode}
-                      onClick={() => patch({ justify: mode })}
-                    >
-                      <AxisAlignIcon axis={mainAxis} mode={mode} />
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  className="bp-align-box"
+                  buttonClassName="bp-align-btn"
+                  label={t('inspector.distribute')}
+                  value={layout.justify}
+                  onSelect={(justify) => patch({ justify })}
+                  options={(['start', 'center', 'end', 'between'] as const).map((mode) => ({
+                    id: mode,
+                    label: t(JUSTIFY_LABEL[mode]),
+                    icon: <AxisAlignIcon axis={mainAxis} mode={mode} />,
+                  }))}
+                />
               </div>
 
               <div className="bp-typo-field">
                 <span className="bp-typo-label">{t('inspector.align')}</span>
-                <div className="bp-align-box">
-                  {(['start', 'center', 'end', 'stretch'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className="bp-align-btn"
-                      data-on={layout.align === mode}
-                      title={t(ALIGN_LABEL[mode])}
-                      aria-label={mode}
-                      onClick={() => patch({ align: mode })}
-                    >
-                      {mode === 'stretch' ? <StretchIcon axis={crossAxis} /> : <AxisAlignIcon axis={crossAxis} mode={mode} />}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  className="bp-align-box"
+                  buttonClassName="bp-align-btn"
+                  label={t('inspector.align')}
+                  value={layout.align}
+                  onSelect={(align) => patch({ align })}
+                  options={(['start', 'center', 'end', 'stretch'] as const).map((mode) => ({
+                    id: mode,
+                    label: t(ALIGN_LABEL[mode]),
+                    icon: mode === 'stretch'
+                      ? <StretchIcon axis={crossAxis} />
+                      : <AxisAlignIcon axis={crossAxis} mode={mode} />,
+                  }))}
+                />
               </div>
             </>
           )}

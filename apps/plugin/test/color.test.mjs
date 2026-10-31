@@ -34,7 +34,7 @@ async function bundle(entry, outfile) {
 
 before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-color-'));
-  color = await bundle('src/model/color.ts', 'color.mjs');
+  color = await bundle('src/domain/color.ts', 'color.mjs');
   palette = await bundle('src/client/inspector/color/palette.ts', 'palette.mjs');
 });
 

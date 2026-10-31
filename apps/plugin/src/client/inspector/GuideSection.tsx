@@ -7,7 +7,8 @@
 import { useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, MinusIcon, VisibilityIcon } from '../icons';
-import { makeFrameGuide, type FrameGuide } from '../../model/document';
+import { GUIDE_LIMITS, makeFrameGuide, type FrameGuide } from '../../domain/document';
+import { clampInt } from '../../shared/number';
 import { ColorPicker } from './color/ColorPicker';
 import { NumberBox } from './NumberBox';
 
@@ -82,7 +83,7 @@ export function GuideSection({ guide, palette, onChange }: GuideSectionProps): R
             <NumberBox
               label={t('inspector.guideCount')}
               value={guide.count}
-              onChange={(count) => replace({ count: Math.min(24, Math.max(1, Math.round(count))) })}
+              onChange={(count) => replace({ count: clampInt(count, GUIDE_LIMITS.minCount, GUIDE_LIMITS.maxCount) })}
             />
             <NumberBox
               label={t('inspector.guideGutter')}

@@ -6,9 +6,11 @@
  * window or any particular panel.
  */
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { temporal } from 'zundo';
-import { groupLayers } from '../../model/group';
+import { UNDO_HISTORY } from '../../shared/config';
+import { createCommitDebouncer } from './history';
+import { groupLayers } from '../../domain/group';
 import {
   addFrameRect,
   addLayer,
@@ -34,7 +36,7 @@ import {
   type RectPatch,
   type Selection,
   type StackLayout,
-} from '../../model/document';
+} from '../../domain/document';
 import type { EditingLayer, NewLayerRequest, ShapeKind, Tool } from './types';
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -74,7 +76,8 @@ interface BlueprintState {
   reorderFrame(frameId: string, beforeId: string | null): void;
 }
 
-let flushPendingHistory: () => void = () => {};
+// 一次编辑会连着写很多次文档；攒一下再记成一步，见 history.ts。
+const commits = createCommitDebouncer();
 
 export const useBlueprint = create<BlueprintState>()(
   temporal<BlueprintState, [], [], { doc: BlueprintDocument }>(
@@ -217,42 +220,59 @@ export const useBlueprint = create<BlueprintState>()(
       },
     }),
     {
-      // One history step per edit burst: a drag writes many doc objects, but the
-      // user expects one undo per gesture.
-      limit: 30,
+      // Only the document belongs in history: the selection and the tool are
+      // view state, not something Cmd+Z should rewind.
+      limit: UNDO_HISTORY.limit,
       partialize: (state: BlueprintState) => ({ doc: state.doc }),
       equality: (past: { doc: BlueprintDocument }, current: { doc: BlueprintDocument }) => past.doc === current.doc,
-      handleSet: (handleSet) => {
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        let pending: Parameters<typeof handleSet> | null = null;
-        flushPendingHistory = () => {
-          if (timer) {
-            clearTimeout(timer);
-            timer = null;
-          }
-          if (pending) {
-            handleSet(...pending);
-            pending = null;
-          }
-        };
-        return (...args: Parameters<typeof handleSet>): void => {
-          if (useBlueprint.temporal.getState().futureStates.length > 0) {
-            useBlueprint.temporal.setState({ futureStates: [] });
-          }
-          pending = args;
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => {
-            timer = null;
-            if (pending) handleSet(...pending);
-            pending = null;
-          }, 350);
-        };
+      handleSet: (handleSet) => (...args: Parameters<typeof handleSet>): void => {
+        // A new edit after an undo means the redo branch is abandoned.
+        if (useBlueprint.temporal.getState().futureStates.length > 0) {
+          useBlueprint.temporal.setState({ futureStates: [] });
+        }
+        commits.schedule(() => handleSet(...args));
       },
-      wrapTemporal: (initializer) =>
-        persist(initializer as never, { name: 'blueprint.undo.v1' }) as never,
     },
   ),
 );
+
+/**
+ * Every action, as one object.
+ *
+ * Actions are created once and never replaced, so their references are stable;
+ * `useShallow` therefore returns the very same object every render and a view
+ * that only wants to call things never re-renders because of this. Reading one
+ * state field at a time is still the rule — that is what keeps a selection
+ * change from repainting the whole panel.
+ */
+const actionsOf = (state: BlueprintState) => ({
+  setSelections: state.setSelections,
+  setEditing: state.setEditing,
+  setTool: state.setTool,
+  setShapeKind: state.setShapeKind,
+  setTab: state.setTab,
+  toggleUiMinimized: state.toggleUiMinimized,
+  createFrame: state.createFrame,
+  createLayer: state.createLayer,
+  insertIcon: state.insertIcon,
+  moveLayerTo: state.moveLayerTo,
+  updateFrame: state.updateFrame,
+  updateLayer: state.updateLayer,
+  replaceColor: state.replaceColor,
+  setFrameLayout: state.setFrameLayout,
+  setLayerLayout: state.setLayerLayout,
+  deleteSelection: state.deleteSelection,
+  deleteTarget: state.deleteTarget,
+  groupSelection: state.groupSelection,
+  reorderLayer: state.reorderLayer,
+  reorderFrame: state.reorderFrame,
+});
+
+export type BlueprintActions = ReturnType<typeof actionsOf>;
+
+export function useBlueprintActions(): BlueprintActions {
+  return useBlueprint(useShallow(actionsOf));
+}
 
 /** Adopt a document whose undo steps belong to the current history scope. */
 export function replaceDocument(doc: BlueprintDocument): void {
@@ -268,14 +288,14 @@ export function replaceDocument(doc: BlueprintDocument): void {
  * immediate Cmd+Z to undo the external change without wiping previous undo history.
  */
 export function adoptExternalDocument(doc: BlueprintDocument): void {
-  flushPendingHistory();
+  commits.flush();
   const currentDoc = useBlueprint.getState().doc;
   if (currentDoc === doc || JSON.stringify(currentDoc) === JSON.stringify(doc)) {
     return;
   }
   const temporalStore = useBlueprint.temporal.getState();
   const pastStates = [...temporalStore.pastStates, { doc: currentDoc }];
-  if (pastStates.length > 30) {
+  if (pastStates.length > UNDO_HISTORY.limit) {
     pastStates.shift();
   }
   useBlueprint.temporal.setState({
@@ -289,7 +309,7 @@ export function adoptExternalDocument(doc: BlueprintDocument): void {
 }
 
 export function undo(): boolean {
-  flushPendingHistory();
+  commits.flush();
   const temporalStore = useBlueprint.temporal.getState();
   if (temporalStore.pastStates.length === 0) return false;
   temporalStore.undo();
@@ -298,7 +318,7 @@ export function undo(): boolean {
 }
 
 export function redo(): boolean {
-  flushPendingHistory();
+  commits.flush();
   const temporalStore = useBlueprint.temporal.getState();
   if (temporalStore.futureStates.length === 0) return false;
   temporalStore.redo();

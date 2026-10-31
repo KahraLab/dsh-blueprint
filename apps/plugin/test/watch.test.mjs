@@ -26,7 +26,7 @@ before(async () => {
   const watchOut = join(bundleDir, 'watch.mjs');
   const eventsOut = join(bundleDir, 'events.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'host', 'watch.ts')],
+    entryPoints: [join(root, 'src', 'infrastructure', 'fs', 'watch.ts')],
     outfile: watchOut,
     bundle: true,
     format: 'esm',
@@ -34,7 +34,7 @@ before(async () => {
     logLevel: 'silent',
   });
   await build({
-    entryPoints: [join(root, 'src', 'host', 'events.ts')],
+    entryPoints: [join(root, 'src', 'adapters', 'http', 'events.ts')],
     outfile: eventsOut,
     bundle: true,
     format: 'esm',

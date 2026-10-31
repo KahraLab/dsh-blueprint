@@ -53,7 +53,8 @@ class FakeEventSource {
 }
 
 function reply(body) {
-  return { ok: true, status: 200, json: async () => body };
+  const text = JSON.stringify(body);
+  return { ok: true, status: 200, text: async () => text, json: async () => body };
 }
 
 function sleep(ms) {

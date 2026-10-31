@@ -106,7 +106,6 @@ function parse(text) {
 }
 
 const LOGIN_SCREEN = {
-  baseRevision: 0,
   reason: '生成登录页',
   ops: [
     {
@@ -411,7 +410,6 @@ describe('批量写入', () => {
   test('后面的操作可以用 @ref 指向刚插入的节点', () => {
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     const payload = box.apply({
-      baseRevision: 1,
       ops: [
         { op: 'insert', parent: frameId, node: { ref: 'form', kind: 'rect', name: '表单', width: 300, height: 200 } },
         { op: 'set', id: '@form', patch: { radius: 16 } },
@@ -427,7 +425,6 @@ describe('批量写入', () => {
     const { status, payload } = box.failed(
       ['apply'],
       JSON.stringify({
-        baseRevision: 1,
         ops: [
           { op: 'set', id: buttonId, patch: { radius: 24 } },
           { op: 'set', id: 'layer-nope', patch: { radius: 4 } },
@@ -445,7 +442,7 @@ describe('批量写入', () => {
   });
 
   test('引用未定义的 ref 时报错，不落盘', () => {
-    const { status, payload } = box.failed(['apply'], JSON.stringify({ baseRevision: 0, ops: [{ op: 'set', id: '@ghost', patch: { radius: 4 } }] }));
+    const { status, payload } = box.failed(['apply'], JSON.stringify({ ops: [{ op: 'set', id: '@ghost', patch: { radius: 4 } }] }));
     assert.equal(status, 2);
     assert.equal(payload.code, 'VALIDATION_FAILED');
     assert.equal(payload.index, 0);
@@ -453,12 +450,12 @@ describe('批量写入', () => {
   });
 });
 
-describe('版本与无锁写入', () => {
-  test('baseRevision 对不上也无锁应用成功（Last-Write-Wins）', () => {
+describe('版本与覆盖写', () => {
+  test('后写的同名属性生效，不需要版本号', () => {
     box.apply(LOGIN_SCREEN);
     const payload = box.ok(
       ['apply'],
-      JSON.stringify({ baseRevision: 0, ops: [{ op: 'set', id: box.firstId(['--name', '登录按钮']), patch: { radius: 4 } }] }),
+      JSON.stringify({ ops: [{ op: 'set', id: box.firstId(['--name', '登录按钮']), patch: { radius: 4 } }] }),
     );
     assert.equal(payload.ok, true);
     assert.equal(payload.revision, 2);
@@ -470,18 +467,19 @@ describe('版本与无锁写入', () => {
     box.apply(LOGIN_SCREEN);
     const buttonId = box.firstId(['--name', '登录按钮']);
     const before = box.documentFile();
-    const payload = box.ok(['apply'], JSON.stringify({ baseRevision: 1, ops: [{ op: 'set', id: buttonId, patch: { radius: 12 } }] }));
+    const payload = box.ok(['apply'], JSON.stringify({ ops: [{ op: 'set', id: buttonId, patch: { radius: 12 } }] }));
     assert.equal(payload.revision, 1);
     assert.equal(box.documentFile(), before, '再写一遍同样的值，文件不该被重写');
   });
 
-  test('apply 不带 baseRevision 直接无锁应用成功', () => {
+  test('旧载荷还带着 baseRevision 时整批拒绝，并说清原因', () => {
     box.apply(LOGIN_SCREEN);
-    const buttonId = box.firstId(['--name', '登录按钮']);
-    const payload = box.ok(['apply'], JSON.stringify({ ops: [{ op: 'set', id: buttonId, patch: { radius: 8 } }] }));
-    assert.equal(payload.ok, true);
-    assert.equal(payload.revision, 2);
-    assert.equal(box.view(buttonId).node.radius, 8);
+    const { status, payload } = box.failed(
+      ['apply'],
+      JSON.stringify({ baseRevision: 0, ops: [{ op: 'set', id: box.firstId(['--name', '登录按钮']), patch: { radius: 8 } }] }),
+    );
+    assert.equal(status, 2);
+    assert.match(payload.message, /baseRevision/);
   });
 
   test('apply ops 是空的是用法错误', () => {
@@ -496,7 +494,7 @@ describe('协议契约', () => {
   test('节点里出现不认识的字段时整批拒绝', () => {
     const { status, payload } = box.failed(
       ['apply'],
-      JSON.stringify({ baseRevision: 0, ops: [{ op: 'insert', parent: null, node: { name: '登录页', id: 'frame-made-up' } }] }),
+      JSON.stringify({ ops: [{ op: 'insert', parent: null, node: { name: '登录页', id: 'frame-made-up' } }] }),
     );
     assert.equal(status, 2);
     assert.equal(payload.code, 'VALIDATION_FAILED');
@@ -512,7 +510,7 @@ describe('协议契约', () => {
 
     const { status, payload } = box.failed(
       ['apply'],
-      JSON.stringify({ baseRevision: 1, ops: [{ op: 'set', id: buttonId, patch: { opacity: 2 } }] }),
+      JSON.stringify({ ops: [{ op: 'set', id: buttonId, patch: { opacity: 2 } }] }),
     );
     assert.equal(status, 2);
     assert.equal(payload.code, 'VALIDATION_FAILED');
@@ -524,7 +522,6 @@ describe('协议契约', () => {
   test('显式的空 fills 表示透明，读回来不会补默认底色', () => {
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     box.apply({
-      baseRevision: 1,
       ops: [
         {
           op: 'insert',
@@ -549,7 +546,6 @@ describe('协议契约', () => {
   test('省略的排布字段按画布规则补齐', () => {
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     box.apply({
-      baseRevision: 1,
       ops: [
         {
           op: 'insert',
@@ -593,7 +589,6 @@ describe('协议契约', () => {
     const frameId = box.firstId(['--kind', 'frame']);
     const buttonId = box.firstId(['--name', '登录按钮']);
     box.apply({
-      baseRevision: 1,
       ops: [{ op: 'replace', id: buttonId, node: { kind: 'rect', name: '主按钮', width: 342, height: 48 } }],
     });
     const frame = box.view(frameId).frame;
@@ -607,13 +602,13 @@ describe('命名', () => {
   test('新建节点必须写语义化名字', () => {
     const missing = box.failed(
       ['apply'],
-      JSON.stringify({ baseRevision: 0, ops: [{ op: 'insert', parent: null, node: { kind: 'rect', width: 100, height: 40 } }] }),
+      JSON.stringify({ ops: [{ op: 'insert', parent: null, node: { kind: 'rect', width: 100, height: 40 } }] }),
     );
     assert.equal(missing.payload.code, 'VALIDATION_FAILED');
 
     const automatic = box.failed(
       ['apply'],
-      JSON.stringify({ baseRevision: 0, ops: [{ op: 'insert', parent: null, node: { kind: 'rect', name: '矩形1', width: 100, height: 40 } }] }),
+      JSON.stringify({ ops: [{ op: 'insert', parent: null, node: { kind: 'rect', name: '矩形1', width: 100, height: 40 } }] }),
     );
     assert.equal(automatic.payload.code, 'VALIDATION_FAILED');
     assert.equal(automatic.payload.field, 'name');
@@ -762,7 +757,7 @@ describe('输出契约', () => {
   test('schema 发布 JSON Schema 和行为说明', () => {
     const schema = box.ok(['schema']);
     assert.equal(schema.protocol, 'blueprint-editing/1');
-    assert.equal(schema.exitCodes.REVISION_CONFLICT, 3);
+    assert.equal(schema.exitCodes.NOT_FOUND, 4);
 
     const json = schema.jsonSchema;
     assert.equal(json.$schema, 'https://json-schema.org/draft/2020-12/schema');
@@ -887,7 +882,6 @@ describe('图标', () => {
     box.ok(['icon', 'install', 'lucide'], '', env);
     const frameId = box.apply(LOGIN_SCREEN).ids.login;
     const payload = box.apply({
-      baseRevision: 1,
       ops: [{ op: 'insert', parent: frameId, node: { kind: 'icon', iconSet: 'lucide', iconName: 'arrow-left', name: '返回', x: 16, y: 16 } }],
     });
     assert.equal(payload.revision, 2);
@@ -898,7 +892,6 @@ describe('图标', () => {
   test('一次插入整棵子树时，嵌套图标的 SVG 也会补上', () => {
     box.ok(['icon', 'install', 'lucide'], '', env);
     box.apply({
-      baseRevision: 0,
       ops: [{
         op: 'insert',
         parent: null,

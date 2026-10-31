@@ -4,7 +4,7 @@
  * Kept apart from the store so a component can name the shape without pulling
  * the whole store into its module graph.
  */
-import type { BlueprintDocument } from '../../model/document';
+import type { BlueprintDocument } from '../../domain/document';
 
 export interface BlueprintSummary {
   id: string;

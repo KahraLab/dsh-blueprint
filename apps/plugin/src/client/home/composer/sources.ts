@@ -11,6 +11,8 @@ import type {
   SessionSummary,
   WorkspaceSummary,
 } from '../../../types/dsh';
+import { createCache } from '../../../shared/cache';
+import { requestJson, type JsonReply } from '../../shared/http';
 import { fileMention, sessionMention, type TriggerHit } from './grammar';
 
 export type TriggerIcon = 'file' | 'folder' | 'session' | 'command' | 'skill';
@@ -43,37 +45,8 @@ interface FileHit {
   kind: 'file' | 'directory';
 }
 
-interface JsonAnswer<T> {
-  status: number;
-  value: T | null;
-  error: string | null;
-  /** The first bytes of a failed body, so a non-JSON failure is still readable. */
-  raw: string;
-}
-
-async function fetchJson<T>(url: string, signal: AbortSignal): Promise<JsonAnswer<T>> {
-  try {
-    const response = await fetch(url, { signal });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      let error: string | null = null;
-      try {
-        const body = JSON.parse(text) as { error?: unknown };
-        if (typeof body.error === 'string') error = body.error;
-      } catch {
-        // A non-JSON failure body still leaves the HTTP status as the message.
-      }
-      return { status: response.status, value: null, error, raw: text.slice(0, 200) };
-    }
-    const text = await response.text();
-    return { status: response.status, value: JSON.parse(text) as T, error: null, raw: '' };
-  } catch {
-    return { status: 0, value: null, error: null, raw: '' };
-  }
-}
-
 /** Append the status and the Host's own message, so a failure is readable. */
-function withStatus(label: string, answer: JsonAnswer<unknown>): string {
+function withStatus(label: string, answer: JsonReply<unknown>): string {
   if (answer.status === 0) return label;
   const reason = answer.error === null ? '' : `: ${answer.error}`;
   return `${label}（HTTP ${answer.status}${reason}）`;
@@ -115,8 +88,8 @@ export async function fileRows(
   // under a custom scheme whose origin does not form a usable absolute API URL.
   const params = new URLSearchParams({ workspace: root, q: query, limit: String(limit) });
   const url = `/api/blueprint/files?${params.toString()}`;
-  const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url, signal);
-  if (answer.value?.files === undefined) {
+  const answer = await requestJson<{ ok: boolean; files?: FileHit[] }>(url, { signal });
+  if (answer.data?.files === undefined) {
     console.warn('[blueprint] file menu request failed', url, answer.status, answer.raw);
     if (answer.status !== 200) {
       return [{
@@ -131,7 +104,7 @@ export async function fileRows(
     return [];
   }
 
-  return answer.value.files.flatMap((file) => {
+  return answer.data.files.flatMap((file) => {
     const mention = fileMention(file.path, file.kind);
     if (mention === null) return [];
     const directory = file.kind === 'directory';
@@ -177,10 +150,10 @@ interface SkillHit {
   path?: string;
 }
 
-type SkillsAnswer = JsonAnswer<{ ok: boolean; skills?: SkillHit[] }>;
+type SkillsAnswer = JsonReply<{ ok: boolean; skills?: SkillHit[] }>;
 
-const CATALOG_MS = 30_000;
-const catalogCache = new Map<string, { at: number; answer: SkillsAnswer }>();
+/** 技能目录：菜单和输入框的胶囊都读它，短时间重复打开不重复请求。 */
+const catalogCache = createCache<string, SkillsAnswer>({ capacity: 10, ttlMs: 30_000 });
 
 /**
  * One workspace's skill catalog, shared by the menu rows and the chip overlay.
@@ -189,19 +162,13 @@ const catalogCache = new Map<string, { at: number; answer: SkillsAnswer }>();
  */
 async function loadCatalog(root: string, signal: AbortSignal): Promise<SkillsAnswer> {
   const cached = catalogCache.get(root);
-  if (cached !== undefined && Date.now() - cached.at < CATALOG_MS) return cached.answer;
+  if (cached !== undefined) return cached;
   const params = new URLSearchParams({ workspace: root });
-  const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(
+  const answer = await requestJson<{ ok: boolean; skills?: SkillHit[] }>(
     `/api/blueprint/skills?${params.toString()}`,
-    signal,
+    { signal },
   );
-  if (answer.value?.skills !== undefined) {
-    catalogCache.set(root, { at: Date.now(), answer });
-    if (catalogCache.size > 10) {
-      const oldest = catalogCache.keys().next().value;
-      if (oldest !== undefined) catalogCache.delete(oldest);
-    }
-  }
+  if (answer.data?.skills !== undefined) catalogCache.set(root, answer);
   return answer;
 }
 
@@ -213,8 +180,8 @@ export async function skillNames(
   const root = workspaceRoot(sources);
   if (root === null) return new Set();
   const answer = await loadCatalog(root, signal);
-  if (answer.value?.skills === undefined) return null;
-  return new Set(answer.value.skills.map((skill) => skill.name));
+  if (answer.data?.skills === undefined) return null;
+  return new Set(answer.data.skills.map((skill) => skill.name));
 }
 
 /** Skills the Host offers for this workspace. */
@@ -227,7 +194,7 @@ export async function skillRows(
   const root = workspaceRoot(sources);
   if (root === null) return [];
   const answer = await loadCatalog(root, signal);
-  if (answer.value?.skills === undefined) {
+  if (answer.data?.skills === undefined) {
     console.warn('[blueprint] skill menu request failed', answer.status, answer.raw);
     if (answer.status !== 200) {
       return [{
@@ -243,7 +210,7 @@ export async function skillRows(
   }
 
   const needle = query.trim().toLowerCase();
-  if (answer.value.skills.length === 0) {
+  if (answer.data.skills.length === 0) {
     return [{
       key: 'skills:empty',
       label: sources.t('menu.noSkills'),
@@ -253,7 +220,7 @@ export async function skillRows(
       action: { kind: 'run', run: () => {} },
     }];
   }
-  return answer.value.skills
+  return answer.data.skills
     .filter((skill) => needle === '' || `${skill.name} ${skill.description}`.toLowerCase().includes(needle))
     .slice(0, limit)
     .flatMap((skill) => {

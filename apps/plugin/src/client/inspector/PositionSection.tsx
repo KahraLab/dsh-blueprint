@@ -9,6 +9,7 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AxisAlignIcon } from '../icons';
+import { Segmented } from '../ui/Segmented';
 import { alignOffset, type AlignMode } from './align';
 import { NumberBox } from './NumberBox';
 
@@ -56,36 +57,32 @@ export function PositionSection({ x, y, width, height, bounds, onChange }: Posit
 
       {bounds === null ? null : (
         <div className="bp-align-row3">
-          <div className="bp-align-trio" role="group" aria-label={t('inspector.alignHorizontal')}>
-            {HORIZONTAL.map(({ mode, labelKey, testId }) => (
-              <button
-                key={mode}
-                type="button"
-                className="bp-flow-btn"
-                data-testid={`inspector-align-${testId}`}
-                title={t(labelKey)}
-                aria-label={t(labelKey)}
-                onClick={() => align('x', mode)}
-              >
-                <AxisAlignIcon axis="x" mode={mode} />
-              </button>
-            ))}
-          </div>
-          <div className="bp-align-trio" role="group" aria-label={t('inspector.alignVertical')}>
-            {VERTICAL.map(({ mode, labelKey, testId }) => (
-              <button
-                key={mode}
-                type="button"
-                className="bp-flow-btn"
-                data-testid={`inspector-align-${testId}`}
-                title={t(labelKey)}
-                aria-label={t(labelKey)}
-                onClick={() => align('y', mode)}
-              >
-                <AxisAlignIcon axis="y" mode={mode} />
-              </button>
-            ))}
-          </div>
+          <Segmented
+            className="bp-align-trio"
+            buttonClassName="bp-flow-btn"
+            label={t('inspector.alignHorizontal')}
+            value={null}
+            onSelect={(mode) => align('x', mode)}
+            options={HORIZONTAL.map(({ mode, labelKey, testId }) => ({
+              id: mode,
+              label: t(labelKey),
+              icon: <AxisAlignIcon axis="x" mode={mode} />,
+              testId: `inspector-align-${testId}`,
+            }))}
+          />
+          <Segmented
+            className="bp-align-trio"
+            buttonClassName="bp-flow-btn"
+            label={t('inspector.alignVertical')}
+            value={null}
+            onSelect={(mode) => align('y', mode)}
+            options={VERTICAL.map(({ mode, labelKey, testId }) => ({
+              id: mode,
+              label: t(labelKey),
+              icon: <AxisAlignIcon axis="y" mode={mode} />,
+              testId: `inspector-align-${testId}`,
+            }))}
+          />
         </div>
       )}
 

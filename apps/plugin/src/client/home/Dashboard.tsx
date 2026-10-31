@@ -8,9 +8,9 @@ import { useCallback, useEffect, useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PluginContext, WorkspaceSummary } from '../../types/dsh';
 import { describeNavigationError, openBlueprintInEditor, workspaceFolderName } from '../blueprintNavigation';
-import { BlueprintGallery } from '../components/Gallery';
+import { BlueprintGallery } from '../library/Gallery';
 import { BackIcon } from '../icons';
-import { scopeKey, useBlueprintLibrary, useLibrarySlice, watchLibrary } from '../library';
+import { scopeKey, useBlueprintLibrary, useLibrarySlice, watchLibrary } from '../library/index';
 import { ContextMenuHost } from '../menu/ContextMenuHost';
 import { useHomeUi } from './homeStore';
 

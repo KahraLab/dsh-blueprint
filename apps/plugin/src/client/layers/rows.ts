@@ -11,7 +11,7 @@ import {
   type Frame,
   type Layer,
   type Selection,
-} from '../../model/document';
+} from '../../domain/document';
 
 /** A row's place in the document, without any of its display fields. */
 export interface RowInfo {

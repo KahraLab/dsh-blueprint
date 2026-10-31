@@ -4,7 +4,7 @@
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretIcon, LockIcon, VisibilityIcon } from '../icons';
-import type { LayerKind } from '../../model/document';
+import type { LayerKind } from '../../domain/document';
 import { LayerKindIcon } from './LayerKindIcon';
 import type { RowInfo } from './rows';
 

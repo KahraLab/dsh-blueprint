@@ -27,7 +27,7 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-files-'));
   workspace = join(tempDir, 'workspace');
   await build({
-    entryPoints: [join(root, 'src', 'node', 'blueprint.ts')],
+    entryPoints: [join(root, 'src', 'infrastructure', 'fs', 'blueprint.ts')],
     outfile: join(tempDir, 'blueprint.mjs'),
     bundle: true,
     format: 'esm',

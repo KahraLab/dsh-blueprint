@@ -5,6 +5,10 @@
  * delta units. Normalising them here keeps the gesture feel stable, and capping
  * one event's influence stops a fast flick from jumping several zoom levels.
  */
+/** 画布能缩小到多小、放大到多大。存视图和夹住手势都读这两个值。 */
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 3;
+
 const PIXELS_PER_LINE = 16;
 const ZOOM_PER_PIXEL = 0.003;
 const MAX_STEP_PX = 60;

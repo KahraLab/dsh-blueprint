@@ -9,13 +9,13 @@ import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'reac
 import { useTranslation } from 'react-i18next';
 import css from '../styles.css';
 import type { Viewport, ViewportInfo } from '../editor/types';
-import { BlueprintGallery } from '../components/Gallery';
+import { BlueprintGallery } from '../library/Gallery';
 import { IconPicker, type PickedIcon } from '../iconpicker/IconPicker';
 import { Inspector } from '../inspector/Inspector';
 import { Canvas } from '../canvas/Canvas';
 import { viewportCentre } from '../canvas/useViewport';
 import { installKeys } from '../editor/keys';
-import { useBlueprint } from '../editor/store';
+import { useBlueprint, useBlueprintActions } from '../editor/store';
 import { flushPending, loadDocument, startSession, syncNow } from '../editor/sync';
 import {
   documentUrl,
@@ -25,7 +25,7 @@ import {
   useLibrarySlice,
   watchLibrary,
   type LibraryScope,
-} from '../library';
+} from '../library/index';
 import { ContextMenuHost } from '../menu/ContextMenuHost';
 import { EditorToolbar } from './EditorToolbar';
 import { InspectorResizer, LayersPane } from './LayersPane';
@@ -63,17 +63,19 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const shapeKind = useBlueprint((state) => state.shapeKind);
   const tab = useBlueprint((state) => state.tab);
   const uiMinimized = useBlueprint((state) => state.uiMinimized);
-  const setSelections = useBlueprint((state) => state.setSelections);
-  const setEditing = useBlueprint((state) => state.setEditing);
-  const createFrame = useBlueprint((state) => state.createFrame);
-  const createLayer = useBlueprint((state) => state.createLayer);
-  const moveLayerTo = useBlueprint((state) => state.moveLayerTo);
-  const updateFrame = useBlueprint((state) => state.updateFrame);
-  const updateLayer = useBlueprint((state) => state.updateLayer);
-  const replaceColor = useBlueprint((state) => state.replaceColor);
-  const setFrameLayout = useBlueprint((state) => state.setFrameLayout);
-  const setLayerLayout = useBlueprint((state) => state.setLayerLayout);
-  const insertIcon = useBlueprint((state) => state.insertIcon);
+  const {
+    setSelections,
+    setEditing,
+    createFrame,
+    createLayer,
+    moveLayerTo,
+    updateFrame,
+    updateLayer,
+    replaceColor,
+    setFrameLayout,
+    setLayerLayout,
+    insertIcon,
+  } = useBlueprintActions();
 
   const layersWidth = usePanelUi((state) => state.layersWidth);
   const inspectorWidth = usePanelUi((state) => state.inspectorWidth);

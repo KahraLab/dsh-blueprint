@@ -23,7 +23,7 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-selection-colors-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'model', 'document.ts'),
+      document: join(root, 'src', 'domain', 'document.ts'),
       palette: join(root, 'src', 'client', 'inspector', 'color', 'palette.ts'),
     },
     outdir: tempDir,

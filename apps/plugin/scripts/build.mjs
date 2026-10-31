@@ -21,7 +21,7 @@ const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const watch = process.argv.includes('--watch');
 
 const hostOptions = {
-  entryPoints: [join(root, 'src/host/index.ts')],
+  entryPoints: [join(root, 'src/adapters/http/index.ts')],
   outfile: join(root, 'lib/host/index.js'),
   bundle: true,
   format: 'esm',
@@ -106,7 +106,7 @@ if (watch) {
   const binContext = await esbuild.context(binOptions);
 
   await Promise.all([clientContext.watch(), hostContext.watch(), binContext.watch()]);
-  console.log('[build] watching src/client, src/host and src/bin …');
+  console.log('[build] watching src/client, src/adapters and src/bin …');
 } else {
   const [clientResult] = await Promise.all([
     esbuild.build(clientOptions),

@@ -5,8 +5,8 @@
  * the selection's own colours at the bottom of the rail. Both count fills and
  * strokes, because either can be the thing someone wants to reuse or replace.
  */
-import { normalizeHex } from '../../../model/color';
-import type { BlueprintDocument, Node } from '../../../model/document';
+import { normalizeHex } from '../../../domain/color';
+import type { BlueprintDocument, Node } from '../../../domain/document';
 
 /** Two rows of ten in the picker; anything beyond that is not a palette any more. */
 const PALETTE_LIMIT = 20;

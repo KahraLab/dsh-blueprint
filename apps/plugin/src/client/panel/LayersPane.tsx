@@ -4,7 +4,7 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LayerTree } from '../layers/LayerTree';
-import { useBlueprint } from '../editor/store';
+import { useBlueprint, useBlueprintActions } from '../editor/store';
 import { INSPECTOR_MAX_WIDTH, INSPECTOR_MIN_WIDTH, LAYERS_MAX_WIDTH, LAYERS_MIN_WIDTH, usePanelUi } from './panelStore';
 import { PaneResizer } from './PaneResizer';
 
@@ -18,14 +18,16 @@ export function LayersPane({ width, blueprintId, blueprintTitle }: LayersPanePro
   const { t } = useTranslation();
   const doc = useBlueprint((state) => state.doc);
   const selections = useBlueprint((state) => state.selections);
-  const setSelections = useBlueprint((state) => state.setSelections);
-  const setEditing = useBlueprint((state) => state.setEditing);
-  const updateFrame = useBlueprint((state) => state.updateFrame);
-  const updateLayer = useBlueprint((state) => state.updateLayer);
-  const reorderLayer = useBlueprint((state) => state.reorderLayer);
-  const reorderFrame = useBlueprint((state) => state.reorderFrame);
-  const deleteTarget = useBlueprint((state) => state.deleteTarget);
-  const groupSelection = useBlueprint((state) => state.groupSelection);
+  const {
+    setSelections,
+    setEditing,
+    updateFrame,
+    updateLayer,
+    reorderLayer,
+    reorderFrame,
+    deleteTarget,
+    groupSelection,
+  } = useBlueprintActions();
   const setLayersWidth = usePanelUi((state) => state.setLayersWidth);
 
   return (

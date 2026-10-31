@@ -11,7 +11,7 @@ import type {
   LayerRectPatch,
   RectPatch,
   Selection,
-} from '../../model/document';
+} from '../../domain/document';
 
 /** The part of the viewport a saved view remembers. */
 export interface Viewport {

@@ -9,7 +9,7 @@
  */
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { colorToRgba } from '../../model/fill';
-import type { Hsv } from '../../../model/color';
+import type { Hsv } from '../../../domain/color';
 
 interface ColorStageProps {
   hsv: Hsv;

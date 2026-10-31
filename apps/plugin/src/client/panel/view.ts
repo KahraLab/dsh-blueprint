@@ -5,7 +5,7 @@
  * the panel mounts, and the answer should follow it instead of being frozen on
  * the first render.
  */
-import type { BlueprintSummary } from '../library';
+import type { BlueprintSummary } from '../library/index';
 import type { PanelMode } from './panelStore';
 import type { SavedView } from './viewMemory';
 

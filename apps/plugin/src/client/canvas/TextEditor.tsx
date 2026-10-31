@@ -5,7 +5,7 @@
  * re-render that arrives mid-keystroke.
  */
 import { useEffect, useRef, type ReactElement } from 'react';
-import type { Layer } from '../../model/document';
+import type { Layer } from '../../domain/document';
 
 interface TextEditorProps {
   layer: Layer;

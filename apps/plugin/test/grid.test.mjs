@@ -25,8 +25,8 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-grid-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'model', 'document.ts'),
-      ops: join(root, 'src', 'model', 'ops.ts'),
+      document: join(root, 'src', 'domain', 'document.ts'),
+      ops: join(root, 'src', 'domain', 'ops.ts'),
       layout: join(root, 'src', 'client', 'canvas', 'layout.ts'),
     },
     outdir: tempDir,

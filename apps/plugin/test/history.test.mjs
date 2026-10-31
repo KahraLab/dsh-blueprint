@@ -24,6 +24,7 @@ const root = join(here, '..');
 
 let tempDir;
 let docfileModule;
+let historyModule;
 let blueprintModule;
 let editorModule;
 
@@ -42,8 +43,9 @@ before(async () => {
 
   await build({
     entryPoints: {
-      docfile: join(root, 'src', 'node', 'docfile.ts'),
-      blueprint: join(root, 'src', 'node', 'blueprint.ts'),
+      docfile: join(root, 'src', 'infrastructure', 'fs', 'docfile.ts'),
+      history: join(root, 'src', 'infrastructure', 'fs', 'history.ts'),
+      blueprint: join(root, 'src', 'infrastructure', 'fs', 'blueprint.ts'),
       editor: join(root, 'src', 'client', 'editor', 'index.ts'),
     },
     outdir: tempDir,
@@ -56,6 +58,7 @@ before(async () => {
 
   const load = (name) => import(pathToFileURL(join(tempDir, `${name}.js`)).href);
   docfileModule = await load('docfile');
+  historyModule = await load('history');
   blueprintModule = await load('blueprint');
   editorModule = await load('editor');
 });
@@ -70,7 +73,8 @@ describe('历史快照与元数据落盘', () => {
     const ws = await mkdtemp(join(tmpdir(), 'bp-ws-'));
     try {
       const { createBlueprint, blueprintFile, blueprintDir } = blueprintModule;
-      const { changeDocument, readDocument, readHistoryIndex } = docfileModule;
+      const { changeDocument, readDocument } = docfileModule;
+      const { readHistoryIndex } = historyModule;
 
       const bp = createBlueprint(ws, { id: 'test-bp', title: '测试蓝图' });
       const file = blueprintFile(ws, bp.id);
@@ -84,7 +88,6 @@ describe('历史快照与元数据落盘', () => {
         layers: [],
       };
       const res1 = changeDocument(file, {
-        baseRevision: 0,
         document: aiDoc,
         by: 'ai',
         reason: 'AI 生成登录页画板',
@@ -111,7 +114,6 @@ describe('历史快照与元数据落盘', () => {
         layers: [],
       };
       const res2 = changeDocument(file, {
-        baseRevision: 1,
         document: humanDoc,
         by: 'canvas',
         reason: '移动画板到 10,10',
@@ -134,7 +136,6 @@ describe('历史快照与元数据落盘', () => {
         layers: [],
       };
       const res3 = changeDocument(file, {
-        baseRevision: 2,
         document: defaultDoc,
         by: 'cli',
       });
@@ -152,7 +153,8 @@ describe('历史快照与元数据落盘', () => {
     const ws = await mkdtemp(join(tmpdir(), 'bp-ws-'));
     try {
       const { createBlueprint, blueprintFile, blueprintDir } = blueprintModule;
-      const { changeDocument, readHistoryIndex } = docfileModule;
+      const { changeDocument } = docfileModule;
+      const { readHistoryIndex } = historyModule;
 
       const bp = createBlueprint(ws, { id: 'empty-bp' });
       const file = blueprintFile(ws, bp.id);
@@ -163,13 +165,13 @@ describe('历史快照与元数据落盘', () => {
         frames: [{ id: 'f1', name: '画板', x: 0, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] }],
         layers: [],
       };
-      const res1 = changeDocument(file, { baseRevision: 0, document: doc, by: 'human', reason: '首次写入' });
+      const res1 = changeDocument(file, { document: doc, by: 'human', reason: '首次写入' });
       assert.equal(res1.ok, true);
       assert.equal(res1.revision, 1);
       assert.equal(readHistoryIndex(dir).length, 1);
 
       // 提交完全相同的文档（空写）
-      const res2 = changeDocument(file, { baseRevision: 1, document: doc, by: 'human', reason: '重复写入' });
+      const res2 = changeDocument(file, { document: doc, by: 'human', reason: '重复写入' });
       assert.equal(res2.ok, true);
       assert.equal(res2.revision, 1, 'revision 不应增加');
       assert.equal(readHistoryIndex(dir).length, 1, '快照数量不应增加');
@@ -178,19 +180,19 @@ describe('历史快照与元数据落盘', () => {
     }
   });
 
-  test('baseRevision 不一致无锁写入成功，校验失败不产生快照', async () => {
+  test('无锁写入：后写覆盖，校验失败不产生快照', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'bp-ws-'));
     try {
       const { createBlueprint, blueprintFile, blueprintDir } = blueprintModule;
-      const { changeDocument, readHistoryIndex } = docfileModule;
+      const { changeDocument } = docfileModule;
+      const { readHistoryIndex } = historyModule;
 
       const bp = createBlueprint(ws, { id: 'conflict-bp' });
       const file = blueprintFile(ws, bp.id);
       const dir = blueprintDir(ws, bp.id);
 
-      // 即使传入旧的/不一致的 baseRevision，也直接无锁写入成功并产生快照
+      // 写入不再看版本号，直接落盘并产生快照
       const res1 = changeDocument(file, {
-        baseRevision: 99,
         document: {
           frames: [{ id: 'f1', name: '画板1', x: 0, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] }],
           layers: [],
@@ -199,12 +201,10 @@ describe('历史快照与元数据落盘', () => {
         reason: '无锁写入测试',
       });
       assert.equal(res1.ok, true);
-      assert.equal(res1.conflict, false);
       assert.equal(readHistoryIndex(dir).length, 1, '无锁写入成功产生快照');
 
       // 文档完整性校验失败（图层坐标非法非数字，或重复 id）
       const res2 = changeDocument(file, {
-        baseRevision: 0,
         document: {
           frames: [
             { id: 'f1', name: '画板1', x: 0, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] },
@@ -225,7 +225,8 @@ describe('历史快照与元数据落盘', () => {
     const ws = await mkdtemp(join(tmpdir(), 'bp-ws-'));
     try {
       const { createBlueprint, blueprintFile, blueprintDir } = blueprintModule;
-      const { changeDocument, readHistoryIndex } = docfileModule;
+      const { changeDocument } = docfileModule;
+      const { readHistoryIndex } = historyModule;
 
       const bp = createBlueprint(ws, { id: 'prune-bp' });
       const file = blueprintFile(ws, bp.id);
@@ -243,7 +244,6 @@ describe('历史快照与元数据落盘', () => {
           layers: [],
         };
         const res = changeDocument(file, {
-          baseRevision: currentRev,
           document: doc,
           by: 'ai',
           reason,
@@ -285,19 +285,19 @@ describe('历史快照与元数据落盘', () => {
       const file = blueprintFile(ws, bp.id);
 
       const docA = { frames: [{ id: 'f1', name: 'A', x: 0, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] }], layers: [] };
-      const res1 = changeDocument(file, { baseRevision: 0, document: docA, by: 'human', reason: '状态A' });
+      const res1 = changeDocument(file, { document: docA, by: 'human', reason: '状态A' });
       assert.equal(res1.revision, 1);
 
       const docB = { frames: [{ id: 'f1', name: 'B', x: 10, y: 0, width: 100, height: 100, visible: true, locked: false, fills: [], children: [] }], layers: [] };
-      const res2 = changeDocument(file, { baseRevision: 1, document: docB, by: 'human', reason: '状态B' });
+      const res2 = changeDocument(file, { document: docB, by: 'human', reason: '状态B' });
       assert.equal(res2.revision, 2);
 
       // 撤销状态B，恢复到状态A：落盘时产生递增的 revision 3，而不是回退到 1
-      const res3 = changeDocument(file, { baseRevision: 2, document: docA, by: 'human', reason: '撤销到状态A' });
+      const res3 = changeDocument(file, { document: docA, by: 'human', reason: '撤销到状态A' });
       assert.equal(res3.revision, 3, '撤销落盘生成新 revision 3');
 
       // 重做状态B：落盘时产生递增的 revision 4
-      const res4 = changeDocument(file, { baseRevision: 3, document: docB, by: 'human', reason: '重做到状态B' });
+      const res4 = changeDocument(file, { document: docB, by: 'human', reason: '重做到状态B' });
       assert.equal(res4.revision, 4, '重做落盘生成新 revision 4');
     } finally {
       await rm(ws, { recursive: true, force: true });

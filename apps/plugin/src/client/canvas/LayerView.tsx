@@ -6,7 +6,7 @@
  * one drag callback rather than five different props.
  */
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
-import type { Frame, Layer, LayerRectPatch, Selection, StackLayout } from '../../model/document';
+import type { Frame, Layer, LayerRectPatch, Selection, StackLayout } from '../../domain/document';
 import type { EditingLayer } from '../editor/types';
 import { fillBackground } from '../model/fill';
 import { backdropOf, boxShadowOf, filterOf } from '../model/effect';
@@ -16,7 +16,7 @@ import { isFrameSelected, isLayerSelected } from './geometry';
 import { ShapeGraphic, containerStyle, flowItemStyle, freeItemStyle, visualStyle } from './style';
 import { measureText } from './text';
 import { TextEditor } from './TextEditor';
-import { IconGlyph } from '../components/IconGlyph';
+import { IconGlyph } from '../ui/IconGlyph';
 
 export interface LayerViewContext {
   selections: readonly Selection[];

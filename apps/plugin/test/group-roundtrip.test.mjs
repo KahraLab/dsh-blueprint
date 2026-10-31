@@ -24,8 +24,8 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-group-ops-'));
   await build({
     entryPoints: {
-      group: join(root, 'src', 'model', 'group.ts'),
-      ops: join(root, 'src', 'model', 'ops.ts'),
+      group: join(root, 'src', 'domain', 'group.ts'),
+      ops: join(root, 'src', 'domain', 'ops.ts'),
     },
     outdir: tempDir,
     bundle: true,

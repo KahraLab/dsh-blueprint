@@ -18,10 +18,10 @@
  * rules; the command list is generated, so it cannot drift from the registry.
  */
 import { type CommandDef, defineCommand, renderUsage, runCommand } from 'citty';
-import { subCommands } from '../cli/commands';
-import { report, stripAnsi } from '../cli/output';
-import { ProtocolError } from '../protocol/errors';
-import { CORE_RULES } from '../protocol/guide';
+import { subCommands } from '../adapters/cli/commands';
+import { report, stripAnsi } from '../adapters/cli/output';
+import { ProtocolError } from '../application/errors';
+import { CORE_RULES } from '../application/guide';
 
 const ORDER = `怎么选命令
   · 用户指着画布说「这个」「它」→ 先 bp selection

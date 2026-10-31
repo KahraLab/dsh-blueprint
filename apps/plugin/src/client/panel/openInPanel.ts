@@ -7,8 +7,8 @@
  */
 import type { PluginContext } from '../../types/dsh';
 import { flushPending } from '../editor/sync';
-import { scopeKey, useBlueprintLibrary } from '../library';
-import { TAB_KIND } from '../constants';
+import { scopeKey, useBlueprintLibrary } from '../library/index';
+import { TAB_KIND } from './tab';
 import { usePanelUi } from './panelStore';
 import { viewKeyFor, writeSavedView } from './viewMemory';
 

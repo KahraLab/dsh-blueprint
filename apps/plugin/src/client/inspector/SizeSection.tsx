@@ -8,8 +8,9 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Frame, Layer, LayerRectPatch, RectPatch } from '../../model/document';
+import type { Frame, Layer, LayerRectPatch, RectPatch } from '../../domain/document';
 import { SizeFillIcon, SizeFixedIcon, SizeHugIcon } from '../icons';
+import { Segmented } from '../ui/Segmented';
 import { NumberBox } from './NumberBox';
 
 const SIZE_LABEL_KEYS = { fixed: 'inspector.sizeFixed', hug: 'inspector.sizeHug', fill: 'inspector.sizeFill' } as const;
@@ -80,28 +81,20 @@ interface SizeModesProps {
 
 function SizeModes({ axis, value, onChange }: SizeModesProps): ReactElement {
   const { t } = useTranslation();
-  const groupLabel = t(axis === 'w' ? 'inspector.widthMode' : 'inspector.heightMode');
 
   return (
-    <div className="bp-size-modes" role="group" aria-label={groupLabel}>
-      {SIZE_MODES.map(({ id, Icon }) => {
-        const label = t(SIZE_LABEL_KEYS[id]);
-        return (
-          <button
-            key={id}
-            type="button"
-            className="bp-size-mode-btn"
-            data-on={value === id}
-            data-testid={`inspector-size-${axis}-${id}`}
-            title={label}
-            aria-label={label}
-            aria-pressed={value === id}
-            onClick={() => onChange(id)}
-          >
-            <Icon />
-          </button>
-        );
-      })}
-    </div>
+    <Segmented
+      className="bp-size-modes"
+      buttonClassName="bp-size-mode-btn"
+      label={t(axis === 'w' ? 'inspector.widthMode' : 'inspector.heightMode')}
+      value={value}
+      onSelect={onChange}
+      options={SIZE_MODES.map(({ id, Icon }) => ({
+        id,
+        label: t(SIZE_LABEL_KEYS[id]),
+        icon: <Icon />,
+        testId: `inspector-size-${axis}-${id}`,
+      }))}
+    />
   );
 }

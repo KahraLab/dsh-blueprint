@@ -5,7 +5,7 @@
  * thumbnail both call these, and tests can call them without a DOM.
  */
 import type { CSSProperties } from 'react';
-import type { Layer, StackAlign, StackJustify, StackLayout } from '../../model/document';
+import type { Layer, StackAlign, StackJustify, StackLayout } from '../../domain/document';
 
 export const ALIGN_CSS: Record<StackAlign, CSSProperties['alignItems']> = {
   start: 'flex-start',

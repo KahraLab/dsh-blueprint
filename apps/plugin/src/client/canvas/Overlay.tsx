@@ -5,7 +5,7 @@
  * None of these hold state; they receive the current gesture's shape and draw it.
  */
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, RefObject } from 'react';
-import type { FillStyle, LayerKind } from '../../model/document';
+import type { FillStyle, LayerKind } from '../../domain/document';
 import type { Corner, ShapeKind } from '../editor/types';
 import type { MeasureItem, LocalRect } from './hitTest';
 import { type WorldRect } from './geometry';

@@ -23,7 +23,7 @@ before(async () => {
   bundleDir = await mkdtemp(join(tmpdir(), 'bp-summary-'));
   const outfile = join(bundleDir, 'blueprint.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'node', 'blueprint.ts')],
+    entryPoints: [join(root, 'src', 'infrastructure', 'fs', 'blueprint.ts')],
     outfile,
     bundle: true,
     format: 'esm',

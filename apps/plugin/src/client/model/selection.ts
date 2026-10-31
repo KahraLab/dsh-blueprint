@@ -5,7 +5,7 @@
  * what is inside. A marquee that encloses both must not show the inside faces as
  * separately selected, so selections are collapsed to their outermost entries.
  */
-import type { BlueprintDocument, Layer, Selection } from '../../model/document';
+import type { BlueprintDocument, Layer, Selection } from '../../domain/document';
 
 export function collapseSelections(doc: BlueprintDocument, selections: readonly Selection[]): Selection[] {
   const frames = new Set(selections.filter((item) => item.kind === 'frame').map((item) => item.frameId));

@@ -79,7 +79,7 @@ before(async () => {
   process.env.HOME = home;
   const outfile = join(tempDir, 'local-skills.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'host', 'localSkills.ts')],
+    entryPoints: [join(root, 'src', 'infrastructure', 'workspace', 'localSkills.ts')],
     outfile,
     bundle: true,
     format: 'esm',

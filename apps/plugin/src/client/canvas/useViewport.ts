@@ -6,13 +6,11 @@
  * here leaves the canvas free to draw.
  */
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { CLIENT_SYNC } from '../../shared/config';
 import type { Viewport, ViewportInfo } from '../editor/types';
 import { clamp } from './geometry';
-import { zoomFactorFor } from './zoom';
+import { MAX_ZOOM, MIN_ZOOM, zoomFactorFor } from './zoom';
 
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 3;
-const REMEMBER_MS = 400;
 
 /** A client point in canvas world coordinates. */
 export function worldAt(host: HTMLElement | null, viewport: Viewport, clientX: number, clientY: number): { x: number; y: number } {
@@ -97,7 +95,7 @@ export function useViewport({ hostRef, initialViewport, onViewportChange }: View
 
   // Remember where the user was, but not on every wheel tick.
   useEffect(() => {
-    const timer = setTimeout(() => onViewportChange?.(viewport), REMEMBER_MS);
+    const timer = setTimeout(() => onViewportChange?.(viewport), CLIENT_SYNC.viewportRememberMs);
     return () => clearTimeout(timer);
   }, [viewport, onViewportChange]);
 

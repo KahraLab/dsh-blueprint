@@ -37,7 +37,8 @@ const server = {
 };
 
 function reply(body, status = 200) {
-  return { ok: status >= 200 && status < 300, status, json: async () => body };
+  const text = JSON.stringify(body);
+  return { ok: status >= 200 && status < 300, status, text: async () => text, json: async () => body };
 }
 
 function fakeFetch(url, init = {}) {

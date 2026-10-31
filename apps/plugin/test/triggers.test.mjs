@@ -32,7 +32,7 @@ before(async () => {
       logLevel: 'warning',
     }),
     build({
-      entryPoints: [join(root, 'src', 'host', 'files.ts')],
+      entryPoints: [join(root, 'src', 'infrastructure', 'workspace', 'files.ts')],
       outfile: join(tempDir, 'files.mjs'),
       bundle: true,
       format: 'esm',

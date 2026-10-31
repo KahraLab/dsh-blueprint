@@ -6,14 +6,14 @@
  * view of its own; nothing here decides geometry or edits the document.
  */
 import { useRef, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
-import { findLayer } from '../../model/document';
+import { findLayer } from '../../domain/document';
 import type {
   BlueprintDocument,
   InsertTarget,
   LayerRectPatch,
   RectPatch,
   Selection,
-} from '../../model/document';
+} from '../../domain/document';
 import type {
   CanvasActions,
   EditingLayer,

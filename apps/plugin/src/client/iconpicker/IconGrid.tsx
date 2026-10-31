@@ -6,8 +6,8 @@
  * measurements; the dialog above it only says which cells exist.
  */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { drawIcon, type IconSetData } from '../../model/icon';
-import { IconGlyph } from '../components/IconGlyph';
+import { drawIcon, type IconSetData } from '../../domain/icon';
+import { IconGlyph } from '../ui/IconGlyph';
 import type { IconCell } from './store';
 
 const CELL = 38;

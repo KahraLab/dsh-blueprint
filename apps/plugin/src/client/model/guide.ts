@@ -5,7 +5,7 @@
  * equal bands in what is left. A guide that cannot fit a positive band draws
  * nothing instead of overlapping itself.
  */
-import type { FrameGuide } from '../../model/document';
+import type { FrameGuide } from '../../domain/document';
 
 export interface GuideBand {
   x: number;

@@ -105,7 +105,7 @@ before(async () => {
 
   const outfile = join(tempDir, 'host.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'host', 'index.ts')],
+    entryPoints: [join(root, 'src', 'adapters', 'http', 'index.ts')],
     outfile,
     bundle: true,
     format: 'esm',

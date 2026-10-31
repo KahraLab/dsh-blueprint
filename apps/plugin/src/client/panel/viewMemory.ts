@@ -4,7 +4,9 @@
  * Kept out of components so a view can read one fact without also owning the
  * storage failure handling.
  */
+import { MAX_ZOOM, MIN_ZOOM } from '../canvas/zoom';
 import type { Viewport } from '../editor/types';
+import { clamp } from '../../shared/number';
 
 export interface SavedView {
   blueprint: string;
@@ -50,7 +52,7 @@ export function readViewport(key: string): Viewport | undefined {
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as Partial<Viewport>;
     if (typeof parsed.x !== 'number' || typeof parsed.y !== 'number' || typeof parsed.zoom !== 'number') return undefined;
-    return { x: parsed.x, y: parsed.y, zoom: Math.min(3, Math.max(0.1, parsed.zoom)) };
+    return { x: parsed.x, y: parsed.y, zoom: clamp(parsed.zoom, MIN_ZOOM, MAX_ZOOM) };
   } catch {
     return undefined;
   }

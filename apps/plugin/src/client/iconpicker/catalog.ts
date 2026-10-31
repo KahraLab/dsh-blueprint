@@ -6,7 +6,7 @@
  * the canvas — only the icon picker asks for icons, and every answer is cached
  * for the rest of the panel's life.
  */
-import type { IconSetData } from '../../model/icon';
+import type { IconSetData } from '../../domain/icon';
 
 const LIBRARY_ENDPOINT = '/api/blueprint/icons';
 

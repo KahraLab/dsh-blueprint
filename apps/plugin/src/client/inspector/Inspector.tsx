@@ -14,7 +14,7 @@ import {
   type RectPatch,
   type Selection,
   type StackLayout,
-} from '../../model/document';
+} from '../../domain/document';
 import { AppearanceSection } from './AppearanceSection';
 import { collectDocumentColors, collectNodeColors } from './color/palette';
 import { EffectsSection } from './EffectsSection';

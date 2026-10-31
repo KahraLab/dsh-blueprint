@@ -8,7 +8,8 @@
  */
 import { useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { normalizeHex, parseColor, rgbToHsl } from '../../../model/color';
+import { normalizeHex, parseColor, rgbToHsl } from '../../../domain/color';
+import { ratioFromPercent } from '../../../shared/number';
 import { PipetteIcon } from '../../icons';
 
 export type ColorFormat = 'hex' | 'rgb' | 'hsl';
@@ -133,7 +134,7 @@ export function ColorValue({
             const next = event.target.value;
             setAlphaText(next);
             const parsed = Number.parseFloat(next);
-            if (Number.isFinite(parsed)) onAlphaChange(Math.min(100, Math.max(0, parsed)) / 100);
+            if (Number.isFinite(parsed)) onAlphaChange(ratioFromPercent(parsed));
           }}
           onBlur={() => setAlphaText(null)}
           onKeyDown={(event) => {

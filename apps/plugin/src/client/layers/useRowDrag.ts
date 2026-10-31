@@ -6,7 +6,7 @@
  * this hook; the tree only renders them.
  */
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import type { BlueprintDocument } from '../../model/document';
+import type { BlueprintDocument } from '../../domain/document';
 import { nextSiblingId, type RowInfo } from './rows';
 
 const DRAG_THRESHOLD_PX = 4;

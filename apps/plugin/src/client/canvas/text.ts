@@ -4,7 +4,7 @@
  * A text layer's box follows its glyphs, so the canvas needs a width before the
  * browser lays it out. One offscreen 2D context answers every call.
  */
-import type { Layer } from '../../model/document';
+import type { Layer } from '../../domain/document';
 import { TEXT_FONT_STACK } from './style';
 
 let measureCanvas: HTMLCanvasElement | null = null;

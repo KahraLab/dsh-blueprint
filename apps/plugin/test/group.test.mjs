@@ -23,7 +23,7 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-group-'));
   const outfile = join(tempDir, 'group.mjs');
   await build({
-    entryPoints: [join(root, 'src', 'model', 'group.ts')],
+    entryPoints: [join(root, 'src', 'domain', 'group.ts')],
     outfile,
     bundle: true,
     format: 'esm',

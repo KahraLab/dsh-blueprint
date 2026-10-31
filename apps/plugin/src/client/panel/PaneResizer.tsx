@@ -5,7 +5,7 @@
  * the layer tree when it moves right.
  */
 import { useRef, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
-import { clampPane } from './panelStore';
+import { clamp } from '../../shared/number';
 
 interface PaneResizerProps {
   label: string;
@@ -31,7 +31,7 @@ export function PaneResizer({ label, className, value, min, max, invert = false,
     const anchor = start.current;
     if (!anchor) return;
     const delta = event.clientX - anchor.pointerX;
-    onResize(clampPane(anchor.width + (invert ? -delta : delta), min, max));
+    onResize(clamp(anchor.width + (invert ? -delta : delta), min, max));
   };
 
   const finish = (event: ReactPointerEvent<HTMLDivElement>): void => {

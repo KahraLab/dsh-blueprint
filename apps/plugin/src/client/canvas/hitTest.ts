@@ -11,7 +11,7 @@ import {
   type BlueprintDocument,
   type Frame,
   type StackLayout,
-} from '../../model/document';
+} from '../../domain/document';
 
 export interface LocalRect {
   left: number;

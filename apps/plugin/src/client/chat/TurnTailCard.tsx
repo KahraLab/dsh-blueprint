@@ -9,7 +9,7 @@ import { useEffect, useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PluginContext } from '../../types/dsh';
 import { MarkIcon } from '../icons';
-import { scopeKey, useBlueprintLibrary, useLibrarySlice } from '../library';
+import { scopeKey, useBlueprintLibrary, useLibrarySlice } from '../library/index';
 import { openBlueprintInPanel } from '../panel/openInPanel';
 import { cardForTurn, useChatTail } from './tailStore';
 import { CARD_CSS } from './cardStyle';

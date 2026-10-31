@@ -5,7 +5,7 @@
  * apply to the guide just like they do to the content.
  */
 import type { ReactElement } from 'react';
-import type { FrameGuide } from '../../model/document';
+import type { FrameGuide } from '../../domain/document';
 import { colorToRgba } from '../model/fill';
 import { guideBands } from '../model/guide';
 

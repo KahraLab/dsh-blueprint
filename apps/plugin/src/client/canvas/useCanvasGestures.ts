@@ -16,7 +16,7 @@ import {
   type Layer,
   type Selection,
   type StackLayout,
-} from '../../model/document';
+} from '../../domain/document';
 import { topFillColor } from '../model/fill';
 import { collapseSelections } from '../model/selection';
 import type { CanvasActions, EditingLayer, ResizeTarget, ShapeKind, Tool, Viewport } from '../editor/types';

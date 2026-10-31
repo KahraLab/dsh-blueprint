@@ -5,13 +5,11 @@
  * point with the command line and the model. Nothing here runs inside a render,
  * and nothing waits on the network while the user drags.
  */
-import { diffDocs } from '../../model/ops';
-import { normalizeDocument, type BlueprintDocument } from '../../model/document';
+import { diffDocs } from '../../domain/ops';
+import { normalizeDocument, type BlueprintDocument } from '../../domain/document';
+import { CLIENT_SYNC } from '../../shared/config';
+import { requestJson } from '../shared/http';
 import { adoptExternalDocument, replaceDocument, useBlueprint } from './store';
-
-const SAVE_DEBOUNCE_MS = 600;
-const POLL_MS = 700;
-const SELECTION_REPORT_MS = 150;
 
 interface StoredReply {
   revision: number;
@@ -64,34 +62,28 @@ function sameDocument(left: BlueprintDocument, right: BlueprintDocument): boolea
  * again, so a host restart or a dropped request never wipes the canvas.
  */
 async function getStored(url: string): Promise<StoredReply | 'missing' | null> {
-  try {
-    const response = await fetch(url, { headers: { accept: 'application/json' } });
-    if (response.status === 404) return 'missing';
-    if (!response.ok) return null;
-    const data = (await response.json()) as { revision?: number; document?: BlueprintDocument };
-    if (!data?.document) return null;
-    return { revision: typeof data.revision === 'number' ? data.revision : 0, document: normalizeDocument(data.document) };
-  } catch {
-    return null;
-  }
+  const reply = await requestJson<{ revision?: number; document?: BlueprintDocument }>(url);
+  // A missing file is a different situation from a host that is not answering:
+  // the poll must not keep retrying what is simply gone.
+  if (reply.status === 404) return 'missing';
+  if (!reply.ok || reply.data?.document === undefined) return null;
+  return {
+    revision: typeof reply.data.revision === 'number' ? reply.data.revision : 0,
+    document: normalizeDocument(reply.data.document),
+  };
 }
 
 async function sendOps(url: string, ops: ReturnType<typeof diffDocs>): Promise<ChangeReply | null> {
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ops, by: 'canvas' }),
-    });
-    const data = (await response.json()) as ChangeReply & { document?: BlueprintDocument };
-    if (!response.ok || !data || typeof data.revision !== 'number') {
-      console.warn('[blueprint] 保存被拒绝', response.status, data);
-      return null;
-    }
-    return { ...data, document: data.document ? normalizeDocument(data.document) : useBlueprint.getState().doc };
-  } catch {
+  const reply = await requestJson<ChangeReply & { document?: BlueprintDocument }>(url, {
+    method: 'POST',
+    body: { ops, by: 'canvas' },
+  });
+  if (!reply.ok || reply.data === null || typeof reply.data.revision !== 'number') {
+    console.warn('[blueprint] 保存被拒绝', reply.status, reply.data ?? reply.raw);
     return null;
   }
+  const data = reply.data;
+  return { ...data, document: data.document ? normalizeDocument(data.document) : useBlueprint.getState().doc };
 }
 
 /**
@@ -151,15 +143,8 @@ async function reportSelection(url: string): Promise<void> {
     frameId: item.frameId,
     layerId: item.kind === 'layer' ? item.layerId : null,
   }));
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ selections }),
-    });
-  } catch {
-    // The next selection change sends the state again.
-  }
+  // A lost report is repaired by the next selection change, so failures are silent.
+  await requestJson(url, { method: 'POST', body: { selections } });
 }
 
 /**
@@ -216,7 +201,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
     saveTimer = setTimeout(() => {
       saveTimer = null;
       void flush(url);
-    }, SAVE_DEBOUNCE_MS);
+    }, CLIENT_SYNC.saveDebounceMs);
   });
 
   let selectionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -226,7 +211,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
     selectionTimer = setTimeout(() => {
       selectionTimer = null;
       void reportSelection(selectionUrl);
-    }, SELECTION_REPORT_MS);
+    }, CLIENT_SYNC.selectionReportMs);
   });
   // Send whatever the panel starts with, so a selection left behind by an
   // earlier mount is corrected instead of lingering.
@@ -236,7 +221,7 @@ export function startSession(url: string, selectionUrl: string): () => void {
   // notice, and it keeps the browser half independent of any other transport.
   const timer = setInterval(() => {
     void poll(url);
-  }, POLL_MS);
+  }, CLIENT_SYNC.pollMs);
 
   // The browser closes the tab; tests and the host have no document.
   const onHidden = (): void => {

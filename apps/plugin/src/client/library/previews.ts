@@ -5,8 +5,8 @@
  * revision) is enough. A revision that moved is read again; a deleted blueprint
  * drops its entry.
  */
-import type { BlueprintDocument } from '../../model/document';
-import { getJson } from '../api';
+import type { BlueprintDocument } from '../../domain/document';
+import { getJson } from '../shared/http';
 import { documentUrl, scopeKey, type LibraryScope } from './scope';
 import type { BlueprintSummary } from './types';
 

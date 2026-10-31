@@ -8,7 +8,8 @@
 import { useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, MinusIcon, VisibilityIcon } from '../icons';
-import { makeStroke, type LayerKind, type StrokeAlign, type StrokeStyle } from '../../model/document';
+import { makeStroke, type LayerKind, type StrokeAlign, type StrokeStyle } from '../../domain/document';
+import { ratioFromPercent } from '../../shared/number';
 import { colorToRgba } from '../model/fill';
 import { ColorPicker } from './color/ColorPicker';
 import { NumberBox } from './NumberBox';
@@ -92,7 +93,7 @@ export function StrokeSection({ stroke, palette, onChange }: StrokeSectionProps)
                 value={Math.round(stroke.opacity * 100)}
                 onChange={(event) => {
                   const parsed = Number.parseFloat(event.target.value);
-                  if (Number.isFinite(parsed)) replace({ opacity: Math.min(100, Math.max(0, parsed)) / 100 });
+                  if (Number.isFinite(parsed)) replace({ opacity: ratioFromPercent(parsed) });
                 }}
               />
               <span className="bp-input-suffix">%</span>

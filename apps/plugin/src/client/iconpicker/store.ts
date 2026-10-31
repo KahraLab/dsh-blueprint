@@ -6,7 +6,7 @@
  * many times and every answer here is worth keeping.
  */
 import { create } from 'zustand';
-import { drawIcon, type IconSetData } from '../../model/icon';
+import { drawIcon, type IconSetData } from '../../domain/icon';
 import {
   installIconSet,
   loadIndex,

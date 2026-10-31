@@ -7,7 +7,8 @@
  * blueprint saves again, so work done in the canvas counts too.
  */
 import { create } from 'zustand';
-import type { BlueprintSummary } from '../library';
+import { createCache } from '../../shared/cache';
+import type { BlueprintSummary } from '../library/index';
 
 interface ChatTailState {
   /** Newest completed turn per Session, discovered from the rendered tails. */
@@ -45,9 +46,10 @@ interface Decision {
   title: string | null;
 }
 
-const decisions = new Map<string, Decision>();
-const lastRevision = new Map<string, number>();
-const DECISION_LIMIT = 200;
+/** 每一轮的回答都留一份，换页面时不重算；超出上限就丢最早的。 */
+const decisions = createCache<string, Decision>({ capacity: 200 });
+/** 每个会话上一次看到的版本号，用来判断蓝图有没有动过。 */
+const lastRevision = createCache<string, number>({ capacity: 200 });
 const RECENT_MS = 10 * 60 * 1000;
 
 function candidateFor(entries: readonly BlueprintSummary[], current: string | null): BlueprintSummary | null {
@@ -91,9 +93,5 @@ export function cardForTurn(
 
   decisions.set(turnKey, { card, revision, title });
   if (candidate !== null) lastRevision.set(sessionId, candidate.revision);
-  if (decisions.size > DECISION_LIMIT) {
-    const oldest = decisions.keys().next().value;
-    if (oldest !== undefined) decisions.delete(oldest);
-  }
   return card;
 }

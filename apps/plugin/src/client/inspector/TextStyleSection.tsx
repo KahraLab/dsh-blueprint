@@ -3,7 +3,7 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Layer, LayerRectPatch } from '../../model/document';
+import type { Layer, LayerRectPatch } from '../../domain/document';
 import { NumberBox } from './NumberBox';
 
 const FONT_FAMILIES = ['Figtree', 'Inter', 'system-ui'] as const;

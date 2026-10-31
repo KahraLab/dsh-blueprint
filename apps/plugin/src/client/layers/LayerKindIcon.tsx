@@ -5,7 +5,7 @@
  * run or a shape; the glyph carries that in one glance.
  */
 import type { ReactElement } from 'react';
-import type { LayerKind } from '../../model/document';
+import type { LayerKind } from '../../domain/document';
 import {
   ArrowShapeIcon,
   EllipseIcon,

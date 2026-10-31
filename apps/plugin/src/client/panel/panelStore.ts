@@ -74,11 +74,6 @@ export const usePanelUi = create<PanelUiState>()((set, get) => ({
   setIconPicker: (iconPicker) => set((state) => ({ menus: { ...state.menus, iconPicker } })),
 }));
 
-/** Clamp a panel width to the range the separator allows. */
-export function clampPane(width: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, width));
-}
-
 /**
  * One pointerdown anywhere closes menus that were clicked outside. Installed once
  * by the plugin, not by every menu, so a menu cannot outlive its owner.

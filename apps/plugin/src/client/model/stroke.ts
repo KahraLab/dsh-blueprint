@@ -4,7 +4,7 @@
  * A stroke does not take part in layout. Inside and outside sit fully on one
  * side of the edge; centre is half in, half out.
  */
-import type { StrokeStyle } from '../../model/document';
+import type { StrokeStyle } from '../../domain/document';
 import { colorToRgba } from './fill';
 
 /** A zero-blur `box-shadow` that reads as a border on the chosen side. */

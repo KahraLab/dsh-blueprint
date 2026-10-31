@@ -1,5 +1,5 @@
-import { parseColor } from '../../model/color';
-import type { FillStyle } from '../../model/document';
+import { parseColor } from '../../domain/color';
+import type { FillStyle } from '../../domain/document';
 
 /**
  * A CSS `rgba()` string with the given alpha. A fill keeps its alpha beside the

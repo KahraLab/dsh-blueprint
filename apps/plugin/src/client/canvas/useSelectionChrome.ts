@@ -6,7 +6,7 @@
  * in one hook means the canvas never has to know which effects write CSS.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
-import type { BlueprintDocument, Selection } from '../../model/document';
+import type { BlueprintDocument, Selection } from '../../domain/document';
 import type { Viewport } from '../editor/types';
 import type { WorldRect } from './geometry';
 

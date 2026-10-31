@@ -26,8 +26,8 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-stroke-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'model', 'document.ts'),
-      ops: join(root, 'src', 'model', 'ops.ts'),
+      document: join(root, 'src', 'domain', 'document.ts'),
+      ops: join(root, 'src', 'domain', 'ops.ts'),
       stroke: join(root, 'src', 'client', 'model', 'stroke.ts'),
     },
     outdir: tempDir,

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { hsvToHex, normalizeHex, parseColor, rgbToHsv, toHex, type Hsv } from '../../../model/color';
+import { hsvToHex, normalizeHex, parseColor, rgbToHsv, toHex, type Hsv } from '../../../domain/color';
 import { ColorStage } from './ColorStage';
 import { ColorValue } from './ColorValue';
 
