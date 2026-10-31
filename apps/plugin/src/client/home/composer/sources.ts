@@ -75,6 +75,18 @@ function withStatus(label: string, answer: JsonAnswer<unknown>): string {
   return `${label}（HTTP ${answer.status}${reason}）`;
 }
 
+/** The workspace directory, recovered from a Session when the summary lacks it. */
+function workspaceRoot(sources: MenuSources): string | null {
+  const workspace = sources.workspace;
+  if (workspace === null) return null;
+  if (workspace.path !== '') return workspace.path;
+  for (const id of workspace.sessionIds) {
+    const cwd = sources.sessions.byId[id]?.cwd;
+    if (cwd !== undefined && cwd !== '') return cwd;
+  }
+  return null;
+}
+
 function parentOf(path: string): string | undefined {
   const slash = path.lastIndexOf('/');
   return slash < 0 ? undefined : path.slice(0, slash);
@@ -93,10 +105,10 @@ export async function fileRows(
   signal: AbortSignal,
   section: string,
 ): Promise<TriggerRow[]> {
-  const workspace = sources.workspace;
-  if (workspace === null) return [];
+  const root = workspaceRoot(sources);
+  if (root === null) return [];
   const url = new URL('/api/blueprint/files', window.location.origin);
-  url.searchParams.set('workspace', workspace.path);
+  url.searchParams.set('workspace', root);
   url.searchParams.set('q', query);
   url.searchParams.set('limit', String(limit));
   const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url.toString(), signal);
@@ -168,10 +180,10 @@ export async function skillRows(
   limit: number,
   signal: AbortSignal,
 ): Promise<TriggerRow[]> {
-  const workspace = sources.workspace;
-  if (workspace === null) return [];
+  const root = workspaceRoot(sources);
+  if (root === null) return [];
   const url = new URL('/api/blueprint/skills', window.location.origin);
-  url.searchParams.set('workspace', workspace.path);
+  url.searchParams.set('workspace', root);
   const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url.toString(), signal);
   if (answer.value?.skills === undefined) {
     console.warn('[blueprint] skill menu request failed', url.toString(), answer.status, answer.error);
