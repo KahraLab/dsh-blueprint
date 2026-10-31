@@ -10,18 +10,21 @@
  * Adding a field means adding one row. A field name that is missing here is
  * rejected by every entry point, which is what keeps the three in step.
  */
-import { clamp, clampInt } from '../shared/number';
+import { clamp } from '../shared/number';
 import {
   GUIDE_LIMITS,
   STACK_LIMITS,
   type EffectStyle,
   type EffectType,
   type FillStyle,
+  type FrameGuide,
   type LayerKind,
   type SizeMode,
   type StrokeAlign,
+  type StrokeStyle,
   type StackAlign,
   type StackDirection,
+  type StackLayout,
   type StackJustify,
   type TextAlign,
   type VerticalAlign,
@@ -29,7 +32,9 @@ import {
   makeBlurEffect,
   makeFill,
   makeShadowEffect,
-  makeStackLayout,
+  normalizeGuide,
+  normalizeStackLayout,
+  normalizeStroke,
 } from './document';
 
 export type FieldSpec =
@@ -247,14 +252,8 @@ function cleanStroke(raw: unknown): CleanedValue {
   if (!STROKE_ALIGNS.includes(align as StrokeAlign)) {
     return { message: `stroke.align 只能是：${STROKE_ALIGNS.join('、')}` };
   }
-  return {
-    value: {
-      color: record.color,
-      width: Math.max(0, width),
-      opacity: clamp(opacity, 0, 1),
-      align: align as StrokeAlign,
-    },
-  };
+  const value = normalizeStroke(record as unknown as StrokeStyle);
+  return value === null ? { message: 'stroke 写法不对' } : { value };
 }
 
 function cleanEffects(raw: unknown): CleanedValue {
@@ -314,27 +313,19 @@ function cleanGuide(raw: unknown): CleanedValue {
   const type = record.type ?? 'columns';
   if (type !== 'columns' && type !== 'rows') return { message: 'guide.type 只能是 columns 或 rows' };
 
-  const count = record.count ?? 12;
+  const count = record.count ?? GUIDE_LIMITS.fallbackCount;
   if (typeof count !== 'number' || !Number.isFinite(count)) return { message: 'guide.count 要写数字' };
-  const gutter = record.gutter ?? 20;
+  const gutter = record.gutter ?? GUIDE_LIMITS.fallbackGutter;
   if (typeof gutter !== 'number' || !Number.isFinite(gutter)) return { message: 'guide.gutter 要写数字' };
-  const margin = record.margin ?? 0;
+  const margin = record.margin ?? GUIDE_LIMITS.fallbackMargin;
   if (typeof margin !== 'number' || !Number.isFinite(margin)) return { message: 'guide.margin 要写数字' };
-  const color = record.color ?? '#FF5C5C';
+  const color = record.color ?? GUIDE_LIMITS.fallbackColor;
   if (typeof color !== 'string' || color.length === 0) return { message: 'guide.color 要写颜色' };
   const visible = record.visible ?? true;
   if (typeof visible !== 'boolean') return { message: 'guide.visible 要写 true 或 false' };
 
-  return {
-    value: {
-      type,
-      count: clampInt(count, GUIDE_LIMITS.minCount, GUIDE_LIMITS.maxCount),
-      gutter: Math.max(0, gutter),
-      margin: Math.max(0, margin),
-      color,
-      visible,
-    },
-  };
+  const value = normalizeGuide(record as unknown as FrameGuide);
+  return value === null ? { message: 'guide 写法不对' } : { value };
 }
 
 function cleanLayout(raw: unknown): CleanedValue {
@@ -343,29 +334,19 @@ function cleanLayout(raw: unknown): CleanedValue {
   const record = raw as Record<string, unknown>;
   const direction = record.direction ?? 'column';
   if (!DIRECTIONS.includes(direction as StackDirection)) return { message: 'layout.direction 只能是 row、column 或 grid' };
-  const columns = record.columns ?? 2;
+  const columns = record.columns ?? STACK_LIMITS.initialColumns;
   if (typeof columns !== 'number' || !Number.isFinite(columns)) return { message: 'layout.columns 要写数字' };
-  const align = record.align ?? 'stretch';
+  const align = record.align ?? STACK_LIMITS.fallbackAlign;
   if (!ALIGNS.includes(align as StackAlign)) return { message: 'layout.align 只能是 start / center / end / stretch' };
-  const justify = record.justify ?? 'start';
+  const justify = record.justify ?? STACK_LIMITS.fallbackJustify;
   if (!JUSTIFIES.includes(justify as StackJustify)) return { message: 'layout.justify 只能是 start / center / end / between' };
-  const gap = record.gap ?? 8;
+  const gap = record.gap ?? STACK_LIMITS.fallbackGap;
   if (typeof gap !== 'number' || !Number.isFinite(gap)) return { message: 'layout.gap 要写数字' };
   const padding = (record.padding ?? {}) as Record<string, unknown>;
-  const sides: Record<string, number> = {};
   for (const side of ['top', 'right', 'bottom', 'left'] as const) {
     const value = padding[side] ?? 0;
     if (typeof value !== 'number' || !Number.isFinite(value)) return { message: `layout.padding.${side} 要写数字` };
-    sides[side] = value;
   }
-  return {
-    value: makeStackLayout({
-      direction: direction as StackDirection,
-      columns: clampInt(columns, STACK_LIMITS.minColumns, STACK_LIMITS.maxColumns),
-      gap: Math.max(0, Math.round(gap)),
-      align: align as StackAlign,
-      justify: justify as StackJustify,
-      padding: { top: sides.top!, right: sides.right!, bottom: sides.bottom!, left: sides.left! },
-    }),
-  };
+  const value = normalizeStackLayout(record as unknown as StackLayout);
+  return value === null ? { message: 'layout 写法不对' } : { value };
 }

@@ -259,14 +259,14 @@ export const setCommand = defineCommand({
       emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id, replaced: true });
       return;
     }
-    if (Object.keys(patch).length === 0) {
-      throw new ProtocolError('USAGE', '没说改什么', { hint: '看选项：bp help set' });
-    }
     if (args.icon !== undefined) {
       const parts = splitIconId(args.icon);
       if (!parts) throw new ProtocolError('USAGE', '图标要写成 集合/名字，比如 lucide/search', { field: 'icon' });
       patch.iconSet = parts.set;
       patch.iconName = parts.name;
+    }
+    if (Object.keys(patch).length === 0) {
+      throw new ProtocolError('USAGE', '没说改什么', { hint: '看选项：bp help set' });
     }
     const outcome = change(deps, blueprint.file, { ops: [{ op: 'set', id: args.id, patch }] });
     emit({ ok: true, blueprint: blueprint.id, revision: outcome.revision, id: args.id, fields: Object.keys(patch) });

@@ -5,7 +5,7 @@
  * equal bands in what is left. A guide that cannot fit a positive band draws
  * nothing instead of overlapping itself.
  */
-import type { FrameGuide } from '../../domain/document';
+import { GUIDE_LIMITS, type FrameGuide } from '../../domain/document';
 
 export interface GuideBand {
   x: number;
@@ -15,7 +15,7 @@ export interface GuideBand {
 }
 
 export function guideBands(guide: FrameGuide, width: number, height: number): GuideBand[] {
-  const count = Math.min(24, Math.max(1, Math.round(guide.count)));
+  const count = Math.min(GUIDE_LIMITS.maxCount, Math.max(GUIDE_LIMITS.minCount, Math.round(guide.count)));
   const gutter = Math.max(0, guide.gutter);
   const margin = Math.max(0, guide.margin);
   const columns = guide.type !== 'rows';

@@ -221,6 +221,8 @@
   "home.title": "Blueprints",
   "home.subtitle": "Light up your next idea.",
   "home.placeholder": "Describe what you want to build…",
+  "home.starter": "Design with DSH Blueprint:",
+  "home.starterHint": "Just add what you want to design to get started.",
   "home.allBlueprints": "Project blueprint library",
   "home.send": "Start",
   "home.sending": "Starting",

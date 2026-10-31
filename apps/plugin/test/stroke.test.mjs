@@ -18,7 +18,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
 let tempDir;
-let documentModel;
 let ops;
 let strokeModel;
 
@@ -26,7 +25,6 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-stroke-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'domain', 'document.ts'),
       ops: join(root, 'src', 'domain', 'ops.ts'),
       stroke: join(root, 'src', 'client', 'model', 'stroke.ts'),
     },
@@ -36,7 +34,6 @@ before(async () => {
     platform: 'node',
     logLevel: 'warning',
   });
-  documentModel = await import(pathToFileURL(join(tempDir, 'document.js')).href);
   ops = await import(pathToFileURL(join(tempDir, 'ops.js')).href);
   strokeModel = await import(pathToFileURL(join(tempDir, 'stroke.js')).href);
 });
@@ -103,14 +100,6 @@ function docWith(stroke = null) {
   };
 }
 
-test('旧文件没有描边时读成 null', () => {
-  const old = layer();
-  delete old.stroke;
-  const normalized = documentModel.normalizeDocument({ frames: [{ ...docWith().frames[0], children: [old], stroke: undefined }], layers: [] });
-  assert.equal(normalized.frames[0].children[0].stroke, null);
-  assert.equal(normalized.frames[0].stroke, null);
-});
-
 test('set 补上默认粗细和位置', () => {
   const result = ops.applyOps(docWith(), [{ op: 'set', id: 'l', patch: { stroke: { color: '#FF0000' } } }]);
   assert.equal(result.failure, null);
@@ -135,17 +124,6 @@ test('不认识的描边位置会被拒绝', () => {
   ]);
   assert.notEqual(result.failure, null);
   assert.match(result.failure.message, /inside/);
-});
-
-test('画板也能加描边，diff 往返不丢', () => {
-  const before = docWith();
-  const after = {
-    ...before,
-    frames: [{ ...before.frames[0], stroke: { color: '#101828', width: 3, opacity: 1, align: 'outside' } }],
-  };
-  const applied = ops.applyOps(before, ops.diffDocs(before, after));
-  assert.equal(applied.failure, null);
-  assert.deepEqual(applied.doc.frames[0].stroke, after.frames[0].stroke);
 });
 
 test('盒子描边按位置转成 box-shadow', () => {

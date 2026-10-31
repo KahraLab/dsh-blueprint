@@ -3,7 +3,7 @@
  *
  * Each `run` is a thin adapter — resolve which blueprint, read its document, ask
  * the protocol layer for a plain JSON payload, print it. The shapes live in
- * `protocol/read.ts`.
+ * `application/read.ts`.
  */
 import { defineCommand } from 'citty';
 import { readDocument } from '../../../infrastructure/fs/docfile';

@@ -66,7 +66,7 @@ export interface AddArgs {
   icon?: string;
 }
 
-/** `--kind` 是自由字符串；收窄成图层种类，种类表本身只在 model/fields 里写一次。 */
+/** `--kind` 是自由字符串；收窄成图层种类，种类表本身只在 domain/fields 里写一次。 */
 function isLayerKind(value: string): boolean {
   return (LAYER_KINDS as readonly string[]).includes(value);
 }
@@ -201,7 +201,7 @@ function strokePatchOf(args: StrokeFlags): Record<string, unknown> | null | unde
   return {
     color: args.stroke,
     width: numberOf(args['stroke-width'], 'stroke-width') ?? 1,
-    opacity: Math.min(1, Math.max(0, opacity)),
+    opacity,
     align: args['stroke-align'] ?? 'inside',
   };
 }
@@ -266,7 +266,7 @@ export function setPatch(args: SetArgs): Record<string, unknown> {
       const columns = numberOf(args.columns, 'columns') ?? 2;
       patch.layout = {
         direction: args.layout,
-        columns: Math.min(12, Math.max(1, Math.round(columns))),
+        columns,
         gap: numberOf(args.gap, 'gap') ?? 8,
         padding: paddingOf(args.padding),
         align: args.align ?? 'stretch',

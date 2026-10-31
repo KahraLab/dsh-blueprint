@@ -7,103 +7,11 @@
  * order.
  */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'bin', 'bp.js');
-const SESSION = 'bp-test-session';
-
-/** A throwaway HOME and workspace, plus the runner that uses them. */
-function sandbox() {
-  const home = mkdtempSync(join(tmpdir(), 'bp-home-'));
-  const workspace = mkdtempSync(join(tmpdir(), 'bp-ws-'));
-  const sessionDir = join(home, '.dsh', 'dsh-blueprints', SESSION);
-
-  const run = (args, input = '', extraEnv = {}) => {
-    const result = spawnSync(process.execPath, [CLI, ...args], {
-      input,
-      encoding: 'utf8',
-      cwd: workspace,
-      env: { ...process.env, HOME: home, DSH_SESSION_ID: SESSION, NO_COLOR: '1', ...extraEnv },
-    });
-    assert.equal(result.error, undefined, `spawn failed: ${String(result.error)}`);
-    return result;
-  };
-
-  const ok = (args, input, extraEnv) => {
-    const result = run(args, input, extraEnv);
-    assert.equal(result.status, 0, `expected success for ${args.join(' ')}, stderr: ${result.stderr}`);
-    assert.equal(result.stderr, '', 'a successful command writes nothing to stderr');
-    return parse(result.stdout);
-  };
-
-  const failed = (args, input, extraEnv) => {
-    const result = run(args, input, extraEnv);
-    assert.notEqual(result.status, 0, `expected failure for ${args.join(' ')}`);
-    return { status: result.status, payload: parse(result.stderr) };
-  };
-
-  const newBlueprint = (id = 'login-page', title = '登录页') => ok(['blueprint', 'new', '--id', id, '--title', title]);
-  const useBlueprint = (id) => ok(['blueprint', 'use', id]);
-  const apply = (request, extra = []) => ok(['apply', ...extra], JSON.stringify(request));
-  const view = (id, extra = []) => ok(id === undefined ? ['view', ...extra] : ['view', id, ...extra]);
-  const find = (args) => ok(['find', ...args]);
-  const firstId = (args) => {
-    const matches = find(args).matches;
-    assert.ok(matches.length > 0, `expected a match for ${args.join(' ')}`);
-    return matches[0].id;
-  };
-
-  const blueprintPath = (id) => join(workspace, '.dsh-blueprint', 'blueprints', id, `${id}.blueprint.json`);
-  const documentFile = (id = 'login-page') => readFileSync(blueprintPath(id), 'utf8');
-  const writeDocument = (id, value) => {
-    mkdirSync(dirname(blueprintPath(id)), { recursive: true });
-    writeFileSync(blueprintPath(id), JSON.stringify(value));
-  };
-  const writeLegacyDocument = (document) => {
-    mkdirSync(sessionDir, { recursive: true });
-    writeFileSync(join(sessionDir, 'document.json'), JSON.stringify({ schema: 2, revision: 1, updatedAt: 'x', updatedBy: 'cli', document }));
-  };
-  const writeSelection = (selections) => {
-    mkdirSync(sessionDir, { recursive: true });
-    writeFileSync(join(sessionDir, 'selection.json'), JSON.stringify({ selections, updatedAt: 'test' }));
-  };
-
-  return {
-    home,
-    workspace,
-    run,
-    ok,
-    failed,
-    newBlueprint,
-    useBlueprint,
-    apply,
-    view,
-    find,
-    firstId,
-    blueprintPath,
-    sessionDir,
-    documentFile,
-    writeDocument,
-    writeLegacyDocument,
-    writeSelection,
-    cleanup: () => {
-      rmSync(home, { recursive: true, force: true });
-      rmSync(workspace, { recursive: true, force: true });
-    },
-  };
-}
-
-function parse(text) {
-  const trimmed = text.trim();
-  assert.ok(trimmed.length > 0, 'expected JSON, got nothing');
-  assert.equal(trimmed.split('\n').length, 1, `expected one JSON line, got: ${trimmed}`);
-  return JSON.parse(trimmed);
-}
+import { createSandbox, parseJsonLine as parse, SESSION } from './helpers/cli-sandbox.mjs';
 
 const LOGIN_SCREEN = {
   reason: '生成登录页',
@@ -127,7 +35,7 @@ const LOGIN_SCREEN = {
 
 let box;
 beforeEach(() => {
-  box = sandbox();
+  box = createSandbox();
   box.newBlueprint();
 });
 afterEach(() => {
@@ -176,7 +84,7 @@ describe('蓝图', () => {
   });
 
   test('工作区里没有蓝图时说清楚怎么建', () => {
-    const empty = sandbox();
+    const empty = createSandbox();
     try {
       const { status, payload } = empty.failed(['view']);
       assert.equal(status, 4);
@@ -724,6 +632,21 @@ describe('编组', () => {
   });
 });
 
+describe('命令行边界', () => {
+  test('越界的布局列数和描边透明度直接拒绝，不替用户夹取', () => {
+    box.apply(LOGIN_SCREEN);
+    const buttonId = box.firstId(['--name', '登录按钮']);
+
+    const columns = box.failed(['set', buttonId, '--layout', 'grid', '--columns', '99']);
+    assert.equal(columns.payload.code, 'VALIDATION_FAILED');
+    assert.equal(box.view(buttonId).node.layout, null);
+
+    const opacity = box.failed(['set', buttonId, '--stroke', '#000000', '--stroke-opacity', '2']);
+    assert.equal(opacity.payload.code, 'VALIDATION_FAILED');
+    assert.equal(box.view(buttonId).node.stroke, null);
+  });
+});
+
 describe('输出契约', () => {
   test('每条命令的输出都是一行 JSON，不带颜色码', () => {
     box.apply(LOGIN_SCREEN);
@@ -939,6 +862,17 @@ describe('图标', () => {
     const grouped = box.ok(['group', `${submitId},${icon.id}`, '--name', '搜索表单'], '', env);
     assert.deepEqual(grouped.members, [submitId, icon.id]);
     assert.match(box.view(icon.id).node.svg, /<circle/);
+  });
+
+  test('set 只换图标也能用，不用连带别的字段', () => {
+    box.ok(['icon', 'install', 'lucide'], '', env);
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    const icon = box.ok(['add', 'icon', '--icon', 'lucide/search', '--name', '搜索图标', '--into', frameId], '', env).node;
+
+    box.ok(['set', icon.id, '--icon', 'lucide/arrow-left'], '', env);
+    const changed = box.view(icon.id).node;
+    assert.equal(changed.iconName, 'arrow-left');
+    assert.match(changed.svg, /M19 12H5/);
   });
 
   test('没下载的集合说明怎么下，不会写出半截图标', () => {

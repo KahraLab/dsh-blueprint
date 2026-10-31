@@ -46,17 +46,6 @@ export function readHistoryIndex(dir: string): SnapshotEntry[] {
   }
 }
 
-export function readSnapshotDocument(dir: string, fileOrId: string): BlueprintDocument | null {
-  const fileName = fileOrId.endsWith('.json') ? fileOrId : `${fileOrId}.json`;
-  const snapshotPath = join(historyDir(dir), fileName);
-  if (!existsSync(snapshotPath)) return null;
-  try {
-    return JSON.parse(readFileSync(snapshotPath, 'utf8')) as BlueprintDocument;
-  } catch {
-    return null;
-  }
-}
-
 export interface RecordSnapshotOptions {
   revision: number;
   reason: string;

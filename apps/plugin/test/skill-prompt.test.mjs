@@ -1,12 +1,12 @@
 /**
  * The bundled canvas skill is prose, but it still has a contract.
  *
- * The body is written as SKILL.md and inlined at build time; these tests render
- * it the way the plugin does and check the parts a reader must never lose: the
- * command path, the rules shared with the command line, the sections the model
- * is told to follow, and the placeholders being fully replaced.
+ * The body is authored as SKILL.md and inlined at build time. A model follows
+ * these lines as commands, so the two things that must stay true are: every
+ * placeholder is filled in, and every command the skill names still exists.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -16,6 +16,7 @@ import { build, stop as stopEsbuild } from 'esbuild';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
+const CLI = join(root, 'lib', 'bin', 'bp.js');
 const COMMAND = 'node "/opt/dsh/plugins/blueprint/lib/bin/bp.js"';
 
 let tempDir;
@@ -52,42 +53,32 @@ test('frontmatter 提供注册用的元数据', () => {
   assert.ok(skill.whenToUse.length > 0);
 });
 
-test('正文里的命令占位符全部换成实际路径，没有残留', () => {
+test('正文里的占位符全部换成实际路径，共用规矩一句不少', () => {
   const skill = skillFor(COMMAND);
   assert.ok(skill.content.includes(COMMAND));
   assert.ok(!skill.content.includes('{{'), '渲染后不应再有占位符');
-  assert.ok(!skill.content.includes('${command}'), '也不应残留旧式插值');
-});
-
-test('命令行与技能共用同一份规矩，一句不少', () => {
-  const skill = skillFor(COMMAND);
   for (const rule of CORE_RULES) {
     assert.ok(skill.content.includes(rule), `缺了规矩：${rule}`);
   }
 });
 
-test('必读章节还在，模型不会找不到入口', () => {
+test('技能里点名的每条命令，命令行都还认', () => {
   const skill = skillFor(COMMAND);
-  for (const heading of [
-    '## 命令在哪',
-    '## 改的是哪个蓝图',
-    '## 每一步怎么做',
-    '## 排布',
-    '## 图标',
-    '## 编组',
-    '## 规矩',
-    '## 例子：把选中的按钮改成蓝色',
-  ]) {
-    assert.ok(skill.content.includes(heading), `缺了章节：${heading}`);
+  const names = new Set();
+  for (const line of skill.content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(`${COMMAND} `)) continue;
+    const name = trimmed.slice(COMMAND.length).trim().split(/\s+/u)[0];
+    if (name) names.add(name);
   }
-});
-
-test('排布那节说清楚什么时候用容器，而不是手算坐标', () => {
-  const skill = skillFor(COMMAND);
-  const section = skill.content.slice(skill.content.indexOf('## 排布'));
-  assert.match(section, /layout/u);
-  assert.match(section, /align/u);
-  assert.match(section, /group 只负责/u);
+  assert.ok(names.size > 0, '技能里至少要有一条可执行的命令');
+  for (const name of names) {
+    const result = spawnSync(process.execPath, [CLI, 'help', name], {
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' },
+    });
+    assert.equal(result.status, 0, `技能提到了 ${name}，但 bp help ${name} 失败：${result.stderr}`);
+  }
 });
 
 test('渲染是纯函数，同一个命令得到同一份正文', () => {

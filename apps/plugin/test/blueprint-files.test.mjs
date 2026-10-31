@@ -3,11 +3,11 @@
  *
  * Both actions are reached from the gallery's right-click menu, so the rules
  * worth protecting are: a rename never moves the directory or the revision, a
- * delete clears the pointers that named the file, and a broken file can still be
- * removed.
+ * delete clears the pointers that named the file but keeps the bytes in the
+ * trash, and a broken file can still be removed.
  */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -59,14 +59,23 @@ test('重命名只改显示名，不动 id、目录和 revision', async () => {
   assert.throws(() => blueprint.renameBlueprint(workspace, 'demo', '   '), /标题/);
 });
 
-test('删除会清掉 Session 与工作区指针', () => {
+test('新建和改名用同一条标题长度规则', () => {
+  assert.throws(() => blueprint.createBlueprint(workspace, { id: 'too-long', title: '长'.repeat(81) }), /标题/);
+  blueprint.createBlueprint(workspace, { id: 'short-enough', title: '短标题' });
+});
+
+test('删除把蓝图移进回收站，并清掉 Session 与工作区指针', () => {
   blueprint.createBlueprint(workspace, { id: 'other', title: '另一份' });
   blueprint.writeBlueprintPointer(workspace, 'other', SESSION);
   assert.equal(blueprint.readBlueprintPointer(workspace, SESSION), 'other');
 
   blueprint.deleteBlueprint(workspace, 'other', SESSION);
 
-  assert.equal(existsSync(join(workspace, '.dsh-blueprint', 'blueprints', 'other')), false);
+  assert.equal(existsSync(join(workspace, '.dsh-blueprint', 'blueprints', 'other')), false, '列表里不再出现');
+  const trash = join(workspace, '.dsh-blueprint', 'trash', 'blueprints');
+  const archived = readdirSync(trash).filter((name) => name.startsWith('other-'));
+  assert.equal(archived.length, 1, '目录被移进回收站，而不是直接抹掉');
+  assert.equal(existsSync(join(trash, archived[0], 'other.blueprint.json')), true, '内容还在，能手工找回');
   assert.equal(blueprint.readBlueprintPointer(workspace, SESSION), null);
   assert.equal(blueprint.readBlueprintPointer(workspace), null);
 });
@@ -78,6 +87,10 @@ test('坏掉的蓝图也能删掉', async () => {
   assert.throws(() => blueprint.readBlueprint(workspace, 'broken'), /JSON/);
   blueprint.deleteBlueprint(workspace, 'broken');
   assert.equal(existsSync(join(workspace, '.dsh-blueprint', 'blueprints', 'broken')), false);
+  const trash = join(workspace, '.dsh-blueprint', 'trash', 'blueprints');
+  const archived = readdirSync(trash).filter((name) => name.startsWith('broken-'));
+  assert.equal(archived.length, 1);
+  assert.equal(await readFile(join(trash, archived[0], 'broken.blueprint.json'), 'utf8'), '{ 这不是 JSON');
 });
 
 test('删除不存在的蓝图会报错，而不是悄悄成功', () => {

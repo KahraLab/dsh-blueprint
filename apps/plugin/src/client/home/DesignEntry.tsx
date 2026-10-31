@@ -30,6 +30,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
   const sending = useHomeUi((state) => state.sending);
   const error = useHomeUi((state) => state.error);
   const setPrompt = useHomeUi((state) => state.setPrompt);
+  const offerStarter = useHomeUi((state) => state.offerStarter);
   const permission = useHomeUi((state) => state.permission);
   const setPermission = useHomeUi((state) => state.setPermission);
   const setSending = useHomeUi((state) => state.setSending);
@@ -69,6 +70,14 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
     };
   }, [ctx, t]);
 
+  // A new page starts from an editable canvas instruction. It is not sent by
+  // itself: the send button stays disabled until the user adds their request.
+  const starter = t('home.starter');
+  const starterOnly = prompt.trim() === starter.trim();
+  useEffect(() => {
+    offerStarter(starter);
+  }, [offerStarter, starter]);
+
   const submit = useCallback(async (): Promise<void> => {
     if (sending) return;
     if (workspace === null) {
@@ -76,7 +85,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
       return;
     }
     const text = prompt.trim();
-    if (text === '') return;
+    if (text === '' || text === starter.trim()) return;
     setSending(true);
     setError(null);
     try {
@@ -85,7 +94,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
       setSending(false);
       setError(describeNavigationError(reason, t));
     }
-  }, [ctx, permission, prompt, sending, setError, setSending, t, workspace]);
+  }, [ctx, permission, prompt, sending, setError, setSending, starter, t, workspace]);
 
   return (
     <div className="bp-entry-page">
@@ -132,7 +141,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
             <button
               type="button"
               className="bp-entry-send"
-              disabled={sending || prompt.trim() === '' || workspace === null}
+              disabled={sending || prompt.trim() === '' || starterOnly || workspace === null}
               aria-label={sending ? t('home.sending') : t('home.send')}
               title={sending ? t('home.sending') : t('home.send')}
               onClick={() => void submit()}
@@ -142,6 +151,7 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
           </div>
         </div>
 
+        {starterOnly ? <p className="bp-entry-note">{t('home.starterHint')}</p> : null}
         {workspaces.phase === 'pending' ? <p className="bp-entry-note">{t('home.loading')}</p> : null}
         {workspaces.phase !== 'pending' && workspace === null ? <p className="bp-entry-error">{t('home.noWorkspace')}</p> : null}
         {error === null ? null : <p className="bp-entry-error" role="alert">{error}</p>}

@@ -2,9 +2,9 @@
  * The read side of the protocol: what is on the canvas, what the user pointed
  * at, and which nodes match a search.
  *
- * Every answer is one JSON-ready object carrying the document revision, so the
- * caller can quote the revision back when it writes. Pure functions over the
- * stored document; the command line only prints what they return.
+ * Every answer is one JSON-ready object carrying the document revision and the
+ * document it was read from. Pure functions over the stored document; the
+ * command line only prints what they return.
  */
 import type { Frame, Layer, LayerKind } from '../domain/document';
 import { LAYER_KINDS } from '../domain/fields';

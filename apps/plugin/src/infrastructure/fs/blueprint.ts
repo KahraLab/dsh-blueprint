@@ -270,11 +270,15 @@ export function createBlueprint(
   if (blueprintExists(root, id)) {
     throw new BlueprintError(`蓝图「${id}」已经存在；换一个 id，或者直接打开它`, 'exists');
   }
+  const title = options.title?.trim() || '未命名蓝图';
+  if (title.length > TITLE_MAX_LENGTH) {
+    throw new BlueprintError(`蓝图标题要 1–${TITLE_MAX_LENGTH} 个字`, 'id');
+  }
   const now = new Date().toISOString();
   const blueprint: StoredDocument = {
     schema: DOCUMENT_SCHEMA,
     id,
-    title: options.title?.trim() || '未命名蓝图',
+    title,
     createdAt: now,
     revision: 0,
     updatedAt: now,
@@ -362,9 +366,26 @@ export function renameBlueprint(root: string, id: string, title: string): Stored
   return blueprint;
 }
 
+/** Where deleted blueprints live, out of the gallery but still on disk. */
+export function blueprintsTrashDir(root: string): string {
+  return join(dataDir(root), 'trash', 'blueprints');
+}
+
+/** Move a blueprint directory aside instead of erasing it. */
+function archiveBlueprint(root: string, id: string): void {
+  const dir = blueprintDir(root, id);
+  const trash = blueprintsTrashDir(root);
+  mkdirSync(trash, { recursive: true });
+  const stamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
+  let target = join(trash, `${id}-${stamp}`);
+  for (let suffix = 2; existsSync(target); suffix += 1) target = join(trash, `${id}-${stamp}-${suffix}`);
+  renameSync(dir, target);
+}
+
 /**
- * Remove a blueprint and any pointer that still names it, so the panel and the
- * command line do not keep answering with a file that is gone.
+ * Remove a blueprint from the gallery and from any pointer that still names it.
+ * The directory moves to `.dsh-blueprint/trash/blueprints/` rather than being
+ * erased, so a mistaken delete can still be recovered by hand.
  */
 export function deleteBlueprint(root: string, id: string, sessionId?: string | null): void {
   const blueprintId = assertBlueprintId(id);
@@ -375,7 +396,7 @@ export function deleteBlueprint(root: string, id: string, sessionId?: string | n
   if (!existsSync(dir)) {
     throw new BlueprintError(`找不到蓝图「${blueprintId}」：${dir} 不存在`, 'missing');
   }
-  rmSync(dir, { recursive: true, force: true });
+  archiveBlueprint(root, blueprintId);
   forgetSummary(root, blueprintId);
   forgetPointer(sessionPointerFileIfAny(sessionId), blueprintId);
   forgetPointer(workspaceFile(root), blueprintId);

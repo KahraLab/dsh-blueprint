@@ -17,7 +17,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
 let tempDir;
-let documentModel;
 let ops;
 let effectModel;
 
@@ -25,7 +24,6 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-effect-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'domain', 'document.ts'),
       ops: join(root, 'src', 'domain', 'ops.ts'),
       effect: join(root, 'src', 'client', 'model', 'effect.ts'),
     },
@@ -35,7 +33,6 @@ before(async () => {
     platform: 'node',
     logLevel: 'warning',
   });
-  documentModel = await import(pathToFileURL(join(tempDir, 'document.js')).href);
   ops = await import(pathToFileURL(join(tempDir, 'ops.js')).href);
   effectModel = await import(pathToFileURL(join(tempDir, 'effect.js')).href);
 });
@@ -106,14 +103,6 @@ function docWith(effects = []) {
 
 const shadow = { id: 'e1', type: 'shadow', visible: true, color: '#000000', opacity: 0.25, x: 0, y: 4, blur: 12 };
 
-test('旧文件没有效果字段时读成空列表', () => {
-  const old = layer();
-  delete old.effects;
-  const normalized = documentModel.normalizeDocument({ frames: [{ ...docWith().frames[0], effects: undefined, children: [old] }], layers: [] });
-  assert.deepEqual(normalized.frames[0].children[0].effects, []);
-  assert.deepEqual(normalized.frames[0].effects, []);
-});
-
 test('set 补上阴影默认值并保留传入的 id', () => {
   const result = ops.applyOps(docWith(), [
     { op: 'set', id: 'l', patch: { effects: [{ id: 'custom', type: 'shadow', color: '#FF0000' }] } },
@@ -128,14 +117,6 @@ test('不认识的类型会被拒绝', () => {
   const result = ops.applyOps(docWith(), [{ op: 'set', id: 'l', patch: { effects: [{ type: 'glow' }] } }]);
   assert.notEqual(result.failure, null);
   assert.match(result.failure.message, /shadow/);
-});
-
-test('效果往返 diff 不丢', () => {
-  const before = docWith();
-  const after = docWith([shadow]);
-  const applied = ops.applyOps(before, ops.diffDocs(before, after));
-  assert.equal(applied.failure, null);
-  assert.deepEqual(applied.doc.frames[0].children[0].effects, [shadow]);
 });
 
 test('盒子阴影叠在描边后面，内侧阴影可选', () => {

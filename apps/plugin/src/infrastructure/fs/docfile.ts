@@ -10,8 +10,9 @@
  *   - a write that changes nothing is not a new version, so no reader is woken
  *     for it and nobody's undo history is thrown away over a no-op.
  *
- * Writes are last-write-wins: the whole document is merged by node id, so two
- * people editing different nodes both keep their change.
+ * Writes are last-write-wins: the operations are applied to the newest file
+ * while the lock is held, so two people editing different nodes both keep their
+ * change, and the later writer wins when they touch the same field.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
@@ -119,11 +120,16 @@ export function changeDocument(filePath: string, request: ChangeRequest): Change
       }
       next = applied.doc;
     } else if (request.document) {
-      next = normalizeDocument(request.document);
+      next = request.document;
     } else {
       return rejected(current, { error: '既没有 ops 也没有 document', failure: null, problems: [] });
     }
 
+    // Every writer — the command line, the canvas, a later model patch — leaves
+    // the same canonical shape on disk. Normalising before comparing also keeps
+    // a no-op rewrite from looking like a change just because a default was
+    // missing from the payload.
+    next = normalizeDocument(next);
     const problems = validateDocument(next);
     if (problems.length > 0) {
       return rejected(current, {

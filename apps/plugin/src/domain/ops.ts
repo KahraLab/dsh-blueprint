@@ -252,7 +252,6 @@ function asLayer(node: Node): Layer {
 
 // ---------------------------------------------------------------- validation
 
-/** Check a node has the shape the canvas can draw, and a free id. */
 /** A node has to be shaped like something the canvas can draw, and carry a free id. */
 function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): string | null {
   if (!node || typeof node !== 'object') return 'node 缺了';
@@ -264,9 +263,8 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
     const frame = asFrame(node);
     const bad = finite(frame, ['x', 'y', 'width', 'height', 'opacity']);
     if (bad) return `画板 ${frame.id} 的 ${bad} 不是数字`;
-    if (typeof frame.radius !== 'undefined' && (typeof frame.radius !== 'number' || !Number.isFinite(frame.radius))) {
-      return `画板 ${frame.id} 的 radius 不是数字`;
-    }
+    const badOptional = finiteIfPresent(frame, ['radius']);
+    if (badOptional) return `画板 ${frame.id} 的 ${badOptional} 不是数字`;
     if (frame.stroke !== undefined && frame.stroke !== null && typeof frame.stroke !== 'object') {
       return `画板 ${frame.id} 的 stroke 要么是 null，要么是 { color, width, align }`;
     }
@@ -282,8 +280,12 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
 
   const layer = asLayer(node);
   if (!LAYER_KINDS.includes(layer.kind)) return `图层 ${layer.id} 的 kind 不认识：${String(layer.kind)}`;
-  const bad = finite(layer, ['x', 'y', 'width', 'height', 'opacity', 'radius', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']);
+  // Geometry is what the canvas manipulates; newer style fields are optional in
+  // a saved snapshot and the write pipeline fills their defaults.
+  const bad = finite(layer, ['x', 'y', 'width', 'height', 'opacity']);
   if (bad) return `图层 ${layer.id} 的 ${bad} 不是数字`;
+  const badOptional = finiteIfPresent(layer, ['radius', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'rotation']);
+  if (badOptional) return `图层 ${layer.id} 的 ${badOptional} 不是数字`;
   if (!Array.isArray(layer.fills)) return `图层 ${layer.id} 的 fills 要是数组`;
   if (!Array.isArray(layer.children)) return `图层 ${layer.id} 的 children 要是数组`;
   if (typeof layer.text !== 'string') return `图层 ${layer.id} 的 text 要是字符串`;
@@ -292,9 +294,6 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
   }
   if (layer.effects !== undefined && !Array.isArray(layer.effects)) return `图层 ${layer.id} 的 effects 要是数组`;
   if (layer.clipContent !== undefined && typeof layer.clipContent !== 'boolean') return `图层 ${layer.id} 的 clipContent 要是 true 或 false`;
-  if (layer.rotation !== undefined && (typeof layer.rotation !== 'number' || !Number.isFinite(layer.rotation))) {
-    return `图层 ${layer.id} 的 rotation 不是数字`;
-  }
   return null;
 }
 
@@ -303,6 +302,16 @@ function finite(node: object, fields: readonly string[]): string | null {
   for (const field of fields) {
     const value = record[field];
     if (typeof value !== 'number' || !Number.isFinite(value)) return field;
+  }
+  return null;
+}
+
+/** Missing is fine (an older client did not know the field); a wrong type is not. */
+function finiteIfPresent(node: object, fields: readonly string[]): string | null {
+  const record = node as unknown as Record<string, unknown>;
+  for (const field of fields) {
+    const value = record[field];
+    if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value))) return field;
   }
   return null;
 }
@@ -329,6 +338,7 @@ export function validateDocument(doc: BlueprintDocument): string[] {
 
   doc.frames.forEach((frame, index) => {
     claim(frame.id, `第 ${index + 1} 个画板`);
+    if (typeof frame.name !== 'string' || frame.name.trim().length === 0) problems.push(`${frame.id} 缺少名字`);
     walk(frame.children, `画板「${frame.name}」`);
   });
   walk(doc.layers, '画布根层');
@@ -336,6 +346,7 @@ export function validateDocument(doc: BlueprintDocument): string[] {
   function walk(layers: readonly Layer[], where: string): void {
     for (const layer of layers) {
       claim(layer.id, where);
+      if (typeof layer.name !== 'string' || layer.name.trim().length === 0) problems.push(`${layer.id} 缺少名字`);
       if (!LAYER_KINDS.includes(layer.kind)) problems.push(`${layer.id} 的 kind 不认识：${String(layer.kind)}`);
       for (const field of ['x', 'y', 'width', 'height', 'opacity'] as const) {
         if (typeof layer[field] !== 'number' || !Number.isFinite(layer[field])) problems.push(`${layer.id} 的 ${field} 不是数字`);
@@ -409,7 +420,10 @@ function diffList(before: readonly Node[], after: readonly Node[], parent: strin
 }
 
 function withoutChildren(node: Node): Node {
-  return isFrame(node) ? node : { ...asLayer(node), children: [] };
+  // Every new subtree enters the document node by node: the container first,
+  // then its children through `diffList`. Keeping the children here would
+  // insert the same ids twice and the batch would be rejected.
+  return { ...node, children: [] } as Node;
 }
 
 function childrenOf(node: Node): readonly Layer[] {

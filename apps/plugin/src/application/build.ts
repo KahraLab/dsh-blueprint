@@ -89,7 +89,7 @@ function toOperation(doc: BlueprintDocument, wire: WireOp, refs: Map<string, str
     case 'replace': {
       const id = resolveRef(wire.id, refs);
       const found = requireNode(doc, id);
-      return { op: 'replace', id, node: buildNode(wire.node, 'replace', refs, found.kind === 'frame' ? undefined : id, found.node) };
+      return { op: 'replace', id, node: buildNode(wire.node, 'replace', refs, id, found.node) };
     }
   }
 }

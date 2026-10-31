@@ -221,6 +221,8 @@
   "home.title": "蓝图",
   "home.subtitle": "点亮你的下一个灵感。",
   "home.placeholder": "描述你想构建的内容……",
+  "home.starter": "使用 DSH 蓝图来设计：",
+  "home.starterHint": "直接补充你想设计什么就能开始。",
   "home.allBlueprints": "项目蓝图库",
   "home.send": "开始",
   "home.sending": "正在开始",

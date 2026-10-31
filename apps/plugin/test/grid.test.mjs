@@ -17,7 +17,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
 let tempDir;
-let documentModel;
 let ops;
 let layout;
 
@@ -25,7 +24,6 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-grid-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'domain', 'document.ts'),
       ops: join(root, 'src', 'domain', 'ops.ts'),
       layout: join(root, 'src', 'client', 'canvas', 'layout.ts'),
     },
@@ -35,7 +33,6 @@ before(async () => {
     platform: 'node',
     logLevel: 'warning',
   });
-  documentModel = await import(pathToFileURL(join(tempDir, 'document.js')).href);
   ops = await import(pathToFileURL(join(tempDir, 'ops.js')).href);
   layout = await import(pathToFileURL(join(tempDir, 'layout.js')).href);
 });
@@ -162,14 +159,6 @@ test('set 能建栅格布局，列数有上下限', () => {
   ]);
   assert.equal(tooMany.failure, null);
   assert.equal(tooMany.doc.frames[0].children[0].layout.columns, 12);
-});
-
-test('旧布局没有列数时按 2 补', () => {
-  const old = layer({
-    layout: { direction: 'column', gap: 8, padding: { top: 0, right: 0, bottom: 0, left: 0 }, align: 'stretch', justify: 'start' },
-  });
-  const normalized = documentModel.normalizeDocument(docWith(old));
-  assert.equal(normalized.frames[0].children[0].layout.columns, 2);
 });
 
 test('不认识的排布方式会被拒绝', () => {

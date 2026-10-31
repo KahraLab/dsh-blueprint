@@ -29,6 +29,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** The document URL this module state belongs to; polls of stale panels are ignored. */
 let activeUrl: string | null = null;
 let saveWatchdog: ReturnType<typeof setTimeout> | null = null;
+/** Writes are serialised: a save that starts while another is in flight waits. */
+let saveChain: Promise<void> = Promise.resolve();
 /** A read is in flight; the poll below must not stack another one on top. */
 let loading = false;
 /** Warn once per outage instead of every poll tick. */
@@ -93,15 +95,23 @@ async function sendOps(url: string, ops: ReturnType<typeof diffDocs>): Promise<C
  * is used as given: gating on a module-wide "active URL" here once left the
  * header stuck on 保存中 when two panels coexisted.
  */
-async function flush(url: string): Promise<void> {
-  try {
-    await flushOnce(url);
-  } catch (error) {
-    console.warn('[blueprint] 保存失败', error);
-    useBlueprint.setState({ saveState: 'error' });
-  } finally {
-    clearSaveWatchdog();
-  }
+function flush(url: string): Promise<void> {
+  const run = saveChain.then(async () => {
+    // A queued save starts long after the edit that scheduled it, so give this
+    // attempt its own watchdog; the previous one was cleared when it finished.
+    armSaveWatchdog();
+    try {
+      await flushOnce(url);
+    } catch (error) {
+      console.warn('[blueprint] 保存失败', error);
+      useBlueprint.setState({ saveState: 'error' });
+    } finally {
+      clearSaveWatchdog();
+    }
+  });
+  // Keep the chain alive even when this save rejected; the next one still runs.
+  saveChain = run.catch(() => {});
+  return run;
 }
 
 async function flushOnce(url: string): Promise<void> {
@@ -126,6 +136,26 @@ async function flushOnce(url: string): Promise<void> {
   }
 
   syncedRevision = reply.revision;
+
+  // The user kept editing while the request was in flight. Keep their newer
+  // document and use the version we sent as the next diff base: the next save
+  // then sends only the newer edits, so changes another writer made in the
+  // meantime are not overwritten by a page-wide replace.
+  if (useBlueprint.getState().doc !== local) {
+    syncedDoc = local;
+    useBlueprint.setState({ saveState: 'saving' });
+    // Normally the edit that changed the document also scheduled the next
+    // save. If it did not (the timer already fired into the queue, for
+    // example), make sure that newer state is not left waiting forever.
+    if (saveTimer === null) {
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        void flush(url);
+      }, 0);
+    }
+    return;
+  }
+
   // Keep one object as "the copy we agree on": when the file holds exactly what
   // we just wrote, that is our local document, not the parsed copy of it.
   const agree = sameDocument(reply.document, local) ? local : reply.document;

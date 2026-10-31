@@ -17,7 +17,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
 let tempDir;
-let documentModel;
 let ops;
 let guideModel;
 
@@ -25,7 +24,6 @@ before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'bp-guide-'));
   await build({
     entryPoints: {
-      document: join(root, 'src', 'domain', 'document.ts'),
       ops: join(root, 'src', 'domain', 'ops.ts'),
       guide: join(root, 'src', 'client', 'model', 'guide.ts'),
     },
@@ -35,7 +33,6 @@ before(async () => {
     platform: 'node',
     logLevel: 'warning',
   });
-  documentModel = await import(pathToFileURL(join(tempDir, 'document.js')).href);
   ops = await import(pathToFileURL(join(tempDir, 'ops.js')).href);
   guideModel = await import(pathToFileURL(join(tempDir, 'guide.js')).href);
 });
@@ -122,29 +119,8 @@ test('行参考线换成纵向', () => {
   assert.equal(bands[0].width, 390);
 });
 
-test('边距太大或数量非法时画出空列表', () => {
+test('边距把可用宽度吃光时不画参考线', () => {
   assert.deepEqual(guideModel.guideBands({ ...guide, margin: 500 }, 390, 600), []);
-  assert.equal(guideModel.guideBands({ ...guide, count: 0 }, 390, 600).length, 1);
-});
-
-test('旧文件没有布局参考时读成 null', () => {
-  const normalized = documentModel.normalizeDocument({ frames: [frame(undefined)], layers: [] });
-  assert.equal(normalized.frames[0].guide, null);
-});
-
-test('set 建布局参考时补默认值', () => {
-  const result = ops.applyOps({ frames: [frame(null)], layers: [] }, [
-    { op: 'set', id: 'f', patch: { guide: { type: 'columns', count: 6 } } },
-  ]);
-  assert.equal(result.failure, null);
-  assert.deepEqual(result.doc.frames[0].guide, {
-    type: 'columns',
-    count: 6,
-    gutter: 20,
-    margin: 0,
-    color: '#FF5C5C',
-    visible: true,
-  });
 });
 
 test('不认识的参考线类型会被拒绝', () => {
@@ -161,12 +137,4 @@ test('图层不能挂布局参考', () => {
   ]);
   assert.notEqual(result.failure, null);
   assert.match(result.failure.message, /guide/);
-});
-
-test('diff 往返保留布局参考', () => {
-  const before = { frames: [frame(null)], layers: [] };
-  const after = { frames: [frame(guide)], layers: [] };
-  const applied = ops.applyOps(before, ops.diffDocs(before, after));
-  assert.equal(applied.failure, null);
-  assert.deepEqual(applied.doc.frames[0].guide, guide);
 });

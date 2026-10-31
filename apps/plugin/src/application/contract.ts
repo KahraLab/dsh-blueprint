@@ -8,7 +8,7 @@
  *   - the TypeScript types the rest of the protocol layer works with.
  *
  * Field rules themselves are not written here. They come from
- * `model/fields.ts`, the same table the canvas is checked against.
+ * `domain/fields.ts`, the same table the canvas is checked against.
  */
 import * as z from 'zod';
 import {
@@ -23,6 +23,7 @@ import {
   STROKE_ALIGNS,
   type FieldSpec,
 } from '../domain/fields';
+import { GUIDE_LIMITS, STACK_LIMITS } from '../domain/document';
 import { ProtocolError } from './errors';
 
 /** Names the canvas makes up: 画板1, 矩形2, … A model has to do better. */
@@ -51,7 +52,10 @@ function zodFor(spec: FieldSpec): z.ZodType {
       return z.array(
         z.union([
           z.string().min(1),
-          z.strictObject({ color: z.string().min(1), opacity: z.number().min(0).max(1).optional() }, { error: 'fills 里每项要么是颜色字符串，要么是 { color, opacity }' }),
+          z.strictObject(
+            { id: z.string().min(1).optional(), color: z.string().min(1), opacity: z.number().min(0).max(1).optional() },
+            { error: 'fills 里每项要么是颜色字符串，要么是 { color, opacity }' },
+          ),
         ]),
       );
     case 'stroke':
@@ -71,7 +75,7 @@ function zodFor(spec: FieldSpec): z.ZodType {
         z.null(),
         z.strictObject({
           type: z.enum(['columns', 'rows']),
-          count: z.number().int().min(1).max(24).optional(),
+          count: z.number().int().min(GUIDE_LIMITS.minCount).max(GUIDE_LIMITS.maxCount).optional(),
           gutter: z.number().min(0).optional(),
           margin: z.number().min(0).optional(),
           color: z.string().min(1).optional(),
@@ -86,6 +90,7 @@ function zodFor(spec: FieldSpec): z.ZodType {
 function effectShape(): z.ZodType {
   return z.discriminatedUnion('type', [
     z.strictObject({
+      id: z.string().min(1).optional(),
       type: z.enum(['shadow', 'innerShadow']),
       visible: z.boolean().optional(),
       color: z.string().min(1).optional(),
@@ -95,6 +100,7 @@ function effectShape(): z.ZodType {
       blur: z.number().min(0).optional(),
     }),
     z.strictObject({
+      id: z.string().min(1).optional(),
       type: z.enum(['blur', 'backgroundBlur']),
       visible: z.boolean().optional(),
       radius: z.number().min(0).optional(),
@@ -108,7 +114,7 @@ function layoutShape(): z.ZodType {
     z.null(),
     z.strictObject({
       direction: z.enum([...DIRECTIONS] as [string, ...string[]]),
-      columns: z.number().int().min(1).max(12).optional(),
+      columns: z.number().int().min(STACK_LIMITS.minColumns).max(STACK_LIMITS.maxColumns).optional(),
       gap: z.number().min(0).optional(),
       padding: padding.optional(),
       align: z.enum([...ALIGNS] as [string, ...string[]]).optional(),

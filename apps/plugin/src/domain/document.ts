@@ -252,12 +252,15 @@ export function makeStroke(color = DEFAULT_STROKE, width = 1, align: StrokeAlign
 export const EFFECT_TYPES: readonly EffectType[] = ['shadow', 'innerShadow', 'blur', 'backgroundBlur'];
 
 /** A shadow starts as a soft lift below the object, the way one usually does. */
+const SHADOW_DEFAULTS = { opacity: 0.25, x: 0, y: 4, blur: 12 } as const;
+const BLUR_DEFAULTS = { radius: 8 } as const;
+
 export function makeShadowEffect(type: 'shadow' | 'innerShadow' = 'shadow'): ShadowEffect {
-  return { id: nextId('effect'), type, visible: true, color: DEFAULT_STROKE, opacity: 0.25, x: 0, y: 4, blur: 12 };
+  return { id: nextId('effect'), type, visible: true, color: DEFAULT_STROKE, ...SHADOW_DEFAULTS };
 }
 
 export function makeBlurEffect(type: 'blur' | 'backgroundBlur' = 'blur'): BlurEffect {
-  return { id: nextId('effect'), type, visible: true, radius: 8 };
+  return { id: nextId('effect'), type, visible: true, ...BLUR_DEFAULTS };
 }
 
 export function makeEffect(type: EffectType = 'shadow'): EffectStyle {
@@ -282,18 +285,19 @@ export function normalizeEffects(effects: readonly EffectStyle[] | undefined): E
         type: effect.type,
         visible,
         color: typeof effect.color === 'string' && effect.color !== '' ? effect.color : DEFAULT_STROKE,
-        opacity: Number.isFinite(effect.opacity) ? clamp(effect.opacity, 0, 1) : 0.25,
-        x: Number.isFinite(effect.x) ? effect.x : 0,
-        y: Number.isFinite(effect.y) ? effect.y : 4,
-        blur: Number.isFinite(effect.blur) ? Math.max(0, effect.blur) : 12,
+        opacity: Number.isFinite(effect.opacity) ? clamp(effect.opacity, 0, 1) : SHADOW_DEFAULTS.opacity,
+        x: Number.isFinite(effect.x) ? effect.x : SHADOW_DEFAULTS.x,
+        y: Number.isFinite(effect.y) ? effect.y : SHADOW_DEFAULTS.y,
+        blur: Number.isFinite(effect.blur) ? Math.max(0, effect.blur) : SHADOW_DEFAULTS.blur,
       });
       continue;
     }
+    if (effect.type !== 'blur' && effect.type !== 'backgroundBlur') continue;
     normalized.push({
       id,
       type: effect.type,
       visible,
-      radius: Number.isFinite(effect.radius) ? Math.max(0, effect.radius) : 8,
+      radius: Number.isFinite(effect.radius) ? Math.max(0, effect.radius) : BLUR_DEFAULTS.radius,
     });
   }
   return normalized;
@@ -308,12 +312,16 @@ export function normalizeEffects(effects: readonly EffectStyle[] | undefined): E
 export const GUIDE_LIMITS = {
   minCount: 1,
   maxCount: 24,
-  /** 打开参考线时先给几列。 */
+  /** 打开参考线时先给几列、多大边距。 */
   initialCount: 4,
-  /** 旧文件缺少这个字段时按几列补。 */
+  initialGutter: 16,
+  initialMargin: 16,
+  initialColor: '#FF5C5C',
+  /** 旧文件缺少这个字段时按这些值补。 */
   fallbackCount: 12,
   fallbackGutter: 20,
   fallbackMargin: 0,
+  fallbackColor: '#FF5C5C',
 } as const;
 
 /** 自动布局里栅格的列数边界，同样只有这一份。 */
@@ -322,15 +330,17 @@ export const STACK_LIMITS = {
   maxColumns: 12,
   initialColumns: 2,
   fallbackGap: 8,
+  fallbackAlign: 'stretch',
+  fallbackJustify: 'start',
 } as const;
 
 export function makeFrameGuide(overrides: Partial<FrameGuide> = {}): FrameGuide {
   return {
     type: 'columns',
     count: GUIDE_LIMITS.initialCount,
-    gutter: 16,
-    margin: 16,
-    color: '#FF5C5C',
+    gutter: GUIDE_LIMITS.initialGutter,
+    margin: GUIDE_LIMITS.initialMargin,
+    color: GUIDE_LIMITS.initialColor,
     visible: true,
     ...overrides,
   };
@@ -346,7 +356,7 @@ export function normalizeGuide(guide: FrameGuide | null | undefined): FrameGuide
       : GUIDE_LIMITS.fallbackCount,
     gutter: Number.isFinite(guide.gutter) ? Math.max(0, guide.gutter) : GUIDE_LIMITS.fallbackGutter,
     margin: Number.isFinite(guide.margin) ? Math.max(0, guide.margin) : GUIDE_LIMITS.fallbackMargin,
-    color: typeof guide.color === 'string' && guide.color !== '' ? guide.color : '#FF5C5C',
+    color: typeof guide.color === 'string' && guide.color !== '' ? guide.color : GUIDE_LIMITS.fallbackColor,
     visible: guide.visible !== false,
   };
 }
@@ -369,10 +379,30 @@ export function makeStackLayout(overrides: Partial<StackLayout> = {}): StackLayo
     columns: STACK_LIMITS.initialColumns,
     gap: STACK_LIMITS.fallbackGap,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
-    align: 'stretch',
-    justify: 'start',
+    align: STACK_LIMITS.fallbackAlign,
+    justify: STACK_LIMITS.fallbackJustify,
     ...overrides,
   };
+}
+
+/** Fill the gaps in a layout read from an older file or sent as a partial patch. */
+export function normalizeStackLayout(layout: StackLayout | null | undefined): StackLayout | null {
+  if (!layout) return null;
+  return makeStackLayout({
+    direction: layout.direction === 'row' || layout.direction === 'grid' ? layout.direction : 'column',
+    columns: Number.isFinite(layout.columns)
+      ? clampInt(layout.columns, STACK_LIMITS.minColumns, STACK_LIMITS.maxColumns)
+      : STACK_LIMITS.initialColumns,
+    gap: Number.isFinite(layout.gap) ? Math.max(0, Math.round(layout.gap)) : STACK_LIMITS.fallbackGap,
+    padding: {
+      top: layout.padding?.top ?? 0,
+      right: layout.padding?.right ?? 0,
+      bottom: layout.padding?.bottom ?? 0,
+      left: layout.padding?.left ?? 0,
+    },
+    align: layout.align ?? STACK_LIMITS.fallbackAlign,
+    justify: layout.justify ?? STACK_LIMITS.fallbackJustify,
+  });
 }
 
 const RECT_DEFAULTS = { width: 200, height: 120, radius: 8 } as const;
@@ -405,42 +435,44 @@ const DEFAULT_FRAME_FILL = '#FFFFFF';
 
 /** Fill in fields that older documents may not have, and lift legacy `frame.layers` into `children`. */
 export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
-  const normalizeFills = (fills: readonly FillStyle[] | undefined, legacy: unknown, fallback: string): FillStyle[] => {
+  const normalizeFills = (fills: readonly (FillStyle | string)[] | undefined, legacy: unknown, fallback: string): FillStyle[] => {
     // An explicit `[]` means "no paint". Only a missing value earns a default.
-    if (Array.isArray(fills)) return fills.map((fill) => ({ ...fill, id: fill.id ?? nextId('fill') }));
+    if (Array.isArray(fills)) {
+      const normalized: FillStyle[] = [];
+      for (const fill of fills) {
+        if (typeof fill === 'string') {
+          if (fill.length > 0) normalized.push(makeFill(fill));
+          continue;
+        }
+        if (!fill || typeof fill !== 'object' || typeof fill.color !== 'string' || fill.color.length === 0) continue;
+        normalized.push({
+          id: typeof fill.id === 'string' && fill.id !== '' ? fill.id : nextId('fill'),
+          color: fill.color,
+          opacity: Number.isFinite(fill.opacity) ? clamp(fill.opacity, 0, 1) : 1,
+        });
+      }
+      return normalized;
+    }
     if (typeof legacy === 'string' && legacy.length > 0 && legacy !== 'transparent') return [makeFill(legacy)];
     return [makeFill(fallback)];
-  };
-
-  const normalizeLayout = (layout: StackLayout | null | undefined): StackLayout | null => {
-    if (!layout) return null;
-    return makeStackLayout({
-      direction: layout.direction === 'row' || layout.direction === 'grid' ? layout.direction : 'column',
-      columns: Number.isFinite(layout.columns)
-        ? clampInt(layout.columns, STACK_LIMITS.minColumns, STACK_LIMITS.maxColumns)
-        : STACK_LIMITS.initialColumns,
-      gap: Number.isFinite(layout.gap) ? layout.gap : STACK_LIMITS.fallbackGap,
-      padding: {
-        top: layout.padding?.top ?? 0,
-        right: layout.padding?.right ?? 0,
-        bottom: layout.padding?.bottom ?? 0,
-        left: layout.padding?.left ?? 0,
-      },
-      align: layout.align ?? 'stretch',
-      justify: layout.justify ?? 'start',
-    });
   };
 
   const normalizeLayer = (layer: Layer): Layer => {
     const raw = layer as Layer & { fill?: unknown; layers?: readonly Layer[] };
     const isText = layer.kind === 'text';
     const isGroup = layer.kind === 'group';
+    const hasLayout = layer.layout !== null && layer.layout !== undefined;
     return {
       ...layer,
+      name: typeof layer.name === 'string' && layer.name.trim().length > 0 ? layer.name : (LAYER_NAMES[layer.kind] ?? '图层'),
+      x: Number.isFinite(layer.x) ? layer.x : 0,
+      y: Number.isFinite(layer.y) ? layer.y : 0,
+      width: Number.isFinite(layer.width) ? layer.width : defaultsFor(layer.kind).width,
+      height: Number.isFinite(layer.height) ? layer.height : defaultsFor(layer.kind).height,
       sizeW: layer.sizeW ?? 'fixed',
       sizeH: layer.sizeH ?? (isText ? 'hug' : 'fixed'),
       children: (layer.children ?? raw.layers ?? []).map(normalizeLayer),
-      layout: normalizeLayout(layer.layout),
+      layout: normalizeStackLayout(layer.layout),
       // A group paints nothing; a missing fill must not grow one.
       fills: isGroup && !Array.isArray(layer.fills)
         ? []
@@ -448,9 +480,13 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       stroke: normalizeStroke(layer.stroke),
       effects: normalizeEffects(layer.effects),
       // A stack has always clipped; a free layer never did.
-      clipContent: layer.clipContent ?? layer.layout !== null,
+      clipContent: layer.clipContent ?? hasLayout,
       rotation: layer.rotation ?? 0,
+      // Older layers predate the radius field; 0 keeps the square corners they
+      // were drawn with. New layers get their kind's default from createLayer.
+      radius: layer.radius ?? 0,
       opacity: layer.opacity ?? 1,
+      text: typeof layer.text === 'string' ? layer.text : '',
       fontFamily: layer.fontFamily ?? 'Figtree',
       fontSize: layer.fontSize ?? 14,
       fontWeight: layer.fontWeight ?? 400,
@@ -473,6 +509,11 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       const raw = frame as Frame & { background?: unknown; layers?: readonly Layer[] };
       return {
         ...frame,
+        name: typeof frame.name === 'string' && frame.name.trim().length > 0 ? frame.name : '画板',
+        x: Number.isFinite(frame.x) ? frame.x : 0,
+        y: Number.isFinite(frame.y) ? frame.y : 0,
+        width: Number.isFinite(frame.width) ? frame.width : FRAME_WIDTH,
+        height: Number.isFinite(frame.height) ? frame.height : FRAME_HEIGHT,
         fills: normalizeFills(frame.fills, raw.background, DEFAULT_FRAME_FILL),
         stroke: normalizeStroke(frame.stroke),
         effects: normalizeEffects(frame.effects),
@@ -482,7 +523,7 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
         opacity: frame.opacity ?? 1,
         visible: frame.visible ?? true,
         locked: frame.locked ?? false,
-        layout: normalizeLayout(frame.layout),
+        layout: normalizeStackLayout(frame.layout),
         children: (frame.children ?? raw.layers ?? []).map(normalizeLayer),
       };
     }),
@@ -549,7 +590,7 @@ function mapTree(layers: readonly Layer[], layerId: string, patch: LayerRectPatc
   const next = layers.map((layer) => {
     if (layer.id === layerId) {
       touched = true;
-      return { ...layer, ...patch };
+      return { ...layer, ...withLayoutTransition(layer, patch) };
     }
     if (layer.children.length === 0) return layer;
     const children = mapTree(layer.children, layerId, patch);
@@ -583,10 +624,42 @@ function removeFromTree(layers: readonly Layer[], ids: ReadonlySet<string>): rea
   return touched ? next : layers;
 }
 
+/**
+ * Stack children have no coordinates of their own. When a container goes back
+ * to free positioning, lay them out top to bottom once so they do not all sit
+ * on top of each other; the user can drag them from there.
+ */
+function freeFlowChildren(children: readonly Layer[]): Layer[] {
+  let cursor = 0;
+  return children.map((child) => {
+    const placed = { ...child, x: 0, y: cursor };
+    cursor += child.height + STACK_LIMITS.fallbackGap;
+    return placed;
+  });
+}
+
+/**
+ * Turning auto-layout on or off carries two rules that every writer must obey:
+ * a flow container clips its children, and leaving the flow gives the children
+ * free coordinates again. Applying the rule here means the canvas, the command
+ * line and a later model write cannot disagree about what the toggle means.
+ */
+function withLayoutTransition(node: Frame | Layer, patch: RectPatch | LayerRectPatch): RectPatch | LayerRectPatch {
+  if (patch.layout === undefined) return patch;
+  const next = { ...patch } as RectPatch & LayerRectPatch;
+  if (next.clipContent === undefined) next.clipContent = next.layout !== null;
+  if (next.layout === null && node.layout !== null && next.children === undefined) {
+    next.children = freeFlowChildren(node.children);
+  }
+  return next;
+}
+
 export function updateFrame(doc: BlueprintDocument, frameId: string, patch: RectPatch): BlueprintDocument {
   return {
     ...doc,
-    frames: doc.frames.map((frame) => (frame.id === frameId ? { ...frame, ...patch } : frame)),
+    frames: doc.frames.map((frame) =>
+      frame.id === frameId ? { ...frame, ...withLayoutTransition(frame, patch) } : frame,
+    ),
   };
 }
 
@@ -874,8 +947,13 @@ export function nextFrameName(doc: BlueprintDocument): string {
 
 /** Build a layer with the same defaults the canvas uses, then apply the given fields. */
 export function createLayer(kind: LayerKind, seed: Partial<Omit<Layer, 'id' | 'children'>> = {}): Layer {
-  const base = makeLayer(kind, seed.name ?? LAYER_NAMES[kind], seed.x ?? 0, seed.y ?? 0);
-  return { ...base, ...defined(seed), id: nextId('layer'), children: [] };
+  const fields = defined(seed);
+  const base = makeLayer(kind, fields.name ?? LAYER_NAMES[kind], fields.x ?? 0, fields.y ?? 0);
+  const layer: Layer = { ...base, ...fields, id: nextId('layer'), children: [] };
+  // A container that starts in flow also starts by clipping, just like one that
+  // was switched to flow from the inspector.
+  if (fields.clipContent === undefined) layer.clipContent = fields.layout !== undefined && fields.layout !== null;
+  return layer;
 }
 
 /** Build a screen: phone sized unless the caller says otherwise. */
@@ -940,25 +1018,13 @@ export function addFrameRect(
   doc: BlueprintDocument,
   rect: { x: number; y: number; width: number; height: number; name?: string },
 ): { doc: BlueprintDocument; frame: Frame } {
-  const frame: Frame = {
-    id: nextId('frame'),
-    name: rect.name ?? nextName(doc.frames.map((frame) => frame.name), '画板'),
-    x: Math.round(rect.x),
-    y: Math.round(rect.y),
-    width: Math.max(40, Math.round(rect.width)),
-    height: Math.max(40, Math.round(rect.height)),
-    fills: [makeFill(DEFAULT_FRAME_FILL)],
-    stroke: null,
-    effects: [],
-    clipContent: true,
-    guide: null,
-    radius: 0,
-    opacity: 1,
-    visible: true,
-    locked: false,
-    layout: null,
-    children: [],
-  };
+  const frame = createFrame({
+    name: rect.name ?? nextName(doc.frames.map((item) => item.name), '画板'),
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+  });
   return { doc: { ...doc, frames: [...doc.frames, frame] }, frame };
 }
 
@@ -1034,33 +1100,11 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
 
 /** Turn a layer into a container (or back into a plain shape), keeping child order. */
 export function setLayerLayout(doc: BlueprintDocument, frameId: string | null, layerId: string, layout: StackLayout | null): BlueprintDocument {
-  const layer = findLayer(doc, frameId, layerId);
-  if (!layer) return doc;
-  if (layout === null) {
-    // Flowing children have no coordinates of their own; fall back to a stacked
-    // approximation so the switch back to free positioning keeps the same order.
-    let cursor = 0;
-    const children = layer.children.map((child) => {
-      const placed = { ...child, x: 0, y: cursor };
-      cursor += child.height + 8;
-      return placed;
-    });
-    return updateLayer(doc, frameId, layerId, { layout: null, children, clipContent: false });
-  }
-  return updateLayer(doc, frameId, layerId, { layout, clipContent: true });
+  if (!findLayer(doc, frameId, layerId)) return doc;
+  return updateLayer(doc, frameId, layerId, { layout });
 }
 
 export function setFrameLayout(doc: BlueprintDocument, frameId: string, layout: StackLayout | null): BlueprintDocument {
-  const frame = findFrame(doc, frameId);
-  if (!frame) return doc;
-  if (layout === null) {
-    let cursor = 0;
-    const children = frame.children.map((child) => {
-      const placed = { ...child, x: 0, y: cursor };
-      cursor += child.height + 8;
-      return placed;
-    });
-    return updateFrame(doc, frameId, { layout: null, children });
-  }
+  if (!findFrame(doc, frameId)) return doc;
   return updateFrame(doc, frameId, { layout });
 }
