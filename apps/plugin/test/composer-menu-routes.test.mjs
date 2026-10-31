@@ -110,6 +110,9 @@ before(async () => {
     bundle: true,
     format: 'esm',
     platform: 'node',
+    // The host registers the canvas skill from SKILL.md, inlined the same way
+    // the real build does it.
+    loader: { '.md': 'text' },
     logLevel: 'warning',
   });
 

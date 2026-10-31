@@ -53,10 +53,18 @@ test('一次事件的幅度有上限', () => {
 });
 
 test('行模式与像素模式换算一致', () => {
-  assert.equal(zoom.zoomFactorFor(4, 1), zoom.zoomFactorFor(60, 0));
+  // 取不碰单事件上限的量，否则两边都夹到同一个值，测的就成了夹取本身。
+  assert.equal(zoom.zoomFactorFor(1, 1), zoom.zoomFactorFor(16, 0));
 });
 
-test('触控板的细微增量只走一小步', () => {
-  const factor = zoom.zoomFactorFor(2);
-  assert.ok(factor > 0.99 && factor < 1, `expected a gentle step, got ${factor}`);
+test('一次手势拆成多少段，落点都一样', () => {
+  // 触控板把一次捏合拆成几十个小事件，鼠标滚轮一次就送完整一格。同样的位移
+  // 总量必须落在同一个缩放上，两种设备的手感才对得上。
+  const oneStep = zoom.zoomFactorFor(-20);
+  let manySteps = 1;
+  for (let i = 0; i < 20; i += 1) manySteps *= zoom.zoomFactorFor(-1);
+  assert.ok(Math.abs(oneStep - manySteps) < 1e-9, `一步 ${oneStep} 与拆成二十步 ${manySteps} 不一致`);
 });
+
+// 缩放快慢由调参决定（见 zoom.ts 的 ZOOM_PER_PIXEL），属于手感而非规格，
+// 不写死在测试里：那样一改常量就红，而它本来就是要被改的。

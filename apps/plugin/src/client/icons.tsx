@@ -86,12 +86,19 @@ export function BlueprintLibraryIcon({ size = 14, className }: IconProps): React
   return <LayoutGrid size={size} className={className} strokeWidth={1.7} aria-hidden="true" />;
 }
 
-/** Access mode, one glyph per preset: read-only, workspace write, full access. */
-/** Access mode, one Phosphor glyph per preset: view, workspace write, full. */
-export function PermissionShieldIcon({ mode, size = 14, className }: IconProps & { mode: string }): ReactElement | null {
-  if (mode === 'read-only') return <Icon name="shield-check" size={size} className={className} />;
-  if (mode === 'workspace-write') return <Icon name="shield-slash" size={size} className={className} />;
-  return <Icon name="shield-warning" size={size} className={className} />;
+/**
+ * Access mode, one glyph per preset: an eye to look, a pencil to edit, a key
+ * for everything.
+ *
+ * These used to be shields with a tick, a slash and a warning. A shield says
+ * "protected or not", which left the middle option looking broken and made the
+ * three of them hard to tell apart in a menu.
+ */
+export function PermissionIcon({ mode, size = 14, className }: IconProps & { mode: string }): ReactElement | null {
+  if (mode === 'read-only') return <Icon name="eye" size={size} className={className} />;
+  if (mode === 'workspace-write') return <Icon name="pencil-simple" size={size} className={className} />;
+  if (mode === 'auto') return <Icon name="sparkle" size={size} className={className} />;
+  return <Icon name="key" size={size} className={className} />;
 }
 
 /** One file row in the composer's file menu. */

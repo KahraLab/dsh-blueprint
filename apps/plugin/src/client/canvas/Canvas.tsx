@@ -5,7 +5,7 @@
  * gesture in flight from `useCanvasGestures`, and every painted mark is a small
  * view of its own; nothing here decides geometry or edits the document.
  */
-import { useRef, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
+import { useRef, type MutableRefObject, type ReactElement } from 'react';
 import { findLayer } from '../../domain/document';
 import type {
   BlueprintDocument,
@@ -24,11 +24,12 @@ import type {
   ViewportInfo,
 } from '../editor/types';
 import { intersects } from './geometry';
-import { FrameView, LayerView, type LayerViewContext } from './LayerView';
+import { FrameView, LayerView, type LayerHandlers } from './LayerView';
 import { MultiSelectionBox, ScreenOverlay, SelectionChrome, WorldOverlay } from './Overlay';
 import { useCanvasGestures } from './useCanvasGestures';
 import { useSelectionChrome } from './useSelectionChrome';
 import { useViewport } from './useViewport';
+import { hostStyleFor, worldStyleFor } from './viewportStyle';
 
 export interface CanvasProps {
   viewportRef: MutableRefObject<ViewportInfo | null>;
@@ -66,7 +67,8 @@ export function Canvas({
   onEditingChange,
 }: CanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
-  const { viewport, setViewport, live } = useViewport({ hostRef, initialViewport, onViewportChange });
+  const worldRef = useRef<HTMLDivElement>(null);
+  const { viewport, setViewport, live, gesturing } = useViewport({ hostRef, worldRef, initialViewport, onViewportChange });
   const chrome = useSelectionChrome({ hostRef, selections, doc, live });
   const single = selections.length === 1 ? selections[0] : null;
   const selectedRotation = single?.kind === 'layer' ? (findLayer(doc, single.frameId, single.layerId)?.rotation ?? 0) : 0;
@@ -102,9 +104,11 @@ export function Canvas({
     (layer) => layer.visible && (visibleWorld === null || intersects(visibleWorld, layer)),
   );
 
-  const context: LayerViewContext = {
-    selections,
-    editing,
+  // The tree below only needs handlers when a pointer arrives, so they travel
+  // through a ref: its identity never changes, which lets the memoised layers
+  // skip a re-render on every viewport tick while still calling fresh closures.
+  const handlers = useRef<LayerHandlers>(null!);
+  handlers.current = {
     startDrag: gestures.startLayerDrag,
     startMove: gestures.startMoveFrame,
     select: onSelect,
@@ -112,31 +116,21 @@ export function Canvas({
     setEditing: onEditingChange,
   };
 
-  const worldStyle: CSSProperties = {
-    // `zoom` lays the scene out at the scaled size, so text is rasterised at the
-    // size it is finally painted at. A transform scale would leave a rasterised
-    // copy behind and soften glyphs once zoomed in.
-    zoom: viewport.zoom,
-    transform: `translate(${viewport.x / viewport.zoom}px, ${viewport.y / viewport.zoom}px)`,
-  };
+  const worldStyle = worldStyleFor(viewport, gesturing);
 
   return (
     <div
       ref={hostRef}
       className="bp-canvas"
       data-tool={tool}
-      // The dot grid is canvas space, not screen space: it pans and scales with it.
-      style={{
-        backgroundSize: `${16 * viewport.zoom}px ${16 * viewport.zoom}px`,
-        backgroundPosition: `${viewport.x}px ${viewport.y}px`,
-      }}
+      style={hostStyleFor(viewport)}
       onPointerDown={gestures.startCanvasDrag}
       onPointerMove={gestures.movePointer}
       onPointerUp={gestures.endDrag}
       onPointerCancel={gestures.endDrag}
       onPointerLeave={gestures.clearMeasure}
     >
-      <div className="bp-world" style={worldStyle}>
+      <div ref={worldRef} className="bp-world" style={worldStyle}>
         <WorldOverlay
           marquee={gestures.marquee}
           draftFrame={gestures.draftFrame}
@@ -149,13 +143,23 @@ export function Canvas({
           <FrameView
             key={frame.id}
             frame={frame}
-            context={context}
+            selections={selections}
+            editing={editing}
+            handlers={handlers}
             dropTarget={gestures.dropFrameId === frame.id}
           />
         ))}
 
         {visibleRootLayers.map((layer) => (
-          <LayerView key={layer.id} layer={layer} frameId={null} container={null} context={context} />
+          <LayerView
+            key={layer.id}
+            layer={layer}
+            frameId={null}
+            container={null}
+            selections={selections}
+            editing={editing}
+            handlers={handlers}
+          />
         ))}
 
         <MultiSelectionBox box={chrome.multiBox} />

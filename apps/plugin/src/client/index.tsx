@@ -14,6 +14,7 @@ import { setupLocale } from './i18n';
 import { Panel } from './panel/Panel';
 import { installBlueprintOpenListener } from './panel/blueprintOpen';
 import { installMenuDismissal } from './panel/panelStore';
+import { attachStyles } from './styles';
 import { TurnTailCard } from './chat/TurnTailCard';
 import { HOME_ID, TAB_KIND } from './panel/tab';
 
@@ -66,6 +67,10 @@ export function apply(ctx: PluginContext): void {
   );
 
   ctx.effect(() => installMenuDismissal(), 'blueprint:menu-dismiss');
+
+  // The tab title lives in the strip, outside the panel, so the stylesheet is
+  // page-scoped rather than owned by whichever surface happens to be visible.
+  ctx.effect(() => attachStyles(), 'blueprint:styles');
 
   // A finished turn that touched a blueprint ends with a card back into it. The
   // chat slot is session-scoped, so the card knows which Session to open.

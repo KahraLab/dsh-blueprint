@@ -20,6 +20,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createCache } from '../../shared/cache';
 import { SKILL_LOOKUP } from '../../shared/config';
+import { parseFrontmatter } from '../../shared/frontmatter';
 
 export interface LocalSkill {
   name: string;
@@ -47,81 +48,6 @@ function projectRootOf(cwd: string): string {
   }
 }
 
-/** One frontmatter block as a flat key/value map; nested maps become dot keys. */
-function parseFrontmatter(text: string): Record<string, string> | null {
-  if (!text.startsWith('---\n') && !text.startsWith('---\r\n')) return null;
-  const firstLineEnd = text.indexOf('\n');
-  if (firstLineEnd < 0) return null;
-  const closing = /\r?\n---[ \t]*(?:\r?\n|$)/u.exec(text.slice(firstLineEnd + 1));
-  if (closing === null) return null;
-  const block = text.slice(firstLineEnd + 1, firstLineEnd + 1 + closing.index);
-  return parseFields(block);
-}
-
-/**
- * Read the YAML fields a skill summary needs.
- *
- * Skill frontmatter in practice uses plain scalars, quotes, and folded or
- * literal blocks; those are handled here so the menu does not need a YAML
- * dependency. A field shape this reader cannot understand is skipped rather
- * than guessed at.
- */
-function parseFields(block: string): Record<string, string> | null {
-  const lines = block.split(/\r?\n/u);
-  const fields: Record<string, string> = {};
-  let section = '';
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? '';
-    if (line.trim() === '' || line.trimStart().startsWith('#')) continue;
-    const indent = line.length - line.trimStart().length;
-    const content = line.trim();
-    const pair = /^([A-Za-z][\w-]*):(?:[ \t]*(.*))?$/u.exec(content);
-    if (pair === null) continue;
-    const key = pair[1];
-    if (key === undefined) continue;
-    const raw = (pair[2] ?? '').trim();
-    if (indent > 0) {
-      if (section !== '') fields[`${section}.${key}`] = unquote(raw);
-      continue;
-    }
-    section = '';
-    if (raw === '') {
-      section = key;
-      continue;
-    }
-    if (raw === '|' || raw === '>' || raw === '|-' || raw === '>-' || raw === '|+' || raw === '>+') {
-      const gathered: string[] = [];
-      while (index + 1 < lines.length) {
-        const next = lines[index + 1] ?? '';
-        if (next.trim() !== '' && next.length - next.trimStart().length <= indent) break;
-        gathered.push(next.trim());
-        index += 1;
-      }
-      fields[key] = raw.startsWith('>') ? gathered.join(' ').trim() : gathered.join('\n').trim();
-      continue;
-    }
-    fields[key] = unquote(raw);
-  }
-  return fields;
-}
-
-function unquote(value: string): string {
-  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1).replace(/\\(["\\/bfnrt])/gu, (_match, char: string) => {
-      if (char === 'n') return '\n';
-      if (char === 't') return '\t';
-      if (char === 'r') return '\r';
-      if (char === 'b') return '\b';
-      if (char === 'f') return '\f';
-      return char;
-    });
-  }
-  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1).replaceAll("''", "'");
-  }
-  return value;
-}
-
 /** One skill file's summary, or null when its frontmatter is not usable. */
 async function readSkill(file: string): Promise<LocalSkill | null> {
   let text: string;
@@ -130,8 +56,9 @@ async function readSkill(file: string): Promise<LocalSkill | null> {
   } catch {
     return null;
   }
-  const fields = parseFrontmatter(text);
-  if (fields === null) return null;
+  const parsed = parseFrontmatter(text);
+  if (parsed === null) return null;
+  const { fields } = parsed;
   const name = fields.name?.trim() ?? '';
   const description = fields.description?.trim() ?? '';
   if (!SKILL_NAME.test(name) || description === '') return null;

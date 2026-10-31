@@ -7,7 +7,6 @@
  */
 import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import css from '../styles.css';
 import type { Viewport, ViewportInfo } from '../editor/types';
 import { BlueprintGallery } from '../library/Gallery';
 import { IconPicker, type PickedIcon } from '../iconpicker/IconPicker';
@@ -175,7 +174,6 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   if (view.screen === 'gallery') {
     return (
       <div className="bp-root">
-        <style>{css}</style>
         {hosts}
         <BlueprintGallery
           blueprints={entries ?? []}
@@ -196,7 +194,6 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
 
   return (
     <div className="bp-root">
-      <style>{css}</style>
       {hosts}
 
       <PanelHeader onBack={() => void back()} />

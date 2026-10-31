@@ -28,6 +28,9 @@ const hostOptions = {
   platform: 'node',
   target: ['node20'],
   packages: 'external',
+  // The canvas skill is authored as SKILL.md; it travels inside the bundle so
+  // the installed copy cannot drift from the command line next to it.
+  loader: { '.md': 'text' },
   logLevel: 'warning',
 };
 
