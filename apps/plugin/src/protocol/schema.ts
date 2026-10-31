@@ -27,8 +27,8 @@ export function buildSchema(): Record<string, unknown> {
       },
       selection: {
         usage: 'bp selection',
-        output: '{ ok, revision, selection: { frameId, layerId, kind, name, path } | null, count, reason?, note? }',
-        note: '用户说「这个」「它」时先跑这条，不要按名字猜。selection 为 null 时读 reason。',
+        output: '{ ok, revision, selection: { frameId, layerId, kind, name, path } | null, count, selections?: [...], reason?, note? }',
+        note: '用户说「这个」「它」时先跑这条，不要按名字猜。selection 为 null 时读 reason；选中多个时 selections 是全部，编组用里面的 layerId。',
       },
       find: {
         usage: 'bp find [--name 文本] [--kind 类型] [--in 容器id]',
@@ -42,6 +42,11 @@ export function buildSchema(): Record<string, unknown> {
       'add / set / move / rm': {
         usage: 'bp add <种类> --name 名字 [...] | bp set <id> --字段 值 | bp move <id> --into <容器|root> | bp rm <id>',
         note: '单条修改的快捷写法，内部走同一条写入路径。add 必须写 --name。',
+      },
+      group: {
+        usage: 'bp group <id>,<id> --name 名字',
+        output: '{ ok, revision, node: { id, kind: "group", name }, members: [id] }',
+        note: '至少两个同一层的图层，父容器必须自由摆放；编组后成员在屏幕上的位置和尺寸不变。',
       },
       schema: { usage: 'bp schema', note: '就是这份说明。' },
     },

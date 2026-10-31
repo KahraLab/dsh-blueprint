@@ -76,7 +76,14 @@ export function buildSelection(stored: StoredDocument, sessionId: string | null)
     revision: stored.revision,
     selection: describeSelection(primary),
     count: valid.length,
-    ...(valid.length > 1 ? { note: '用户选中了多个元素，这是第一个；改之前先跟他确认' } : {}),
+    ...(valid.length > 1
+      ? {
+          // A multi-selection is not only a "which one?" question: grouping needs
+          // every selected layer, so the whole list travels with the answer.
+          selections: valid.map(describeSelection),
+          note: '用户选中了多个元素，这是第一个；只改一个时先跟他确认，要编组就用 selections 里的全部 id',
+        }
+      : {}),
   };
 }
 

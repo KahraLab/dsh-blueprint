@@ -5,92 +5,54 @@
  * so a preview cannot drift from what the canvas shows. Anything that needs
  * pointer events, selection or editing stays in `Canvas`.
  */
-import type { CSSProperties, ReactElement } from 'react';
-import {
-  type FillStyle,
-  type Layer,
-  type LayerKind,
-  type StackAlign,
-  type StackJustify,
-  type StackLayout,
-} from '../../model/document';
-import { fillBackground, topFillColor } from '../model/fill';
+import { useId, type CSSProperties, type ReactElement } from 'react';
+import type { FillStyle, Layer, LayerKind, StrokeStyle } from '../../model/document';
+import { colorToRgba, fillBackground, topFillColor } from '../model/fill';
+import { backdropOf, boxShadowOf, filterOf } from '../model/effect';
+import { drawnStrokeWidth, strokeShadow } from '../model/stroke';
 
 export const TEXT_FONT_STACK = '"Figtree", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
 
-export const ALIGN_CSS: Record<StackAlign, CSSProperties['alignItems']> = {
-  start: 'flex-start',
-  center: 'center',
-  end: 'flex-end',
-  stretch: 'stretch',
-};
+// Layout helpers live in their own module so tests can load them without React.
+export { containerStyle, flowItemStyle, freeItemStyle } from './layout';
 
-export const JUSTIFY_CSS: Record<StackJustify, CSSProperties['justifyContent']> = {
-  start: 'flex-start',
-  center: 'center',
-  end: 'flex-end',
-  between: 'space-between',
-};
-
-/** Flex settings for a container that arranges its children. */
-export function containerStyle(layout: StackLayout): CSSProperties {
-  return {
-    display: 'flex',
-    flexDirection: layout.direction === 'row' ? 'row' : 'column',
-    gap: layout.gap,
-    padding: `${layout.padding.top}px ${layout.padding.right}px ${layout.padding.bottom}px ${layout.padding.left}px`,
-    alignItems: ALIGN_CSS[layout.align],
-    justifyContent: JUSTIFY_CSS[layout.justify],
-    overflow: 'hidden',
-  };
-}
-
-/** Where a child sits when its parent is a stack. */
-export function flowItemStyle(layer: Layer, layout: StackLayout): CSSProperties {
-  const row = layout.direction === 'row';
-  const style: CSSProperties = { position: 'relative' };
-  const mainMode = row ? layer.sizeW : layer.sizeH;
-  const crossMode = row ? layer.sizeH : layer.sizeW;
-
-  if (mainMode === 'fill') {
-    style.flex = '1 1 0';
-    if (row) style.minWidth = 0;
-    else style.minHeight = 0;
-  } else {
-    // A fixed or content-sized child keeps its size even when the stack overflows.
-    style.flex = '0 0 auto';
-    if (mainMode === 'fixed') {
-      if (row) style.width = layer.width;
-      else style.height = layer.height;
-    }
-  }
-
-  if (crossMode === 'fixed') {
-    if (row) style.height = layer.height;
-    else style.width = layer.width;
-  } else if (crossMode === 'fill') {
-    style.alignSelf = 'stretch';
-  }
-  return style;
-}
-
-/** Where a child sits when its parent positions children freely. */
-export function freeItemStyle(layer: Layer): CSSProperties {
-  const style: CSSProperties = { position: 'absolute', left: layer.x, top: layer.y };
-  if (layer.sizeW === 'fixed') style.width = layer.width;
-  if (layer.sizeH === 'fixed') style.height = layer.height;
-  return style;
-}
-
+const ELLIPSE_PATH = 'M 50 0 A 50 50 0 1 0 50 100 A 50 50 0 1 0 50 0 Z';
 const POLYGON_PATH = 'M 50 0 L 100 100 L 0 100 Z';
 const STAR_PATH =
   'M 50 0 L 61.17 34.63 L 97.55 34.55 L 68.07 55.87 L 79.39 90.45 L 50 69 L 20.61 90.45 L 31.93 55.87 L 2.45 34.55 L 38.83 34.63 Z';
 
-/** Line, arrow, polygon and star are drawn as SVG inside their box. */
-export function ShapeGraphic({ kind, fills, width, height }: { kind: LayerKind; fills: readonly FillStyle[]; width: number; height: number }): ReactElement | null {
+/** The drawn kinds share one box; only the outline differs. */
+function figurePath(kind: LayerKind): string | null {
+  if (kind === 'ellipse') return ELLIPSE_PATH;
+  if (kind === 'polygon') return POLYGON_PATH;
+  if (kind === 'star') return STAR_PATH;
+  return null;
+}
+
+/**
+ * Line, arrow, ellipse, polygon and star are drawn as SVG inside their box.
+ *
+ * A stroke on a drawn shape is painted on the same path. SVG centres a stroke
+ * on the edge, so inside/outside double the width and keep one half with a clip
+ * or a mask; the visible band stays exactly `width` screen pixels.
+ */
+export function ShapeGraphic({
+  kind,
+  fills,
+  width,
+  height,
+  stroke = null,
+}: {
+  kind: LayerKind;
+  fills: readonly FillStyle[];
+  width: number;
+  height: number;
+  stroke?: StrokeStyle | null;
+}): ReactElement | null {
   const color = topFillColor(fills as readonly FillStyle[]);
   const boxWidth = Math.max(1, width);
   const boxHeight = Math.max(1, height);
+  const svgId = useId().replace(/:/g, '');
 
   if (kind === 'line' || kind === 'arrow') {
     const y = boxHeight / 2;
@@ -103,28 +65,46 @@ export function ShapeGraphic({ kind, fills, width, height }: { kind: LayerKind; 
     );
   }
 
-  if (kind === 'ellipse') {
-    return (
-      <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <ellipse cx={50} cy={50} rx={50} ry={50} fill={color} />
-      </svg>
-    );
-  }
+  const path = figurePath(kind);
+  if (path === null) return null;
 
-  if (kind === 'polygon' || kind === 'star') {
-    return (
-      <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <path d={kind === 'polygon' ? POLYGON_PATH : STAR_PATH} fill={color} />
-      </svg>
-    );
-  }
+  const outlined = stroke !== null && stroke.width > 0 && stroke.opacity > 0;
+  const clipId = `${svgId}-clip`;
+  const maskId = `${svgId}-mask`;
 
-  return null;
+  return (
+    <svg className="bp-shape-graphic" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {outlined && stroke.align !== 'center' ? (
+        <defs>
+          <clipPath id={clipId}>
+            <path d={path} />
+          </clipPath>
+          <mask id={maskId} maskUnits="userSpaceOnUse" x={-100} y={-100} width={300} height={300}>
+            <rect x={-100} y={-100} width={300} height={300} fill="#fff" />
+            <path d={path} fill="#000" />
+          </mask>
+        </defs>
+      ) : null}
+      <path d={path} fill={color} />
+      {outlined && stroke !== null ? (
+        <path
+          d={path}
+          fill="none"
+          stroke={colorToRgba(stroke.color, stroke.opacity)}
+          strokeWidth={drawnStrokeWidth(stroke)}
+          vectorEffect="non-scaling-stroke"
+          clipPath={stroke.align === 'inside' ? `url(#${clipId})` : undefined}
+          mask={stroke.align === 'outside' ? `url(#${maskId})` : undefined}
+        />
+      ) : null}
+    </svg>
+  );
 }
 
 /** Paint, corner radius and type. */
 export function visualStyle(layer: Layer): CSSProperties {
   const isText = layer.kind === 'text';
+  const effects = layer.effects ?? [];
   if (!isText) {
     // Only rectangles paint a CSS background; every other shape is drawn as
     // vector geometry inside its box, so no corner radius can ever distort it.
@@ -132,6 +112,12 @@ export function visualStyle(layer: Layer): CSSProperties {
     return {
       borderRadius: boxed ? layer.radius : undefined,
       background: boxed ? fillBackground(layer.fills) : 'transparent',
+      // A box has an edge to paint shadows on; drawn shapes get theirs from the filter.
+      boxShadow: boxed ? boxShadowOf(strokeShadow(layer.stroke), effects, true) : undefined,
+      filter: filterOf(effects, !boxed),
+      backdropFilter: backdropOf(effects),
+      transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+      transformOrigin: layer.rotation ? 'center' : undefined,
       opacity: layer.opacity,
       // An icon is a drawing, so its fill is ink: the SVG paints with currentColor.
       ...(layer.kind === 'icon' ? { color: topFillColor(layer.fills) } : {}),
@@ -140,6 +126,10 @@ export function visualStyle(layer: Layer): CSSProperties {
   return {
     color: topFillColor(layer.fills),
     opacity: layer.opacity,
+    filter: filterOf(effects, true),
+    backdropFilter: backdropOf(effects),
+    transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+    transformOrigin: layer.rotation ? 'center' : undefined,
     fontSize: layer.fontSize,
     fontFamily: `"${layer.fontFamily}", ${TEXT_FONT_STACK}`,
     fontWeight: layer.fontWeight,

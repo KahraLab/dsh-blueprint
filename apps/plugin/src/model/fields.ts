@@ -11,15 +11,21 @@
  * rejected by every entry point, which is what keeps the three in step.
  */
 import {
+  type EffectStyle,
+  type EffectType,
   type FillStyle,
   type LayerKind,
   type SizeMode,
+  type StrokeAlign,
   type StackAlign,
   type StackDirection,
   type StackJustify,
   type TextAlign,
   type VerticalAlign,
+  EFFECT_TYPES,
+  makeBlurEffect,
   makeFill,
+  makeShadowEffect,
   makeStackLayout,
 } from './document';
 
@@ -29,6 +35,9 @@ export type FieldSpec =
   | { kind: 'boolean' }
   | { kind: 'enum'; values: readonly string[]; assignable?: boolean }
   | { kind: 'fills' }
+  | { kind: 'stroke' }
+  | { kind: 'effects' }
+  | { kind: 'guide' }
   | { kind: 'layout' };
 
 /** Field order is the order error messages list them in. */
@@ -39,6 +48,11 @@ export const NODE_FIELDS: Readonly<Record<string, FieldSpec>> = {
   width: { kind: 'number', min: 1, round: true },
   height: { kind: 'number', min: 1, round: true },
   fills: { kind: 'fills' },
+  stroke: { kind: 'stroke' },
+  effects: { kind: 'effects' },
+  guide: { kind: 'guide' },
+  clipContent: { kind: 'boolean' },
+  rotation: { kind: 'number' },
   opacity: { kind: 'number', min: 0, max: 1 },
   visible: { kind: 'boolean' },
   locked: { kind: 'boolean' },
@@ -64,7 +78,23 @@ export const NODE_FIELDS: Readonly<Record<string, FieldSpec>> = {
 };
 
 /** Screens have no `kind`, no sizing mode and no text fields. */
-export const FRAME_FIELDS: readonly string[] = ['name', 'x', 'y', 'width', 'height', 'fills', 'opacity', 'visible', 'locked', 'layout'];
+export const FRAME_FIELDS: readonly string[] = [
+  'name',
+  'x',
+  'y',
+  'width',
+  'height',
+  'fills',
+  'stroke',
+  'effects',
+  'guide',
+  'clipContent',
+  'radius',
+  'opacity',
+  'visible',
+  'locked',
+  'layout',
+];
 
 export const LAYER_FIELDS: readonly string[] = [
   'name',
@@ -77,6 +107,10 @@ export const LAYER_FIELDS: readonly string[] = [
   'sizeH',
   'layout',
   'fills',
+  'stroke',
+  'effects',
+  'clipContent',
+  'rotation',
   'radius',
   'opacity',
   'text',
@@ -103,9 +137,10 @@ export const DERIVED_FIELDS: readonly string[] = ['svg'];
 
 export const LAYER_KINDS: readonly LayerKind[] = ['rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text', 'icon', 'group'];
 export const SIZE_MODES: readonly SizeMode[] = ['fixed', 'hug', 'fill'];
+export const STROKE_ALIGNS: readonly StrokeAlign[] = ['inside', 'center', 'outside'];
 export const TEXT_ALIGNS: readonly TextAlign[] = ['left', 'center', 'right'];
 export const VERTICAL_ALIGNS: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
-export const DIRECTIONS: readonly StackDirection[] = ['row', 'column'];
+export const DIRECTIONS: readonly StackDirection[] = ['row', 'column', 'grid'];
 export const ALIGNS: readonly StackAlign[] = ['start', 'center', 'end', 'stretch'];
 export const JUSTIFIES: readonly StackJustify[] = ['start', 'center', 'end', 'between'];
 
@@ -166,6 +201,12 @@ function cleanValue(spec: FieldSpec, raw: unknown, key: string): CleanedValue {
     }
     case 'fills':
       return cleanFills(raw);
+    case 'stroke':
+      return cleanStroke(raw);
+    case 'effects':
+      return cleanEffects(raw);
+    case 'guide':
+      return cleanGuide(raw);
     case 'layout':
       return cleanLayout(raw);
   }
@@ -188,12 +229,119 @@ function cleanFills(raw: unknown): CleanedValue {
   return { value: fills };
 }
 
+function cleanStroke(raw: unknown): CleanedValue {
+  if (raw === null) return { value: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { message: 'stroke 传 null 表示不要描边，或者传 { color, width, align }' };
+  }
+  const record = raw as Record<string, unknown>;
+  if (typeof record.color !== 'string' || record.color.length === 0) return { message: 'stroke.color 要写颜色' };
+  const width = record.width ?? 1;
+  if (typeof width !== 'number' || !Number.isFinite(width)) return { message: 'stroke.width 要写数字' };
+  const opacity = record.opacity ?? 1;
+  if (typeof opacity !== 'number' || !Number.isFinite(opacity)) return { message: 'stroke.opacity 要写数字' };
+  const align = record.align ?? 'inside';
+  if (!STROKE_ALIGNS.includes(align as StrokeAlign)) {
+    return { message: `stroke.align 只能是：${STROKE_ALIGNS.join('、')}` };
+  }
+  return {
+    value: {
+      color: record.color,
+      width: Math.max(0, width),
+      opacity: Math.min(1, Math.max(0, opacity)),
+      align: align as StrokeAlign,
+    },
+  };
+}
+
+function cleanEffects(raw: unknown): CleanedValue {
+  if (!Array.isArray(raw)) return { message: 'effects 要写成数组，比如 [{ "type": "shadow", "x": 0, "y": 4, "blur": 12 }]' };
+  const effects: EffectStyle[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { message: 'effects 里每一项都要是对象' };
+    const record = entry as Record<string, unknown>;
+    if (!EFFECT_TYPES.includes(record.type as EffectType)) {
+      return { message: `effects 的 type 只能是：${EFFECT_TYPES.join('、')}` };
+    }
+    const kind = record.type as EffectType;
+    const visible = record.visible ?? true;
+    if (typeof visible !== 'boolean') return { message: 'effects.visible 要写 true 或 false' };
+    const id = typeof record.id === 'string' && record.id !== '' ? record.id : undefined;
+
+    if (kind === 'shadow' || kind === 'innerShadow') {
+      const base = makeShadowEffect(kind);
+      const color = record.color ?? base.color;
+      if (typeof color !== 'string' || color.length === 0) return { message: '阴影的 color 要写颜色' };
+      const opacity = record.opacity ?? base.opacity;
+      if (typeof opacity !== 'number' || !Number.isFinite(opacity)) return { message: '阴影的 opacity 要写数字' };
+      const x = record.x ?? base.x;
+      if (typeof x !== 'number' || !Number.isFinite(x)) return { message: '阴影的 x 要写数字' };
+      const y = record.y ?? base.y;
+      if (typeof y !== 'number' || !Number.isFinite(y)) return { message: '阴影的 y 要写数字' };
+      const blur = record.blur ?? base.blur;
+      if (typeof blur !== 'number' || !Number.isFinite(blur)) return { message: '阴影的 blur 要写数字' };
+      effects.push({
+        ...base,
+        id: id ?? base.id,
+        visible,
+        color,
+        opacity: Math.min(1, Math.max(0, opacity)),
+        x,
+        y,
+        blur: Math.max(0, blur),
+      });
+      continue;
+    }
+
+    const base = makeBlurEffect(kind);
+    const radius = record.radius ?? base.radius;
+    if (typeof radius !== 'number' || !Number.isFinite(radius)) return { message: '模糊的 radius 要写数字' };
+    effects.push({ ...base, id: id ?? base.id, visible, radius: Math.max(0, radius) });
+  }
+  return { value: effects };
+}
+
+function cleanGuide(raw: unknown): CleanedValue {
+  if (raw === null) return { value: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { message: 'guide 传 null 表示没有参考线，或者传 { type, count, gutter, margin }' };
+  }
+  const record = raw as Record<string, unknown>;
+
+  const type = record.type ?? 'columns';
+  if (type !== 'columns' && type !== 'rows') return { message: 'guide.type 只能是 columns 或 rows' };
+
+  const count = record.count ?? 12;
+  if (typeof count !== 'number' || !Number.isFinite(count)) return { message: 'guide.count 要写数字' };
+  const gutter = record.gutter ?? 20;
+  if (typeof gutter !== 'number' || !Number.isFinite(gutter)) return { message: 'guide.gutter 要写数字' };
+  const margin = record.margin ?? 0;
+  if (typeof margin !== 'number' || !Number.isFinite(margin)) return { message: 'guide.margin 要写数字' };
+  const color = record.color ?? '#FF5C5C';
+  if (typeof color !== 'string' || color.length === 0) return { message: 'guide.color 要写颜色' };
+  const visible = record.visible ?? true;
+  if (typeof visible !== 'boolean') return { message: 'guide.visible 要写 true 或 false' };
+
+  return {
+    value: {
+      type,
+      count: Math.min(24, Math.max(1, Math.round(count))),
+      gutter: Math.max(0, gutter),
+      margin: Math.max(0, margin),
+      color,
+      visible,
+    },
+  };
+}
+
 function cleanLayout(raw: unknown): CleanedValue {
   if (raw === null) return { value: null };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { message: 'layout 传 null 表示自由摆放，或者传一个排布对象' };
   const record = raw as Record<string, unknown>;
   const direction = record.direction ?? 'column';
-  if (!DIRECTIONS.includes(direction as StackDirection)) return { message: 'layout.direction 只能是 row 或 column' };
+  if (!DIRECTIONS.includes(direction as StackDirection)) return { message: 'layout.direction 只能是 row、column 或 grid' };
+  const columns = record.columns ?? 2;
+  if (typeof columns !== 'number' || !Number.isFinite(columns)) return { message: 'layout.columns 要写数字' };
   const align = record.align ?? 'stretch';
   if (!ALIGNS.includes(align as StackAlign)) return { message: 'layout.align 只能是 start / center / end / stretch' };
   const justify = record.justify ?? 'start';
@@ -210,6 +358,7 @@ function cleanLayout(raw: unknown): CleanedValue {
   return {
     value: makeStackLayout({
       direction: direction as StackDirection,
+      columns: Math.min(12, Math.max(1, Math.round(columns))),
       gap: Math.max(0, Math.round(gap)),
       align: align as StackAlign,
       justify: justify as StackJustify,

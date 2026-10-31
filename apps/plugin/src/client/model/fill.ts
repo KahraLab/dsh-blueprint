@@ -1,25 +1,14 @@
+import { parseColor } from '../../model/color';
 import type { FillStyle } from '../../model/document';
 
-/** Parse #rgb / #rrggbb / rgb() / rgba() into an rgba() string with the given alpha. */
+/**
+ * A CSS `rgba()` string with the given alpha. A fill keeps its alpha beside the
+ * colour, so any alpha written into the colour text itself is overridden.
+ */
 export function colorToRgba(color: string, alpha: number): string {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
-  if (hex?.[1]) {
-    const raw = hex[1];
-    const full = raw.length === 3 ? raw.split('').map((part) => part + part).join('') : raw;
-    const value = Number.parseInt(full, 16);
-    const r = (value >> 16) & 0xff;
-    const g = (value >> 8) & 0xff;
-    const b = value & 0xff;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  const rgb = /^rgba?\(([^)]+)\)$/i.exec(color.trim());
-  if (rgb?.[1]) {
-    const parts = rgb[1].split(',').map((part) => part.trim());
-    const [r = '0', g = '0', b = '0'] = parts;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  if (color === 'transparent') return `rgba(0, 0, 0, ${alpha})`;
-  return color;
+  const parsed = parseColor(color);
+  if (parsed === null) return color;
+  return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`;
 }
 
 /** CSS background stacking every fill, top one first. */

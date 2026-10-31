@@ -9,6 +9,8 @@
 import { forwardRef, type ReactElement } from 'react';
 import { type BlueprintDocument, type Frame, type Layer, type StackLayout } from '../../model/document';
 import { fillBackground } from '../model/fill';
+import { backdropOf, boxShadowOf, filterOf } from '../model/effect';
+import { strokeShadow } from '../model/stroke';
 import { IconGlyph } from './IconGlyph';
 import { ShapeGraphic, containerStyle, flowItemStyle, freeItemStyle, visualStyle } from '../canvas/style';
 
@@ -97,11 +99,21 @@ function PreviewFrame({ frame, bounds }: { frame: Frame; bounds: Bounds }): Reac
         top: frame.y - bounds.y,
         width: frame.width,
         height: frame.height,
-        background: fillBackground(frame.fills),
-        opacity: frame.opacity,
+        borderRadius: frame.radius,
       }}
     >
-      <span className="bp-frame-body" style={frame.layout ? containerStyle(frame.layout) : undefined}>
+      <span
+        className="bp-frame-body"
+        style={{
+          ...(frame.layout ? containerStyle(frame.layout) : {}),
+          background: fillBackground(frame.fills),
+          boxShadow: boxShadowOf(strokeShadow(frame.stroke), frame.effects ?? [], true),
+          filter: filterOf(frame.effects ?? [], false),
+          backdropFilter: backdropOf(frame.effects ?? []),
+          overflow: frame.clipContent ? 'hidden' : 'visible',
+          opacity: frame.opacity,
+        }}
+      >
         {frame.children.map((layer) => (
           <PreviewLayer key={layer.id} layer={layer} container={frame.layout} />
         ))}
@@ -122,6 +134,7 @@ function PreviewLayer({
   if (!layer.visible) return null;
   const style = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
   if (layer.layout) Object.assign(style, containerStyle(layer.layout));
+  style.overflow = layer.clipContent ? 'hidden' : 'visible';
   if (offset !== undefined) {
     style.left = layer.x - offset.x;
     style.top = layer.y - offset.y;
@@ -142,5 +155,5 @@ function LayerContent({ layer }: { layer: Layer }): ReactElement | null {
   if (layer.kind === 'icon') {
     return <IconGlyph svg={layer.svg} className="bp-icon-glyph" hidden />;
   }
-  return <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />;
+  return <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} stroke={layer.stroke} />;
 }

@@ -11,7 +11,18 @@
  * `model/fields.ts`, the same table the canvas is checked against.
  */
 import * as z from 'zod';
-import { ALIGNS, DERIVED_FIELDS, DIRECTIONS, FRAME_FIELDS, JUSTIFIES, LAYER_FIELDS, LAYER_KINDS, NODE_FIELDS, type FieldSpec } from '../model/fields';
+import {
+  ALIGNS,
+  DERIVED_FIELDS,
+  DIRECTIONS,
+  FRAME_FIELDS,
+  JUSTIFIES,
+  LAYER_FIELDS,
+  LAYER_KINDS,
+  NODE_FIELDS,
+  STROKE_ALIGNS,
+  type FieldSpec,
+} from '../model/fields';
 import { ProtocolError } from './errors';
 
 /** Names the canvas makes up: 画板1, 矩形2, … A model has to do better. */
@@ -43,9 +54,52 @@ function zodFor(spec: FieldSpec): z.ZodType {
           z.strictObject({ color: z.string().min(1), opacity: z.number().min(0).max(1).optional() }, { error: 'fills 里每项要么是颜色字符串，要么是 { color, opacity }' }),
         ]),
       );
+    case 'stroke':
+      return z.union([
+        z.null(),
+        z.strictObject({
+          color: z.string().min(1),
+          width: z.number().min(0).optional(),
+          opacity: z.number().min(0).max(1).optional(),
+          align: z.enum([...STROKE_ALIGNS] as [string, ...string[]]).optional(),
+        }),
+      ]);
+    case 'effects':
+      return z.array(effectShape());
+    case 'guide':
+      return z.union([
+        z.null(),
+        z.strictObject({
+          type: z.enum(['columns', 'rows']),
+          count: z.number().int().min(1).max(24).optional(),
+          gutter: z.number().min(0).optional(),
+          margin: z.number().min(0).optional(),
+          color: z.string().min(1).optional(),
+          visible: z.boolean().optional(),
+        }),
+      ]);
     case 'layout':
       return layoutShape();
   }
+}
+
+function effectShape(): z.ZodType {
+  return z.discriminatedUnion('type', [
+    z.strictObject({
+      type: z.enum(['shadow', 'innerShadow']),
+      visible: z.boolean().optional(),
+      color: z.string().min(1).optional(),
+      opacity: z.number().min(0).max(1).optional(),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      blur: z.number().min(0).optional(),
+    }),
+    z.strictObject({
+      type: z.enum(['blur', 'backgroundBlur']),
+      visible: z.boolean().optional(),
+      radius: z.number().min(0).optional(),
+    }),
+  ]);
 }
 
 function layoutShape(): z.ZodType {
@@ -54,6 +108,7 @@ function layoutShape(): z.ZodType {
     z.null(),
     z.strictObject({
       direction: z.enum([...DIRECTIONS] as [string, ...string[]]),
+      columns: z.number().int().min(1).max(12).optional(),
       gap: z.number().min(0).optional(),
       padding: padding.optional(),
       align: z.enum([...ALIGNS] as [string, ...string[]]).optional(),
@@ -81,6 +136,17 @@ const semanticName = z
   .trim()
   .min(1, 'name 不能为空')
   .refine((value) => !AUTO_NAME.test(value), 'name 要说明这个节点是干什么的，不要用 画板1、矩形2 这类自动编号');
+
+/**
+ * Why a node name would be rejected, or null when it is acceptable.
+ *
+ * Commands that create a node outside an `insert` payload (grouping builds the
+ * group shell itself) still follow the same naming rule as the payload.
+ */
+export function semanticNameProblem(value: string): string | null {
+  const parsed = semanticName.safeParse(value);
+  return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'name 不合适');
+}
 
 const refName = z.string().regex(REF_NAME, 'ref 只能由字母、数字、下划线和短横线组成');
 

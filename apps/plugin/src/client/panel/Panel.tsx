@@ -70,6 +70,7 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
   const moveLayerTo = useBlueprint((state) => state.moveLayerTo);
   const updateFrame = useBlueprint((state) => state.updateFrame);
   const updateLayer = useBlueprint((state) => state.updateLayer);
+  const replaceColor = useBlueprint((state) => state.replaceColor);
   const setFrameLayout = useBlueprint((state) => state.setFrameLayout);
   const setLayerLayout = useBlueprint((state) => state.setLayerLayout);
   const insertIcon = useBlueprint((state) => state.insertIcon);
@@ -240,6 +241,7 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
                 }}
                 onUpdateFrame={updateFrame}
                 onUpdateLayer={updateLayer}
+                onReplaceColor={replaceColor}
                 onSetFrameLayout={setFrameLayout}
                 onSetLayerLayout={setLayerLayout}
               />

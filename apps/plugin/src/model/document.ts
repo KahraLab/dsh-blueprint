@@ -1,3 +1,5 @@
+import { normalizeHex } from './color';
+
 let counter = 0;
 
 function nextId(prefix: string): string {
@@ -13,7 +15,7 @@ export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
 /** How a box gets its size along one axis. */
 export type SizeMode = 'fixed' | 'hug' | 'fill';
-export type StackDirection = 'row' | 'column';
+export type StackDirection = 'row' | 'column' | 'grid';
 export type StackAlign = 'start' | 'center' | 'end' | 'stretch';
 export type StackJustify = 'start' | 'center' | 'end' | 'between';
 
@@ -30,6 +32,8 @@ export interface EdgeInsets {
  */
 export interface StackLayout {
   direction: StackDirection;
+  /** Column count for a grid; ignored by row and column layouts. */
+  columns: number;
   gap: number;
   padding: EdgeInsets;
   /** Cross-axis placement of the children. */
@@ -43,6 +47,60 @@ export interface FillStyle {
   id: string;
   color: string;
   opacity: number;
+}
+
+/** Which side of the edge the outline occupies. */
+export type StrokeAlign = 'inside' | 'center' | 'outside';
+
+/** An outline around a box. A node has one, or none. */
+export interface StrokeStyle {
+  color: string;
+  /** 0–1. */
+  opacity: number;
+  /** Screen pixels; 0 draws nothing. */
+  width: number;
+  align: StrokeAlign;
+}
+
+export type EffectType = 'shadow' | 'innerShadow' | 'blur' | 'backgroundBlur';
+
+/** A drop or inner shadow. `blur` is the softness, in screen pixels. */
+export interface ShadowEffect {
+  id: string;
+  type: 'shadow' | 'innerShadow';
+  visible: boolean;
+  color: string;
+  /** 0–1. */
+  opacity: number;
+  x: number;
+  y: number;
+  blur: number;
+}
+
+/** A blur of the object itself, or of whatever sits behind it. */
+export interface BlurEffect {
+  id: string;
+  type: 'blur' | 'backgroundBlur';
+  visible: boolean;
+  /** Screen pixels; 0 draws nothing. */
+  radius: number;
+}
+
+export type EffectStyle = ShadowEffect | BlurEffect;
+
+export type FrameGuideType = 'columns' | 'rows';
+
+/** A column or row grid drawn over a screen to line content up against. */
+export interface FrameGuide {
+  type: FrameGuideType;
+  /** How many columns or rows. */
+  count: number;
+  /** Space between two columns/rows, in pixels. */
+  gutter: number;
+  /** Space between the outermost columns/rows and the screen edge. */
+  margin: number;
+  color: string;
+  visible: boolean;
 }
 
 /** An element inside a frame or inside another container. Containers nest. */
@@ -61,6 +119,14 @@ export interface Layer {
   children: readonly Layer[];
   layout: StackLayout | null;
   fills: readonly FillStyle[];
+  /** An outline on the box edge; `null` means no stroke. */
+  stroke: StrokeStyle | null;
+  /** Shadows and blurs, painted in list order. */
+  effects: readonly EffectStyle[];
+  /** Whether children are clipped to this box. */
+  clipContent: boolean;
+  /** Clockwise rotation about the box centre, in degrees. */
+  rotation: number;
   radius: number;
   opacity: number;
   text: string;
@@ -90,6 +156,16 @@ export interface Frame {
   width: number;
   height: number;
   fills: readonly FillStyle[];
+  /** An outline on the screen edge; `null` means no stroke. */
+  stroke: StrokeStyle | null;
+  /** Shadows and blurs, painted in list order. */
+  effects: readonly EffectStyle[];
+  /** Whether children are clipped to the screen's bounds. */
+  clipContent: boolean;
+  /** The alignment grid shown over the screen, if any. */
+  guide: FrameGuide | null;
+  /** Rounded corners on the screen itself; children are clipped to the same curve. */
+  radius: number;
   opacity: number;
   visible: boolean;
   locked: boolean;
@@ -110,7 +186,23 @@ export type Selection =
   | { kind: 'frame'; frameId: string }
   | { kind: 'layer'; frameId: string | null; layerId: string };
 
-type FrameFields = 'name' | 'x' | 'y' | 'width' | 'height' | 'fills' | 'opacity' | 'visible' | 'locked' | 'layout' | 'children';
+type FrameFields =
+  | 'name'
+  | 'x'
+  | 'y'
+  | 'width'
+  | 'height'
+  | 'fills'
+  | 'stroke'
+  | 'effects'
+  | 'clipContent'
+  | 'guide'
+  | 'radius'
+  | 'opacity'
+  | 'visible'
+  | 'locked'
+  | 'layout'
+  | 'children';
 type LayerFields =
   | 'name'
   | 'x'
@@ -122,6 +214,10 @@ type LayerFields =
   | 'layout'
   | 'children'
   | 'fills'
+  | 'stroke'
+  | 'effects'
+  | 'clipContent'
+  | 'rotation'
   | 'radius'
   | 'opacity'
   | 'text'
@@ -148,9 +244,101 @@ export function makeFill(color: string, opacity = 1): FillStyle {
   return { id: nextId('fill'), color, opacity };
 }
 
+export function makeStroke(color = DEFAULT_STROKE, width = 1, align: StrokeAlign = 'inside'): StrokeStyle {
+  return { color, opacity: 1, width, align };
+}
+
+export const EFFECT_TYPES: readonly EffectType[] = ['shadow', 'innerShadow', 'blur', 'backgroundBlur'];
+
+/** A shadow starts as a soft lift below the object, the way one usually does. */
+export function makeShadowEffect(type: 'shadow' | 'innerShadow' = 'shadow'): ShadowEffect {
+  return { id: nextId('effect'), type, visible: true, color: DEFAULT_STROKE, opacity: 0.25, x: 0, y: 4, blur: 12 };
+}
+
+export function makeBlurEffect(type: 'blur' | 'backgroundBlur' = 'blur'): BlurEffect {
+  return { id: nextId('effect'), type, visible: true, radius: 8 };
+}
+
+export function makeEffect(type: EffectType = 'shadow'): EffectStyle {
+  return type === 'shadow' || type === 'innerShadow' ? makeShadowEffect(type) : makeBlurEffect(type);
+}
+
+export function isShadowEffect(effect: EffectStyle): effect is ShadowEffect {
+  return effect.type === 'shadow' || effect.type === 'innerShadow';
+}
+
+/** Effects written by hand or by older versions get the defaults the renderer expects. */
+export function normalizeEffects(effects: readonly EffectStyle[] | undefined): EffectStyle[] {
+  if (!Array.isArray(effects)) return [];
+  const normalized: EffectStyle[] = [];
+  for (const effect of effects) {
+    if (!effect || typeof effect !== 'object') continue;
+    const id = typeof effect.id === 'string' && effect.id !== '' ? effect.id : nextId('effect');
+    const visible = effect.visible !== false;
+    if (isShadowEffect(effect)) {
+      normalized.push({
+        id,
+        type: effect.type,
+        visible,
+        color: typeof effect.color === 'string' && effect.color !== '' ? effect.color : DEFAULT_STROKE,
+        opacity: Number.isFinite(effect.opacity) ? Math.min(1, Math.max(0, effect.opacity)) : 0.25,
+        x: Number.isFinite(effect.x) ? effect.x : 0,
+        y: Number.isFinite(effect.y) ? effect.y : 4,
+        blur: Number.isFinite(effect.blur) ? Math.max(0, effect.blur) : 12,
+      });
+      continue;
+    }
+    normalized.push({
+      id,
+      type: effect.type,
+      visible,
+      radius: Number.isFinite(effect.radius) ? Math.max(0, effect.radius) : 8,
+    });
+  }
+  return normalized;
+}
+
+export function makeFrameGuide(overrides: Partial<FrameGuide> = {}): FrameGuide {
+  return {
+    type: 'columns',
+    count: 4,
+    gutter: 16,
+    margin: 16,
+    color: '#FF5C5C',
+    visible: true,
+    ...overrides,
+  };
+}
+
+/** Older files have no guide; a guide with no columns or rows would draw nothing. */
+export function normalizeGuide(guide: FrameGuide | null | undefined): FrameGuide | null {
+  if (!guide || typeof guide !== 'object') return null;
+  return {
+    type: guide.type === 'rows' ? 'rows' : 'columns',
+    count: Number.isFinite(guide.count) ? Math.min(24, Math.max(1, Math.round(guide.count))) : 12,
+    gutter: Number.isFinite(guide.gutter) ? Math.max(0, guide.gutter) : 20,
+    margin: Number.isFinite(guide.margin) ? Math.max(0, guide.margin) : 0,
+    color: typeof guide.color === 'string' && guide.color !== '' ? guide.color : '#FF5C5C',
+    visible: guide.visible !== false,
+  };
+}
+
+/** Older files have no stroke at all; a stroke without a width draws nothing. */
+export function normalizeStroke(stroke: StrokeStyle | null | undefined): StrokeStyle | null {
+  if (!stroke || typeof stroke !== 'object') return null;
+  const width = Number.isFinite(stroke.width) ? Math.max(0, stroke.width) : 1;
+  return {
+    color: typeof stroke.color === 'string' && stroke.color !== '' ? stroke.color : DEFAULT_STROKE,
+    opacity: Number.isFinite(stroke.opacity) ? Math.min(1, Math.max(0, stroke.opacity)) : 1,
+    width,
+    align: stroke.align === 'center' || stroke.align === 'outside' ? stroke.align : 'inside',
+  };
+}
+
 export function makeStackLayout(overrides: Partial<StackLayout> = {}): StackLayout {
   return {
     direction: 'column',
+    columns: 2,
     gap: 8,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     align: 'stretch',
@@ -178,6 +366,9 @@ function defaultsFor(kind: LayerKind): { width: number; height: number; radius: 
   return RECT_DEFAULTS;
 }
 
+/** A stroke starts as a thin ink line, the way a drawn outline usually does. */
+const DEFAULT_STROKE = '#101828';
+
 const DEFAULT_SHAPE_FILL = '#D9D9D9';
 const DEFAULT_TEXT_FILL = '#101828';
 /** An icon is a glyph: it starts out dark, and its fill is its ink. */
@@ -196,7 +387,8 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
   const normalizeLayout = (layout: StackLayout | null | undefined): StackLayout | null => {
     if (!layout) return null;
     return makeStackLayout({
-      direction: layout.direction === 'row' ? 'row' : 'column',
+      direction: layout.direction === 'row' || layout.direction === 'grid' ? layout.direction : 'column',
+      columns: Number.isFinite(layout.columns) ? Math.min(12, Math.max(1, Math.round(layout.columns))) : 2,
       gap: Number.isFinite(layout.gap) ? layout.gap : 8,
       padding: {
         top: layout.padding?.top ?? 0,
@@ -223,6 +415,11 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       fills: isGroup && !Array.isArray(layer.fills)
         ? []
         : normalizeFills(layer.fills, raw.fill, isText ? DEFAULT_TEXT_FILL : layer.kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL),
+      stroke: normalizeStroke(layer.stroke),
+      effects: normalizeEffects(layer.effects),
+      // A stack has always clipped; a free layer never did.
+      clipContent: layer.clipContent ?? layer.layout !== null,
+      rotation: layer.rotation ?? 0,
       opacity: layer.opacity ?? 1,
       fontFamily: layer.fontFamily ?? 'Figtree',
       fontSize: layer.fontSize ?? 14,
@@ -247,6 +444,11 @@ export function normalizeDocument(doc: BlueprintDocument): BlueprintDocument {
       return {
         ...frame,
         fills: normalizeFills(frame.fills, raw.background, DEFAULT_FRAME_FILL),
+        stroke: normalizeStroke(frame.stroke),
+        effects: normalizeEffects(frame.effects),
+        clipContent: frame.clipContent ?? true,
+        guide: normalizeGuide(frame.guide),
+        radius: frame.radius ?? 0,
         opacity: frame.opacity ?? 1,
         visible: frame.visible ?? true,
         locked: frame.locked ?? false,
@@ -356,6 +558,81 @@ export function updateFrame(doc: BlueprintDocument, frameId: string, patch: Rect
     ...doc,
     frames: doc.frames.map((frame) => (frame.id === frameId ? { ...frame, ...patch } : frame)),
   };
+}
+
+/** Recolour every fill and stroke in the selected subtree that uses `from`. */
+export function replaceColorInDocument(
+  doc: BlueprintDocument,
+  selection: Selection,
+  from: string,
+  to: string,
+): BlueprintDocument {
+  const target = normalizeHex(from);
+  const next = normalizeHex(to);
+  if (target === null || next === null || target === next) return doc;
+
+  if (selection.kind === 'frame') {
+    const index = doc.frames.findIndex((frame) => frame.id === selection.frameId);
+    if (index === -1) return doc;
+    const frame = doc.frames[index]!;
+    const replaced = recolorNode(frame, target, next);
+    if (replaced === frame) return doc;
+    const frames = [...doc.frames];
+    frames[index] = replaced as Frame;
+    return { ...doc, frames };
+  }
+
+  if (selection.frameId === null) {
+    const layers = recolorList(doc.layers, selection.layerId, target, next);
+    return layers === doc.layers ? doc : { ...doc, layers };
+  }
+
+  let changed = false;
+  const frames = doc.frames.map((frame) => {
+    if (frame.id !== selection.frameId) return frame;
+    const children = recolorList(frame.children, selection.layerId, target, next);
+    if (children === frame.children) return frame;
+    changed = true;
+    return { ...frame, children };
+  });
+  return changed ? { ...doc, frames } : doc;
+}
+
+function recolorList(layers: readonly Layer[], rootId: string, target: string, next: string): readonly Layer[] {
+  let changed = false;
+  const mapped = layers.map((layer) => {
+    if (layer.id === rootId) {
+      const replaced = recolorNode(layer, target, next);
+      if (replaced !== layer) changed = true;
+      return replaced as Layer;
+    }
+    const children = recolorList(layer.children, rootId, target, next);
+    if (children === layer.children) return layer;
+    changed = true;
+    return { ...layer, children };
+  });
+  return changed ? mapped : layers;
+}
+
+function recolorNode(node: Node, target: string, next: string): Node {
+  let changed = false;
+  const fills = node.fills.map((fill) => {
+    if (normalizeHex(fill.color) !== target) return fill;
+    changed = true;
+    return { ...fill, color: next };
+  });
+
+  let stroke = node.stroke;
+  if (stroke !== null && normalizeHex(stroke.color) === target) {
+    stroke = { ...stroke, color: next };
+    changed = true;
+  }
+
+  const children = node.children.map((child) => recolorNode(child, target, next) as Layer);
+  if (children.some((child, index) => child !== node.children[index])) changed = true;
+
+  if (!changed) return node;
+  return { ...node, fills, stroke, children };
 }
 
 export function updateLayer(doc: BlueprintDocument, frameId: string | null, layerId: string, patch: LayerRectPatch): BlueprintDocument {
@@ -582,6 +859,11 @@ export function createFrame(seed: Partial<Omit<Frame, 'id' | 'children'>> = {}):
     width: Math.max(40, Math.round(fields.width ?? FRAME_WIDTH)),
     height: Math.max(40, Math.round(fields.height ?? FRAME_HEIGHT)),
     fills: fields.fills ?? [makeFill(DEFAULT_FRAME_FILL)],
+    stroke: fields.stroke ?? null,
+    effects: fields.effects ?? [],
+    clipContent: fields.clipContent ?? true,
+    guide: fields.guide ?? null,
+    radius: fields.radius ?? 0,
     opacity: fields.opacity ?? 1,
     visible: fields.visible ?? true,
     locked: fields.locked ?? false,
@@ -636,6 +918,11 @@ export function addFrameRect(
     width: Math.max(40, Math.round(rect.width)),
     height: Math.max(40, Math.round(rect.height)),
     fills: [makeFill(DEFAULT_FRAME_FILL)],
+    stroke: null,
+    effects: [],
+    clipContent: true,
+    guide: null,
+    radius: 0,
     opacity: 1,
     visible: true,
     locked: false,
@@ -693,6 +980,10 @@ function makeLayer(kind: LayerKind, name: string, x: number, y: number, fill?: s
     children: [],
     layout: null,
     fills: isGroup ? [] : [makeFill(fill ?? (isText ? DEFAULT_TEXT_FILL : kind === 'icon' ? DEFAULT_ICON_FILL : DEFAULT_SHAPE_FILL))],
+    stroke: null,
+    effects: [],
+    clipContent: false,
+    rotation: 0,
     radius: defaults.radius,
     opacity: 1,
     text: '',
@@ -724,9 +1015,9 @@ export function setLayerLayout(doc: BlueprintDocument, frameId: string | null, l
       cursor += child.height + 8;
       return placed;
     });
-    return updateLayer(doc, frameId, layerId, { layout: null, children });
+    return updateLayer(doc, frameId, layerId, { layout: null, children, clipContent: false });
   }
-  return updateLayer(doc, frameId, layerId, { layout });
+  return updateLayer(doc, frameId, layerId, { layout, clipContent: true });
 }
 
 export function setFrameLayout(doc: BlueprintDocument, frameId: string, layout: StackLayout | null): BlueprintDocument {

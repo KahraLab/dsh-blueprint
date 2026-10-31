@@ -95,6 +95,13 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
     onPick({ set: cell.set, name: cell.name, ...drawing });
   }, [onPick]);
 
+  // Downloading from the rail also selects the set, so the main pane can show
+  // the download progress and then the icons as soon as they arrive.
+  const startDownload = useCallback((prefix: string): void => {
+    selectSet(prefix);
+    void download(prefix);
+  }, [selectSet, download]);
+
   const railItems = useMemo(() => railSets(library, setFilter), [library, setFilter]);
   const activeInfo = library?.sets.find((item) => item.prefix === activeSet);
   const activeInstalled = activeSet !== null && installedPrefixes.includes(activeSet);
@@ -153,8 +160,10 @@ export function IconPicker({ onClose, onPick }: IconPickerProps): ReactElement {
             items={railItems}
             activeSet={activeSet}
             filter={setFilter}
+            installing={installing}
             onFilter={setSetFilter}
             onSelect={selectSet}
+            onDownload={startDownload}
           />
 
           <div className="bp-ip-main">

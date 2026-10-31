@@ -11,6 +11,7 @@
  *   bp find --name 登录按钮      which nodes match
  *   bp apply < change.json      one batch of operations, all or nothing
  *   bp add / set / move / rm    one change each, the same write path
+ *   bp group <id,id>            put sibling layers into one group
  *   bp schema                   the full contract for a model
  *
  * Running `bp` with no command prints citty's command list plus the workflow

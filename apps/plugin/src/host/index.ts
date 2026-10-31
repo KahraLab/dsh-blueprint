@@ -18,6 +18,7 @@ import {
 import { resolveSessionId } from '../node/session.js';
 import { writeSelection, type StoredSelection } from '../node/selection.js';
 import { isWorkspace, searchWorkspaceFiles } from './files.js';
+import { localSkills } from './localSkills.js';
 import { skillFor } from './skill.js';
 import { eventHeaders, openEvents } from './events.js';
 import { WorkspaceWatchers } from './watch.js';
@@ -311,6 +312,7 @@ function createFilesRoute(scope: PluginContext): FetchRoute {
   return {
     path: FILES_ENDPOINT,
     methods: ['GET'],
+    requestBody: 'buffered',
 
     fetch: (request) => guarded(async () => {
       const url = new URL(request.url);
@@ -330,21 +332,39 @@ function createSkillsRoute(scope: PluginContext): FetchRoute {
   return {
     path: SKILLS_ENDPOINT,
     methods: ['GET'],
+    requestBody: 'buffered',
 
     fetch: (request) => guarded(async () => {
       const url = new URL(request.url);
       const requested = url.searchParams.get('workspace');
       const cwd = requested === null || requested === '' ? scope.workingDirectory.defaultDirectory : resolve(requested);
       if (!(await isWorkspace(cwd))) throw new BlueprintError(`工作区不存在：${cwd}`, 'missing');
-      const skills = await scope.skills.list({ cwd });
-      return Response.json({
-        ok: true,
-        skills: skills.map((skill) => ({
+
+      // The root catalog holds packaged and runtime skills. Local skills live
+      // in an agent preset's layer, which a page without a Session cannot read;
+      // merge the same roots here so the menu matches what a Session will see.
+      const byName = new Map<string, { name: string; description: string; path?: string; userInvocable: boolean }>();
+      for (const skill of await scope.skills.list({ cwd })) {
+        byName.set(skill.name, {
           name: skill.name,
           description: skill.description,
           ...skill.path === undefined ? {} : { path: skill.path },
           userInvocable: skill.invocation?.userInvocable ?? true,
-        })),
+        });
+      }
+      for (const skill of await localSkills(cwd)) {
+        byName.set(skill.name, {
+          name: skill.name,
+          description: skill.description,
+          path: skill.path,
+          userInvocable: skill.userInvocable,
+        });
+      }
+      return Response.json({
+        ok: true,
+        skills: [...byName.values()]
+          .filter((skill) => skill.userInvocable)
+          .sort((left, right) => left.name.localeCompare(right.name)),
       });
     }),
   };
@@ -427,7 +447,7 @@ export function apply(ctx: PluginContext): void {
   const watchers = new WorkspaceWatchers();
   ctx.effect(() => () => watchers.closeAll(), 'blueprint:watchers');
 
-  ctx.inject(['connection', 'sessions', 'workingDirectory'], (scope) => {
+  ctx.inject(['connection', 'sessions', 'workingDirectory', 'skills'], (scope) => {
     register(scope, 'blueprints', () => createBlueprintRoute(scope));
     register(scope, 'events', () => createEventsRoute(scope, watchers));
     register(scope, 'current', () => createCurrentRoute(scope));

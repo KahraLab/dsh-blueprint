@@ -355,6 +355,21 @@ describe('选择', () => {
     assert.equal(payload.selection.layerId, buttonId);
     assert.equal(payload.selection.kind, 'rect');
     assert.deepEqual(payload.selection.path, ['登录页', '登录按钮']);
+    assert.equal(payload.selections, undefined, '单选时不重复列一遍');
+  });
+
+  test('多选时把全部选中项一起列出来，编组用得上', () => {
+    box.apply(LOGIN_SCREEN);
+    const frameId = box.firstId(['--kind', 'frame']);
+    const titleId = box.firstId(['--name', '欢迎语']);
+    const buttonId = box.firstId(['--name', '登录按钮']);
+    box.writeSelection([{ frameId, layerId: titleId }, { frameId, layerId: buttonId }]);
+
+    const payload = box.ok(['selection']);
+    assert.equal(payload.count, 2);
+    assert.equal(payload.selection.layerId, titleId);
+    assert.deepEqual(payload.selections.map((item) => item.layerId), [titleId, buttonId]);
+    assert.match(payload.note, /编组/);
   });
 
   test('没有选中时明确说没有，不猜', () => {
@@ -634,6 +649,86 @@ describe('快捷写法', () => {
   });
 });
 
+describe('编组', () => {
+  test('同一层的图层编成一组，屏幕上的位置不变', () => {
+    box.apply(LOGIN_SCREEN);
+    const frameId = box.firstId(['--kind', 'frame']);
+    const titleId = box.firstId(['--name', '欢迎语']);
+    const submitId = box.firstId(['--name', '登录按钮']);
+
+    const grouped = box.ok(['group', `${titleId},${submitId}`, '--name', '登录表单']);
+    assert.equal(grouped.node.kind, 'group');
+    assert.equal(grouped.node.name, '登录表单');
+    assert.deepEqual(grouped.members, [titleId, submitId]);
+
+    const frame = box.view(frameId).frame;
+    assert.equal(frame.children.length, 1, '成员都进了组，屏幕上只剩一个组');
+    const group = frame.children[0];
+    assert.equal(group.id, grouped.node.id);
+    assert.deepEqual(group.children.map((layer) => layer.id), [titleId, submitId]);
+    assert.deepEqual([group.x, group.y], [24, 120], '组框包住成员');
+    assert.deepEqual([group.children[0].x, group.children[0].y], [0, 0]);
+    assert.deepEqual([group.children[1].x, group.children[1].y], [0, 580]);
+    assert.deepEqual(
+      [group.x + group.children[1].x, group.y + group.children[1].y],
+      [24, 700],
+      '成员的屏幕位置没有动',
+    );
+  });
+
+  test('编组要写名字，且不能用自动编号', () => {
+    box.apply(LOGIN_SCREEN);
+    const ids = [box.firstId(['--name', '欢迎语']), box.firstId(['--name', '登录按钮'])].join(',');
+
+    const missing = box.failed(['group', ids]);
+    assert.equal(missing.payload.code, 'VALIDATION_FAILED');
+    assert.equal(missing.payload.field, 'name');
+
+    const automatic = box.failed(['group', ids, '--name', '编组1']);
+    assert.equal(automatic.payload.code, 'VALIDATION_FAILED');
+    assert.equal(automatic.payload.field, 'name');
+  });
+
+  test('一个图层、画板、或者不存在的 id 都编不了，失败不落盘', () => {
+    box.apply(LOGIN_SCREEN);
+    const frameId = box.firstId(['--kind', 'frame']);
+    const titleId = box.firstId(['--name', '欢迎语']);
+
+    const alone = box.failed(['group', titleId, '--name', '只有一个']);
+    assert.equal(alone.payload.code, 'USAGE');
+
+    const withFrame = box.failed(['group', `${titleId},${frameId}`, '--name', '含画板']);
+    assert.equal(withFrame.payload.code, 'VALIDATION_FAILED');
+
+    const missing = box.failed(['group', `${titleId},layer-missing`, '--name', '找不到的']);
+    assert.equal(missing.payload.code, 'NOT_FOUND');
+
+    assert.equal(box.view(frameId).frame.children.length, 2, '失败的编组不落盘');
+  });
+
+  test('跨父级和自动排布的容器都不能编', () => {
+    box.apply(LOGIN_SCREEN);
+    const frameId = box.firstId(['--kind', 'frame']);
+    const titleId = box.firstId(['--name', '欢迎语']);
+    const card = box.ok(['add', 'rect', '--name', '卡片', '--into', frameId, '--at', '24,300', '--size', '200,120']).node;
+    const inner = box.ok(['add', 'rect', '--name', '卡片里的按钮', '--into', card.id, '--at', '12,12', '--size', '100,40']).node;
+
+    const cross = box.failed(['group', `${titleId},${inner.id}`, '--name', '跨层']);
+    assert.equal(cross.payload.code, 'VALIDATION_FAILED');
+    assert.match(cross.payload.message, /同一层/);
+
+    const listFrame = box.ok(['add', 'frame', '--name', '列表页', '--size', '390,844']).node;
+    box.ok(['add', 'rect', '--name', '列表项一', '--into', listFrame.id, '--at', '0,0', '--size', '390,56']);
+    box.ok(['add', 'rect', '--name', '列表项二', '--into', listFrame.id, '--at', '0,56', '--size', '390,56']);
+    box.ok(['set', listFrame.id, '--layout', 'column']);
+
+    const listIds = [box.firstId(['--name', '列表项一']), box.firstId(['--name', '列表项二'])].join(',');
+    const stacked = box.failed(['group', listIds, '--name', '列表']);
+    assert.equal(stacked.payload.code, 'VALIDATION_FAILED');
+    assert.match(stacked.payload.message, /自动排布/);
+  });
+});
+
 describe('输出契约', () => {
   test('每条命令的输出都是一行 JSON，不带颜色码', () => {
     box.apply(LOGIN_SCREEN);
@@ -837,6 +932,20 @@ describe('图标', () => {
     const icon = stored.document.frames[0].children[0].children[0];
     assert.equal(icon.kind, 'icon');
     assert.match(icon.svg, /<circle/, '子图标的绘制要跟着文档一起存');
+  });
+
+  test('编组图标不用再找图标库，文档里存的绘制照样用', () => {
+    box.ok(['icon', 'install', 'lucide'], '', env);
+    const frameId = box.apply(LOGIN_SCREEN).ids.login;
+    const icon = box.ok(['add', 'icon', '--icon', 'lucide/search', '--name', '搜索图标', '--into', frameId, '--at', '24,100'], '', env).node;
+    const submitId = box.firstId(['--name', '登录按钮']);
+
+    // The drawing already lives in the document; moving the node into a group
+    // must not ask the icon set for it again.
+    rmSync(join(box.home, '.dsh', 'blueprint', 'icons'), { recursive: true, force: true });
+    const grouped = box.ok(['group', `${submitId},${icon.id}`, '--name', '搜索表单'], '', env);
+    assert.deepEqual(grouped.members, [submitId, icon.id]);
+    assert.match(box.view(icon.id).node.svg, /<circle/);
   });
 
   test('没下载的集合说明怎么下，不会写出半截图标', () => {

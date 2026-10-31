@@ -22,7 +22,9 @@ export const INSPECTOR_MIN_WIDTH = 160;
 export const INSPECTOR_MAX_WIDTH = 340;
 export const INSPECTOR_DEFAULT_WIDTH = 200;
 
-type MenuName = 'move' | 'shape' | 'insert' | 'iconPicker';
+type MenuName = 'move' | 'shape' | 'iconPicker';
+
+const NO_MENUS: Readonly<Record<MenuName, boolean>> = { move: false, shape: false, iconPicker: false };
 
 interface PanelUiState {
   /** One mode per Session, so two panels cannot fight over what is in front. */
@@ -45,16 +47,16 @@ export const usePanelUi = create<PanelUiState>()((set, get) => ({
   modes: {},
   layersWidth: LAYERS_DEFAULT_WIDTH,
   inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
-  menus: { move: false, shape: false, insert: false, iconPicker: false },
+  menus: NO_MENUS,
 
   modeOf: (key) => get().modes[key] ?? AUTO,
   openBlueprint: (key, blueprintId) => set((state) => ({
     modes: { ...state.modes, [key]: { kind: 'editor', blueprintId } },
-    menus: { move: false, shape: false, insert: false, iconPicker: false },
+    menus: NO_MENUS,
   })),
   showGallery: (key, blueprintId) => set((state) => ({
     modes: { ...state.modes, [key]: { kind: 'gallery', blueprintId } },
-    menus: { move: false, shape: false, insert: false, iconPicker: false },
+    menus: NO_MENUS,
   })),
   setLayersWidth: (layersWidth) => set({ layersWidth }),
   setInspectorWidth: (inspectorWidth) => set({ inspectorWidth }),
@@ -66,10 +68,9 @@ export const usePanelUi = create<PanelUiState>()((set, get) => ({
       ...(menu === 'iconPicker' ? {} : { iconPicker: false }),
       ...(menu === 'move' ? {} : { move: false }),
       ...(menu === 'shape' ? {} : { shape: false }),
-      ...(menu === 'insert' ? {} : { insert: false }),
     },
   })),
-  closeMenus: () => set({ menus: { move: false, shape: false, insert: false, iconPicker: false } }),
+  closeMenus: () => set({ menus: NO_MENUS }),
   setIconPicker: (iconPicker) => set((state) => ({ menus: { ...state.menus, iconPicker } })),
 }));
 

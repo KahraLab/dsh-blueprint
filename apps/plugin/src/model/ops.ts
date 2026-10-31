@@ -238,7 +238,7 @@ function reorder<T extends { id: string }>(list: readonly T[], id: string, index
  * separate them on its own; the one real difference is that a layer carries a
  * `kind`. These three helpers keep the casts in one place.
  */
-function isFrame(node: Node): boolean {
+function isFrame(node: Node): node is Frame {
   return !('kind' in node);
 }
 
@@ -264,6 +264,17 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
     const frame = asFrame(node);
     const bad = finite(frame, ['x', 'y', 'width', 'height', 'opacity']);
     if (bad) return `画板 ${frame.id} 的 ${bad} 不是数字`;
+    if (typeof frame.radius !== 'undefined' && (typeof frame.radius !== 'number' || !Number.isFinite(frame.radius))) {
+      return `画板 ${frame.id} 的 radius 不是数字`;
+    }
+    if (frame.stroke !== undefined && frame.stroke !== null && typeof frame.stroke !== 'object') {
+      return `画板 ${frame.id} 的 stroke 要么是 null，要么是 { color, width, align }`;
+    }
+    if (frame.effects !== undefined && !Array.isArray(frame.effects)) return `画板 ${frame.id} 的 effects 要是数组`;
+    if (frame.guide !== undefined && frame.guide !== null && typeof frame.guide !== 'object') {
+      return `画板 ${frame.id} 的 guide 要么是 null，要么是 { type, count, gutter, margin }`;
+    }
+    if (frame.clipContent !== undefined && typeof frame.clipContent !== 'boolean') return `画板 ${frame.id} 的 clipContent 要是 true 或 false`;
     if (!Array.isArray(frame.fills)) return `画板 ${frame.id} 的 fills 要是数组`;
     if (!Array.isArray(frame.children)) return `画板 ${frame.id} 的 children 要是数组`;
     return null;
@@ -276,6 +287,14 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
   if (!Array.isArray(layer.fills)) return `图层 ${layer.id} 的 fills 要是数组`;
   if (!Array.isArray(layer.children)) return `图层 ${layer.id} 的 children 要是数组`;
   if (typeof layer.text !== 'string') return `图层 ${layer.id} 的 text 要是字符串`;
+  if (layer.stroke !== undefined && layer.stroke !== null && typeof layer.stroke !== 'object') {
+    return `图层 ${layer.id} 的 stroke 要么是 null，要么是 { color, width, align }`;
+  }
+  if (layer.effects !== undefined && !Array.isArray(layer.effects)) return `图层 ${layer.id} 的 effects 要是数组`;
+  if (layer.clipContent !== undefined && typeof layer.clipContent !== 'boolean') return `图层 ${layer.id} 的 clipContent 要是 true 或 false`;
+  if (layer.rotation !== undefined && (typeof layer.rotation !== 'number' || !Number.isFinite(layer.rotation))) {
+    return `图层 ${layer.id} 的 rotation 不是数字`;
+  }
   return null;
 }
 

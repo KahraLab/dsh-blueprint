@@ -6,6 +6,7 @@
  * view of its own; nothing here decides geometry or edits the document.
  */
 import { useRef, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
+import { findLayer } from '../../model/document';
 import type {
   BlueprintDocument,
   InsertTarget,
@@ -67,6 +68,8 @@ export function Canvas({
   const hostRef = useRef<HTMLDivElement>(null);
   const { viewport, setViewport, live } = useViewport({ hostRef, initialViewport, onViewportChange });
   const chrome = useSelectionChrome({ hostRef, selections, doc, live });
+  const single = selections.length === 1 ? selections[0] : null;
+  const selectedRotation = single?.kind === 'layer' ? (findLayer(doc, single.frameId, single.layerId)?.rotation ?? 0) : 0;
 
   const actions: CanvasActions = {
     select: onSelect,
@@ -159,6 +162,7 @@ export function Canvas({
 
         <SelectionChrome
           selectionRef={chrome.selectionRef}
+          handles={selectedRotation === 0}
           onPress={gestures.pressSelectionChrome}
           onResize={(event, corner) => {
             const target = chrome.selectionTarget.current;

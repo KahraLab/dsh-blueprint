@@ -4,6 +4,12 @@
  * A group is structure, not paint: it owns a box so its children can be moved
  * together, but it draws nothing. The children keep their place on screen, so
  * grouping is a pure re-parenting step and never moves a pixel.
+ *
+ * The change is planned as ordinary `insert` / `move` / `set` operations, the
+ * same vocabulary the command line and the canvas already write. In particular
+ * the members are moved into the group rather than inserted again: inserting an
+ * existing icon would ask the icon library for its drawing again, and a document
+ * that carries its own drawings must keep working without that library.
  */
 import {
   createLayer,
@@ -13,9 +19,14 @@ import {
   type BlueprintDocument,
   type Layer,
 } from './document';
+import { type DocumentOp, applyOps } from './ops';
 
 export type GroupResult =
   | { ok: true; doc: BlueprintDocument; group: Layer }
+  | { ok: false; error: string };
+
+export type GroupPlan =
+  | { ok: true; ops: readonly DocumentOp[]; group: Layer }
   | { ok: false; error: string };
 
 /** The sibling list a group would be inserted into, or null when it is gone. */
@@ -25,54 +36,23 @@ function siblingsOf(doc: BlueprintDocument, frameId: string | null, parentId: st
   return doc.layers;
 }
 
-/** Replace one parent's children, leaving every other node alone. */
-function withChildren(
-  layers: readonly Layer[],
-  parentId: string,
-  children: readonly Layer[],
-): readonly Layer[] {
-  return layers.map((layer) => (
-    layer.id === parentId
-      ? { ...layer, children }
-      : { ...layer, children: withChildren(layer.children, parentId, children) }
-  ));
-}
-
-function replaceSiblings(
-  doc: BlueprintDocument,
-  frameId: string | null,
-  parentId: string | null,
-  children: readonly Layer[],
-): BlueprintDocument {
-  if (parentId !== null) {
-    return {
-      ...doc,
-      layers: withChildren(doc.layers, parentId, children),
-      frames: doc.frames.map((frame) => ({ ...frame, children: withChildren(frame.children, parentId, children) })),
-    };
-  }
-  if (frameId !== null) {
-    return {
-      ...doc,
-      frames: doc.frames.map((frame) => (frame.id === frameId ? { ...frame, children } : frame)),
-    };
-  }
-  return { ...doc, layers: children };
-}
-
 /**
- * Group selected siblings under their current parent.
+ * Plan grouping selected siblings under their current parent.
  *
  * The selection must name direct siblings of one free-flowing parent: grouping
  * inside a stack would have to re-order the flow, and grouping rows from two
  * parents has no single place to put the new node.
+ *
+ * The group is inserted empty at the first member's place, then every member
+ * moves inside it and takes a position relative to the group's top-left corner.
  */
-export function groupLayers(
+export function planGroup(
   doc: BlueprintDocument,
   frameId: string | null,
   parentId: string | null,
   layerIds: readonly string[],
-): GroupResult {
+  name?: string,
+): GroupPlan {
   const ids = [...new Set(layerIds)];
   const wanted = new Set(ids);
   if (ids.length < 2) return { ok: false, error: '至少要选两个图层才能编组' };
@@ -94,7 +74,7 @@ export function groupLayers(
   const bottom = Math.max(...chosen.map((layer) => layer.y + layer.height));
 
   const group = createLayer('group', {
-    name: nextLayerName(doc, 'group'),
+    name: name ?? nextLayerName(doc, 'group'),
     x: left,
     y: top,
     width: Math.max(1, right - left),
@@ -108,23 +88,30 @@ export function groupLayers(
     x: layer.x - left,
     y: layer.y - top,
   }));
+  const index = siblings.findIndex((layer) => wanted.has(layer.id));
 
-  const next: Layer[] = [];
-  let placed = false;
-  for (const layer of siblings) {
-    if (wanted.has(layer.id)) {
-      if (!placed) {
-        next.push({ ...group, children });
-        placed = true;
-      }
-      continue;
-    }
-    next.push(layer);
+  const ops: DocumentOp[] = [{ op: 'insert', parent: parentId ?? frameId, index, node: { ...group, children: [] } }];
+  for (const layer of chosen) {
+    ops.push({ op: 'move', id: layer.id, parent: group.id, index: null });
+    ops.push({ op: 'set', id: layer.id, patch: { x: layer.x - left, y: layer.y - top } });
   }
 
-  return {
-    ok: true,
-    doc: replaceSiblings(doc, frameId, parentId, next),
-    group: { ...group, children },
-  };
+  return { ok: true, ops, group: { ...group, children } };
+}
+
+/** Apply a group plan to the document, returning the new tree and the group. */
+export function groupLayers(
+  doc: BlueprintDocument,
+  frameId: string | null,
+  parentId: string | null,
+  layerIds: readonly string[],
+  name?: string,
+): GroupResult {
+  const plan = planGroup(doc, frameId, parentId, layerIds, name);
+  if (!plan.ok) return plan;
+
+  const applied = applyOps(doc, plan.ops);
+  if (applied.failure) return { ok: false, error: applied.failure.message };
+
+  return { ok: true, doc: applied.doc, group: plan.group };
 }

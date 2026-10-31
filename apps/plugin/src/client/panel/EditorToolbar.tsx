@@ -26,7 +26,6 @@ export function EditorToolbar(): ReactElement {
   const setShapeKind = useBlueprint((state) => state.setShapeKind);
   const moveMenu = usePanelUi((state) => state.menus.move);
   const shapeMenu = usePanelUi((state) => state.menus.shape);
-  const insertMenu = usePanelUi((state) => state.menus.insert);
   const iconPicker = usePanelUi((state) => state.menus.iconPicker);
   const toggleMenu = usePanelUi((state) => state.toggleMenu);
   const closeMenus = usePanelUi((state) => state.closeMenus);
@@ -49,6 +48,7 @@ export function EditorToolbar(): ReactElement {
         <button
           type="button"
           className="bp-caret"
+          data-open={moveMenu}
           aria-label={t('tools.moveOptions')}
           aria-expanded={moveMenu}
           onClick={() => toggleMenu('move')}
@@ -92,48 +92,23 @@ export function EditorToolbar(): ReactElement {
         <FrameIcon />
       </button>
 
-      {/* Insert tools live behind one menu, so more of them can join without
-          taking another slot in the palette. */}
-      <div className="bp-tool-group">
-        <button
-          type="button"
-          className="bp-tool"
-          data-on={insertMenu || iconPicker}
-          title={t('tools.insert')}
-          aria-label={t('tools.insert')}
-          aria-haspopup="menu"
-          aria-expanded={insertMenu}
-          onClick={() => toggleMenu('insert')}
-        >
-          <IconToolGlyph />
-        </button>
-        <button
-          type="button"
-          className="bp-caret"
-          aria-label={t('tools.insertOptions')}
-          aria-haspopup="menu"
-          aria-expanded={insertMenu}
-          onClick={() => toggleMenu('insert')}
-        >
-          <CaretIcon />
-        </button>
-        {insertMenu ? (
-          <div className="bp-menu" role="menu">
-            <button
-              type="button"
-              role="menuitem"
-              className="bp-menu-item"
-              onClick={() => {
-                closeMenus();
-                setIconPicker(true);
-              }}
-            >
-              <IconToolGlyph size={13} />
-              <span className="bp-menu-label">{t('tools.icon')}</span>
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {/* Insert has one tool today, so it is a plain button: the click opens the
+          picker directly. A caret only earns its place when there is something
+          to choose between. */}
+      <button
+        type="button"
+        className="bp-tool"
+        title={t('tools.icon')}
+        aria-label={t('tools.icon')}
+        aria-haspopup="dialog"
+        aria-expanded={iconPicker}
+        onClick={() => {
+          closeMenus();
+          setIconPicker(true);
+        }}
+      >
+        <IconToolGlyph />
+      </button>
 
       <div className="bp-tool-group">
         <button
@@ -150,6 +125,7 @@ export function EditorToolbar(): ReactElement {
         <button
           type="button"
           className="bp-caret"
+          data-open={shapeMenu}
           aria-label={t('tools.pickShape')}
           aria-expanded={shapeMenu}
           onClick={() => toggleMenu('shape')}

@@ -4,7 +4,7 @@
  * It resolves the one selected element once, then hands each concern — position,
  * size, layout, fills, type — to a section of its own.
  */
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   findLayer,
@@ -15,11 +15,18 @@ import {
   type Selection,
   type StackLayout,
 } from '../../model/document';
+import { AppearanceSection } from './AppearanceSection';
+import { collectDocumentColors, collectNodeColors } from './color/palette';
+import { EffectsSection } from './EffectsSection';
+import { ExportSection } from './ExportSection';
+import { GuideSection } from './GuideSection';
 import { FillSection } from './FillSection';
 import { FramePresets } from './FramePresets';
 import { LayoutSection } from './LayoutSection';
 import { PositionSection } from './PositionSection';
+import { SelectionColorsSection } from './SelectionColorsSection';
 import { SizeSection } from './SizeSection';
+import { StrokeSection, supportsStroke } from './StrokeSection';
 import { TextAlignSection } from './TextAlignSection';
 import { TextContentSection } from './TextContentSection';
 import { TextStyleSection } from './TextStyleSection';
@@ -33,6 +40,7 @@ export interface InspectorProps {
   onPickPreset(preset: { width: number; height: number }): void;
   onUpdateFrame(frameId: string, patch: RectPatch): void;
   onUpdateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
+  onReplaceColor(selection: Selection, from: string, to: string): void;
   onSetFrameLayout(frameId: string, layout: StackLayout | null): void;
   onSetLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
 }
@@ -58,10 +66,13 @@ export function Inspector({
   onPickPreset,
   onUpdateFrame,
   onUpdateLayer,
+  onReplaceColor,
   onSetFrameLayout,
   onSetLayerLayout,
 }: InspectorProps): ReactElement {
   const { t } = useTranslation();
+  // Both branches of the early return below must keep the same hook order.
+  const palette = useMemo(() => collectDocumentColors(doc), [doc]);
   if (framePresets) return <FramePresets width={width} onPick={onPickPreset} />;
 
   const picked = singleSelection(selections);
@@ -75,9 +86,25 @@ export function Inspector({
   const isFrame = picked.kind === 'frame';
   const parent = isFrame ? null : findParent(doc, picked.frameId, layer!.id);
   const inFlow = parent !== null && parent.layout !== null;
+  // The box a free element is aligned within: its frame, or a free parent layer.
+  const parentLayer = parent?.parentId ? findLayer(doc, picked.frameId, parent.parentId) : undefined;
+  const parentBox =
+    isFrame || parent === null
+      ? null
+      : parent.parentId === null
+        ? picked.frameId !== null && frame !== undefined
+          ? { width: frame.width, height: frame.height }
+          : null
+        : parentLayer !== undefined
+          ? { width: parentLayer.width, height: parentLayer.height }
+          : null;
   const isText = !isFrame && layer!.kind === 'text';
   const isGroup = !isFrame && layer!.kind === 'group';
   const fills = isFrame ? frame!.fills : layer!.fills;
+  const target: Selection = isFrame
+    ? { kind: 'frame', frameId: frame!.id }
+    : { kind: 'layer', frameId: picked.frameId, layerId: layer!.id };
+  const colorUses = collectNodeColors(isFrame ? frame! : layer!);
 
   const actions: InspectorActions = {
     updateFrame: (patch) => onUpdateFrame(frame!.id, patch),
@@ -101,6 +128,9 @@ export function Inspector({
         <PositionSection
           x={isFrame ? frame!.x : layer!.x}
           y={isFrame ? frame!.y : layer!.y}
+          width={isFrame ? frame!.width : layer!.width}
+          height={isFrame ? frame!.height : layer!.height}
+          bounds={parentBox}
           onChange={(next) => (isFrame ? actions.updateFrame(next) : actions.updateLayer(next))}
         />
       )}
@@ -126,16 +156,63 @@ export function Inspector({
         />
       )}
 
-      {isGroup ? null : (
-      <FillSection
-        fills={fills}
-        isRect={!isFrame && layer!.kind === 'rect'}
-        radius={isFrame ? 0 : layer!.radius}
-        newFillColor={isText ? '#101828' : '#FFFFFF'}
-        onChange={(next) => (isFrame ? actions.updateFrame({ fills: next }) : actions.updateLayer({ fills: next }))}
-        onRadius={(radius) => actions.updateLayer({ radius })}
+      <AppearanceSection
+        opacity={isFrame ? frame!.opacity : layer!.opacity}
+        radius={isFrame ? frame!.radius : layer!.kind === 'rect' ? layer!.radius : null}
+        clip={isFrame ? frame!.clipContent : layer!.children.length > 0 || layer!.layout !== null ? layer!.clipContent : null}
+        rotation={isFrame ? null : layer!.rotation}
+        onChange={(patch) => (isFrame ? actions.updateFrame(patch) : actions.updateLayer(patch))}
       />
+
+      {isGroup ? null : (
+        <FillSection
+          fills={fills}
+          newFillColor={isText ? '#101828' : '#FFFFFF'}
+          palette={palette}
+          onChange={(next) => (isFrame ? actions.updateFrame({ fills: next }) : actions.updateLayer({ fills: next }))}
+        />
       )}
+
+      {supportsStroke(isFrame ? 'frame' : layer!.kind) ? (
+        <StrokeSection
+          stroke={isFrame ? frame!.stroke : layer!.stroke}
+          palette={palette}
+          onChange={(stroke) => (isFrame ? actions.updateFrame({ stroke }) : actions.updateLayer({ stroke }))}
+        />
+      ) : null}
+
+      <EffectsSection
+        effects={(isFrame ? frame!.effects : layer!.effects) ?? []}
+        palette={palette}
+        capabilities={{
+          innerShadow: isFrame || layer!.kind === 'rect',
+          backgroundBlur: isFrame || ['rect', 'ellipse', 'polygon', 'star'].includes(layer!.kind),
+        }}
+        onChange={(effects) => (isFrame ? actions.updateFrame({ effects }) : actions.updateLayer({ effects }))}
+      />
+
+      {colorUses.length === 0 ? null : (
+        <SelectionColorsSection
+          colors={colorUses}
+          palette={palette}
+          onReplace={(from, to) => onReplaceColor(target, from, to)}
+        />
+      )}
+
+      {isFrame ? (
+        <GuideSection
+          guide={frame!.guide}
+          palette={palette}
+          onChange={(guide) => actions.updateFrame({ guide })}
+        />
+      ) : null}
+
+      <ExportSection
+        kind={isFrame ? 'frame' : 'layer'}
+        nodeId={isFrame ? frame!.id : layer!.id}
+        name={isFrame ? frame!.name : layer!.name}
+        doc={doc}
+      />
 
       {isText ? (
         <>

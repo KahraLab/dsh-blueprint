@@ -47,6 +47,15 @@ export interface AddArgs {
   name?: string;
   text?: string;
   fill?: string;
+  stroke?: string;
+  'stroke-width'?: string;
+  'stroke-opacity'?: string;
+  'stroke-align'?: 'inside' | 'center' | 'outside';
+  effects?: string;
+  clip?: string;
+  guide?: string;
+  rotation?: string;
+  'replace-color'?: string;
   radius?: string;
   opacity?: string;
   at?: string;
@@ -81,6 +90,14 @@ export function addPayload(args: AddArgs): Record<string, unknown> {
   }
   if (args.text !== undefined) payload.text = args.text;
   if (args.fill !== undefined) payload.fills = [args.fill];
+  const stroke = strokePatchOf(args);
+  if (stroke !== undefined) payload.stroke = stroke;
+  if (args.effects !== undefined) payload.effects = effectsOf(args.effects);
+  const clip = boolOf(args.clip, 'clip');
+  if (clip !== undefined) payload.clipContent = clip;
+  if (args.guide !== undefined) payload.guide = guideOf(args.guide);
+  const rotation = numberOf(args.rotation, 'rotation');
+  if (rotation !== undefined) payload.rotation = rotation;
   const radius = numberOf(args.radius, 'radius');
   if (radius !== undefined) payload.radius = radius;
   const opacity = numberOf(args.opacity, 'opacity');
@@ -117,6 +134,15 @@ export interface SetArgs {
   name?: string;
   text?: string;
   fill?: string;
+  stroke?: string;
+  'stroke-width'?: string;
+  'stroke-opacity'?: string;
+  'stroke-align'?: 'inside' | 'center' | 'outside';
+  effects?: string;
+  clip?: string;
+  guide?: string;
+  rotation?: string;
+  'replace-color'?: string;
   radius?: string;
   opacity?: string;
   'font-size'?: string;
@@ -126,7 +152,8 @@ export interface SetArgs {
   'text-align'?: 'left' | 'center' | 'right';
   'vertical-align'?: 'top' | 'middle' | 'bottom';
   'size-mode'?: 'fixed' | 'hug' | 'fill';
-  layout?: 'free' | 'row' | 'column';
+  layout?: 'free' | 'row' | 'column' | 'grid';
+  columns?: string;
   gap?: string;
   padding?: string;
   align?: 'start' | 'center' | 'end' | 'stretch';
@@ -141,12 +168,63 @@ const SET_NUMBERS: ReadonlyArray<[keyof SetArgs, string]> = [
   ['w', 'width'],
   ['h', 'height'],
   ['radius', 'radius'],
+  ['rotation', 'rotation'],
   ['opacity', 'opacity'],
   ['font-size', 'fontSize'],
   ['font-weight', 'fontWeight'],
   ['line-height', 'lineHeight'],
   ['letter-spacing', 'letterSpacing'],
 ];
+
+interface StrokeFlags {
+  stroke?: string;
+  'stroke-width'?: string;
+  'stroke-opacity'?: string;
+  'stroke-align'?: 'inside' | 'center' | 'outside';
+}
+
+/** `undefined` means "leave the stroke alone"; `null` removes it. */
+function strokePatchOf(args: StrokeFlags): Record<string, unknown> | null | undefined {
+  if (args.stroke === undefined) {
+    if (args['stroke-width'] !== undefined || args['stroke-opacity'] !== undefined || args['stroke-align'] !== undefined) {
+      throw new ProtocolError('USAGE', '改描边粗细、透明度或位置时要一起给 --stroke 颜色', {
+        hint: "bp set <id> --stroke '#101828' --stroke-width 2 --stroke-opacity 0.5 --stroke-align inside",
+      });
+    }
+    return undefined;
+  }
+  if (args.stroke === 'none') return null;
+  const opacity = numberOf(args['stroke-opacity'], 'stroke-opacity') ?? 1;
+  return {
+    color: args.stroke,
+    width: numberOf(args['stroke-width'], 'stroke-width') ?? 1,
+    opacity: Math.min(1, Math.max(0, opacity)),
+    align: args['stroke-align'] ?? 'inside',
+  };
+}
+
+function guideOf(raw: string): unknown {
+  if (raw === 'none' || raw === 'null') return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ProtocolError('USAGE', '--guide 要写 JSON 或 none', {
+      field: 'guide',
+      hint: '比如 --guide \'{"type":"columns","count":4}\"',
+    });
+  }
+}
+
+function effectsOf(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ProtocolError('USAGE', '--effects 要写 JSON 数组', {
+      field: 'effects',
+      hint: '比如 --effects \'[{"type":"shadow","x":0,"y":4,"blur":12}]\'',
+    });
+  }
+}
 
 /** Turn `set` flags into the patch `apply` would receive. */
 export function setPatch(args: SetArgs): Record<string, unknown> {
@@ -158,6 +236,12 @@ export function setPatch(args: SetArgs): Record<string, unknown> {
   if (args.name !== undefined) patch.name = args.name;
   if (args.text !== undefined) patch.text = args.text;
   if (args.fill !== undefined) patch.fills = args.fill === 'none' ? [] : [args.fill];
+  const stroke = strokePatchOf(args);
+  if (stroke !== undefined) patch.stroke = stroke;
+  if (args.effects !== undefined) patch.effects = effectsOf(args.effects);
+  const clip = boolOf(args.clip, 'clip');
+  if (clip !== undefined) patch.clipContent = clip;
+  if (args.guide !== undefined) patch.guide = guideOf(args.guide);
   if (args['text-align'] !== undefined) patch.textAlign = args['text-align'];
   if (args['vertical-align'] !== undefined) patch.verticalAlign = args['vertical-align'];
   if (args['size-mode'] !== undefined) {
@@ -173,16 +257,29 @@ export function setPatch(args: SetArgs): Record<string, unknown> {
     if (args.layout === 'free') {
       patch.layout = null;
     } else {
+      if (args.layout !== 'grid' && args.columns !== undefined) {
+        throw new ProtocolError('USAGE', '--columns 只在栅格布局里有意义', { hint: '加 --layout grid 再用 --columns' });
+      }
+      const columns = numberOf(args.columns, 'columns') ?? 2;
       patch.layout = {
         direction: args.layout,
+        columns: Math.min(12, Math.max(1, Math.round(columns))),
         gap: numberOf(args.gap, 'gap') ?? 8,
         padding: paddingOf(args.padding),
         align: args.align ?? 'stretch',
         justify: args.justify ?? 'start',
       };
     }
-  } else if (args.gap !== undefined || args.padding !== undefined || args.align !== undefined || args.justify !== undefined) {
-    throw new ProtocolError('USAGE', '要改排布得一起给 --layout column 或 --layout row', { hint: '排布字段挂在 layout 上，单独给不生效' });
+  } else if (
+    args.gap !== undefined ||
+    args.padding !== undefined ||
+    args.align !== undefined ||
+    args.justify !== undefined ||
+    args.columns !== undefined
+  ) {
+    throw new ProtocolError('USAGE', '要改排布得一起给 --layout column、--layout row 或 --layout grid', {
+      hint: '排布字段挂在 layout 上，单独给不生效',
+    });
   }
   return patch;
 }

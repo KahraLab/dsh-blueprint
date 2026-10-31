@@ -1,30 +1,46 @@
 /**
- * Fills: colour, opacity, hide and remove, plus the corner radius of a rectangle.
+ * Fills: colour, opacity, hide and remove.
+ *
+ * The swatch opens the picker; the text field stays for pasting a value from
+ * somewhere else. The picker lives in a portal, so it is rendered from here but
+ * is not a child of this section's box.
  */
-import type { ReactElement } from 'react';
+import { useCallback, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddFrameIcon, MinusIcon, VisibilityIcon } from '../icons';
 import { makeFill, type FillStyle } from '../../model/document';
 import { colorToRgba } from '../model/fill';
-import { NumberBox } from './NumberBox';
+import { ColorPicker } from './color/ColorPicker';
 
 interface FillSectionProps {
   fills: readonly FillStyle[];
-  /** A rectangle is the only shape that paints a CSS fill and takes a radius. */
-  isRect: boolean;
-  radius: number;
   /** Colour a new fill starts with: ink for text, white for surfaces. */
   newFillColor: string;
+  /** Colours already used in the document, shown as one-click swatches. */
+  palette: readonly string[];
   onChange(fills: readonly FillStyle[]): void;
-  onRadius(radius: number): void;
 }
 
-export function FillSection({ fills, isRect, radius, newFillColor, onChange, onRadius }: FillSectionProps): ReactElement {
+interface OpenPicker {
+  fillId: string;
+  anchor: HTMLButtonElement;
+}
+
+export function FillSection({
+  fills,
+  newFillColor,
+  palette,
+  onChange,
+}: FillSectionProps): ReactElement {
   const { t } = useTranslation();
+  const [picker, setPicker] = useState<OpenPicker | null>(null);
 
   const replace = (id: string, next: Partial<FillStyle>): void => {
     onChange(fills.map((fill) => (fill.id === id ? { ...fill, ...next } : fill)));
   };
+
+  const closePicker = useCallback(() => setPicker(null), []);
+  const openFill = picker === null ? undefined : fills.find((fill) => fill.id === picker.fillId);
 
   return (
     <section className="bp-inspector-section">
@@ -44,16 +60,29 @@ export function FillSection({ fills, isRect, radius, newFillColor, onChange, onR
       {fills.map((fill) => (
         <div className="bp-fill-row" key={fill.id}>
           <div className="bp-fill-field">
-            <span className="bp-swatch" style={{ background: colorToRgba(fill.color, fill.opacity) }}>
-              <input
-                type="color"
-                value={/^#([0-9a-f]{6})$/i.test(fill.color) ? fill.color : '#000000'}
-                onChange={(event) => replace(fill.id, { color: event.target.value })}
-              />
-            </span>
+            <button
+              type="button"
+              className="bp-swatch"
+              data-testid="inspector-fill-swatch"
+              aria-haspopup="dialog"
+              aria-expanded={picker?.fillId === fill.id}
+              aria-label={t('inspector.openColorPicker')}
+              title={fill.color}
+              onClick={(event) => {
+                // Keep the document-level "click outside" listener from closing
+                // a panel another swatch is about to replace.
+                event.stopPropagation();
+                const anchor = event.currentTarget;
+                setPicker((previous) => (previous?.fillId === fill.id ? null : { fillId: fill.id, anchor }));
+              }}
+            >
+              <span className="bp-swatch-fill" style={{ background: colorToRgba(fill.color, fill.opacity) }} />
+            </button>
             <input
               className="bp-input-field"
               type="text"
+              spellCheck={false}
+              aria-label={t('inspector.fillColor')}
               value={fill.color}
               onChange={(event) => replace(fill.id, { color: event.target.value })}
             />
@@ -61,6 +90,7 @@ export function FillSection({ fills, isRect, radius, newFillColor, onChange, onR
             <input
               className="bp-input-field bp-fill-opacity"
               type="number"
+              aria-label={t('inspector.opacity')}
               value={Math.round(fill.opacity * 100)}
               onChange={(event) => {
                 const parsed = Number.parseFloat(event.target.value);
@@ -91,10 +121,15 @@ export function FillSection({ fills, isRect, radius, newFillColor, onChange, onR
         </div>
       ))}
 
-      {isRect ? (
-        <div className="bp-grid2">
-          <NumberBox label={t('inspector.cornerRadius')} value={radius} onChange={(next) => onRadius(Math.max(0, next))} />
-        </div>
+      {openFill !== undefined && picker !== null ? (
+        <ColorPicker
+          color={openFill.color}
+          opacity={openFill.opacity}
+          anchor={picker.anchor}
+          palette={palette}
+          onChange={(color, opacity) => replace(openFill.id, { color, opacity })}
+          onClose={closePicker}
+        />
       ) : null}
     </section>
   );

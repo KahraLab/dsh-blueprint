@@ -47,24 +47,28 @@ interface JsonAnswer<T> {
   status: number;
   value: T | null;
   error: string | null;
+  /** The first bytes of a failed body, so a non-JSON failure is still readable. */
+  raw: string;
 }
 
 async function fetchJson<T>(url: string, signal: AbortSignal): Promise<JsonAnswer<T>> {
   try {
     const response = await fetch(url, { signal });
     if (!response.ok) {
+      const text = await response.text().catch(() => '');
       let error: string | null = null;
       try {
-        const body = await response.json() as { error?: unknown };
+        const body = JSON.parse(text) as { error?: unknown };
         if (typeof body.error === 'string') error = body.error;
       } catch {
         // A non-JSON failure body still leaves the HTTP status as the message.
       }
-      return { status: response.status, value: null, error };
+      return { status: response.status, value: null, error, raw: text.slice(0, 200) };
     }
-    return { status: response.status, value: await response.json() as T, error: null };
+    const text = await response.text();
+    return { status: response.status, value: JSON.parse(text) as T, error: null, raw: '' };
   } catch {
-    return { status: 0, value: null, error: null };
+    return { status: 0, value: null, error: null, raw: '' };
   }
 }
 
@@ -113,11 +117,11 @@ export async function fileRows(
   const url = `/api/blueprint/files?${params.toString()}`;
   const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url, signal);
   if (answer.value?.files === undefined) {
-    console.warn('[blueprint] file menu request failed', url, answer.status, answer.error);
+    console.warn('[blueprint] file menu request failed', url, answer.status, answer.raw);
     if (answer.status !== 200) {
       return [{
         key: 'files:unavailable',
-        label: withStatus(sources.t('menu.hostStale'), answer),
+        label: withStatus(sources.t('menu.unavailable'), answer),
         icon: 'file',
         section,
         disabled: true,
@@ -173,6 +177,46 @@ interface SkillHit {
   path?: string;
 }
 
+type SkillsAnswer = JsonAnswer<{ ok: boolean; skills?: SkillHit[] }>;
+
+const CATALOG_MS = 30_000;
+const catalogCache = new Map<string, { at: number; answer: SkillsAnswer }>();
+
+/**
+ * One workspace's skill catalog, shared by the menu rows and the chip overlay.
+ * Only successful answers are cached, so a Host that is still starting up is
+ * retried the next time the menu opens.
+ */
+async function loadCatalog(root: string, signal: AbortSignal): Promise<SkillsAnswer> {
+  const cached = catalogCache.get(root);
+  if (cached !== undefined && Date.now() - cached.at < CATALOG_MS) return cached.answer;
+  const params = new URLSearchParams({ workspace: root });
+  const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(
+    `/api/blueprint/skills?${params.toString()}`,
+    signal,
+  );
+  if (answer.value?.skills !== undefined) {
+    catalogCache.set(root, { at: Date.now(), answer });
+    if (catalogCache.size > 10) {
+      const oldest = catalogCache.keys().next().value;
+      if (oldest !== undefined) catalogCache.delete(oldest);
+    }
+  }
+  return answer;
+}
+
+/** Skill names this workspace offers, for deciding which `/word` is a chip. */
+export async function skillNames(
+  sources: MenuSources,
+  signal: AbortSignal,
+): Promise<ReadonlySet<string> | null> {
+  const root = workspaceRoot(sources);
+  if (root === null) return new Set();
+  const answer = await loadCatalog(root, signal);
+  if (answer.value?.skills === undefined) return null;
+  return new Set(answer.value.skills.map((skill) => skill.name));
+}
+
 /** Skills the Host offers for this workspace. */
 export async function skillRows(
   sources: MenuSources,
@@ -182,15 +226,13 @@ export async function skillRows(
 ): Promise<TriggerRow[]> {
   const root = workspaceRoot(sources);
   if (root === null) return [];
-  const params = new URLSearchParams({ workspace: root });
-  const url = `/api/blueprint/skills?${params.toString()}`;
-  const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url, signal);
+  const answer = await loadCatalog(root, signal);
   if (answer.value?.skills === undefined) {
-    console.warn('[blueprint] skill menu request failed', url, answer.status, answer.error);
+    console.warn('[blueprint] skill menu request failed', answer.status, answer.raw);
     if (answer.status !== 200) {
       return [{
         key: 'skills:unavailable',
-        label: withStatus(sources.t('menu.hostStale'), answer),
+        label: withStatus(sources.t('menu.unavailable'), answer),
         icon: 'skill',
         section: sources.t('menu.skills'),
         disabled: true,

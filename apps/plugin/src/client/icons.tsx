@@ -28,6 +28,7 @@ import Redo2 from 'lucide-react/icons/redo-2';
 import Frame from 'lucide-react/icons/frame';
 import Folder from 'lucide-react/icons/folder';
 import Check from 'lucide-react/icons/check';
+import Download from 'lucide-react/icons/download';
 import Lock from 'lucide-react/icons/lock';
 import LockOpen from 'lucide-react/icons/lock-open';
 import Hand from 'lucide-react/icons/hand';
@@ -44,6 +45,10 @@ import ExternalLink from 'lucide-react/icons/external-link';
 import Columns2 from 'lucide-react/icons/columns-2';
 import Rows2 from 'lucide-react/icons/rows-2';
 import LayoutGrid from 'lucide-react/icons/layout-grid';
+import Pipette from 'lucide-react/icons/pipette';
+import ArrowLeftRight from 'lucide-react/icons/arrow-left-right';
+import FoldHorizontal from 'lucide-react/icons/fold-horizontal';
+import UnfoldHorizontal from 'lucide-react/icons/unfold-horizontal';
 
 import FileIconBase from 'lucide-react/icons/file';
 
@@ -117,6 +122,11 @@ export function FolderIcon({ size = 16, className }: IconProps): ReactElement {
 /** Check mark beside the selected workspace. */
 export function CheckIcon({ size = 14, className }: IconProps): ReactElement {
   return <Check size={size} className={className} strokeWidth={2} aria-hidden="true" />;
+}
+
+/** Download glyph for the icon picker's per-set action. */
+export function DownloadIcon({ size = 14, className }: IconProps): ReactElement {
+  return <Download size={size} className={className} strokeWidth={2} aria-hidden="true" />;
 }
 
 /** Add-workspace glyph. */
@@ -260,6 +270,11 @@ export function FlowRowIcon({ size = 14 }: { size?: number }): ReactElement {
   return <Columns2 size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
+/** Grid: children fill equal columns, then wrap to the next row. */
+export function FlowGridIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <LayoutGrid size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
 export type AxisAlignMode = 'start' | 'center' | 'end' | 'between';
 
 /**
@@ -335,4 +350,24 @@ export function IconToolGlyph({ size = 15 }: { size?: number }): ReactElement {
 /** Opens the source of a third-party thing (an icon set, a package) elsewhere. */
 export function ExternalLinkIcon({ size = 11 }: { size?: number }): ReactElement {
   return <ExternalLink size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Reads a colour from anywhere on screen. */
+export function PipetteIcon({ size = 14 }: { size?: number }): ReactElement {
+  return <Pipette size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Size mode "fixed": the width or height is the number you type. */
+export function SizeFixedIcon({ size = 14 }: IconProps): ReactElement {
+  return <ArrowLeftRight size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Size mode "hug": pull the box in around its content. */
+export function SizeHugIcon({ size = 14 }: IconProps): ReactElement {
+  return <FoldHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+/** Size mode "fill": push the box out across the container. */
+export function SizeFillIcon({ size = 14 }: IconProps): ReactElement {
+  return <UnfoldHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />;
 }

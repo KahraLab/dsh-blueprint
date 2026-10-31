@@ -82,6 +82,8 @@ export function MultiSelectionBox({ box }: { box: WorldRect | null }): ReactElem
 
 interface SelectionChromeProps {
   selectionRef: RefObject<HTMLDivElement>;
+  /** A rotated box cannot be resized by screen-axis handles yet. */
+  handles: boolean;
   onPress(event: ReactPointerEvent<HTMLDivElement>): void;
   onResize(event: ReactPointerEvent<HTMLDivElement>, corner: Corner): void;
 }
@@ -91,17 +93,17 @@ interface SelectionChromeProps {
  * container cannot cut them, and they move the selected element through the same
  * drag paths as the element itself.
  */
-export function SelectionChrome({ selectionRef, onPress, onResize }: SelectionChromeProps): ReactElement {
+export function SelectionChrome({ selectionRef, handles, onPress, onResize }: SelectionChromeProps): ReactElement {
   return (
     <div ref={selectionRef} className="bp-selection" onPointerDown={onPress}>
-      {CORNERS.map((corner) => (
+      {handles ? CORNERS.map((corner) => (
         <div
           key={corner}
           className="bp-handle"
           data-corner={corner}
           onPointerDown={(event) => onResize(event, corner)}
         />
-      ))}
+      )) : null}
     </div>
   );
 }

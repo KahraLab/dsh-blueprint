@@ -52,7 +52,7 @@ export function skillFor(command: string): SkillRegistration {
 - 用户说出了名字 → 跑 ${command} find --name 登录按钮。
 - 都没有 → 先 ${command} view 看蓝图；要看整屏再用 ${command} view <画板id>。
 
-然后一次提交完。一批修改写成 { "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply（无需带 baseRevision，按节点 ID 无锁就地写入）。只有一处小改动时可以用 add / set / move / rm 的快捷写法，它们内部走同一条写入路径。
+然后一次提交完。一批修改写成 { "reason": "做了什么", "ops": [...] }，从标准输入交给 ${command} apply（无需带 baseRevision，按节点 ID 无锁就地写入）。只有一处小改动时可以用 add / set / move / rm / group 的快捷写法，它们内部走同一条写入路径。
 
 最后用一两句话告诉用户改了什么。成功后不用再 view；只有结果不确定，或者下一步需要更多文档内容时才再读。
 
@@ -65,13 +65,23 @@ export function skillFor(command: string): SkillRegistration {
 
 插入时节点写成 { "kind": "icon", "iconSet": "lucide", "iconName": "search", "name": "搜索图标" }；单条可以用 ${command} add icon --icon lucide/search --name 搜索图标 --into <画板id>。颜色取 fills（线条用 currentColor），尺寸取 width/height，常见 16、20、24。不要自己拼 SVG，也不要写 svg 字段：协议不接受它，后台按集合和名字补。
 
+## 编组
+
+要把同一层的几个元素装进一个组，用这一条，不要自己算坐标：
+
+    ${command} group layer-a,layer-b --name 登录表单
+
+组只包住成员的边界，成员在屏幕上的位置和尺寸不变。成员必须同层、父容器自由摆放；画板和自动排布的容器里的元素不能编组。名字写清楚这一组是什么，不要用「编组1」这种自动编号。
+
+用户多选后说「把这几个编成一组」：先跑 ${command} selection，它返回的 selections 里有全部选中项，把其中的 layerId 用逗号连起来交给 ${command} group。
+
 ## 规矩
 
 - id 只能从命令输出里抄。自己编的 id 会被拒绝。
 - 字段写错会被整条拒绝。契约之外的字段不会静默忽略，照着 bp schema 写。
 - 批内引用用 ref。insert 的节点带 { "ref": "login" }，同一批里别的操作写 "@login"；ref 不会写进文档。
 - 只改要改的那几处，不要整份重写。用户可能同时在拖别的元素。
-- selection 返回多个元素时（count 大于 1，带 note），先问清楚改哪一个。
+- selection 返回多个元素时（count 大于 1，带 selections）：只改一个就先问清楚改哪个；要编组就把 selections 里的 layerId 全部交给 bp group。
 ${CORE_RULES.map((rule) => `- ${rule}`).join('\n')}
 
 ## 例子：把选中的按钮改成蓝色

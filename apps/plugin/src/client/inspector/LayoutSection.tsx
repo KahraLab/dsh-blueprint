@@ -7,6 +7,7 @@ import {
   AxisAlignIcon,
   FlowColumnIcon,
   FlowFreeIcon,
+  FlowGridIcon,
   FlowRowIcon,
   StretchIcon,
 } from '../icons';
@@ -36,6 +37,7 @@ const FLOW_MODES = [
   { id: 'free', labelKey: 'inspector.flowFree', Icon: FlowFreeIcon },
   { id: 'row', labelKey: 'inspector.flowRow', Icon: FlowRowIcon },
   { id: 'column', labelKey: 'inspector.flowColumn', Icon: FlowColumnIcon },
+  { id: 'grid', labelKey: 'inspector.flowGrid', Icon: FlowGridIcon },
 ] as const;
 
 export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactElement {
@@ -47,6 +49,7 @@ export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactEleme
   const mainAxis: 'x' | 'y' = row ? 'x' : 'y';
   const crossAxis: 'x' | 'y' = row ? 'y' : 'x';
   const activeMode = layout === null ? 'free' : current.direction;
+  const isGrid = current.direction === 'grid';
 
   return (
     <section className="bp-inspector-section">
@@ -80,54 +83,76 @@ export function LayoutSection({ layout, onSet }: LayoutSectionProps): ReactEleme
 
       {layout ? (
         <>
-          <div className="bp-grid2">
-            <NumberBox label={t('inspector.gap')} value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
-            <NumberBox
-              label={t('inspector.padding')}
-              value={layout.padding.top}
-              onChange={(padding) =>
-                patch({ padding: { top: padding, right: padding, bottom: padding, left: padding } })
-              }
-            />
-          </div>
-
-          <div className="bp-typo-field">
-            <span className="bp-typo-label">{t('inspector.distribute')}</span>
-            <div className="bp-align-box">
-              {(['start', 'center', 'end', 'between'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className="bp-align-btn"
-                  data-on={layout.justify === mode}
-                  title={t(JUSTIFY_LABEL[mode])}
-                  aria-label={mode}
-                  onClick={() => patch({ justify: mode })}
-                >
-                  <AxisAlignIcon axis={mainAxis} mode={mode} />
-                </button>
-              ))}
+          {isGrid ? (
+            <>
+              <div className="bp-grid2">
+                <NumberBox
+                  label={t('inspector.columns')}
+                  value={layout.columns}
+                  onChange={(columns) => patch({ columns: Math.min(12, Math.max(1, Math.round(columns))) })}
+                />
+                <NumberBox label={t('inspector.gap')} value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
+              </div>
+              <NumberBox
+                label={t('inspector.padding')}
+                value={layout.padding.top}
+                onChange={(padding) => patch({ padding: { top: padding, right: padding, bottom: padding, left: padding } })}
+              />
+            </>
+          ) : (
+            <div className="bp-grid2">
+              <NumberBox label={t('inspector.gap')} value={layout.gap} onChange={(gap) => patch({ gap: Math.max(0, gap) })} />
+              <NumberBox
+                label={t('inspector.padding')}
+                value={layout.padding.top}
+                onChange={(padding) =>
+                  patch({ padding: { top: padding, right: padding, bottom: padding, left: padding } })
+                }
+              />
             </div>
-          </div>
+          )}
 
-          <div className="bp-typo-field">
-            <span className="bp-typo-label">{t('inspector.align')}</span>
-            <div className="bp-align-box">
-              {(['start', 'center', 'end', 'stretch'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className="bp-align-btn"
-                  data-on={layout.align === mode}
-                  title={t(ALIGN_LABEL[mode])}
-                  aria-label={mode}
-                  onClick={() => patch({ align: mode })}
-                >
-                  {mode === 'stretch' ? <StretchIcon axis={crossAxis} /> : <AxisAlignIcon axis={crossAxis} mode={mode} />}
-                </button>
-              ))}
-            </div>
-          </div>
+          {isGrid ? null : (
+            <>
+              <div className="bp-typo-field">
+                <span className="bp-typo-label">{t('inspector.distribute')}</span>
+                <div className="bp-align-box">
+                  {(['start', 'center', 'end', 'between'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className="bp-align-btn"
+                      data-on={layout.justify === mode}
+                      title={t(JUSTIFY_LABEL[mode])}
+                      aria-label={mode}
+                      onClick={() => patch({ justify: mode })}
+                    >
+                      <AxisAlignIcon axis={mainAxis} mode={mode} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bp-typo-field">
+                <span className="bp-typo-label">{t('inspector.align')}</span>
+                <div className="bp-align-box">
+                  {(['start', 'center', 'end', 'stretch'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className="bp-align-btn"
+                      data-on={layout.align === mode}
+                      title={t(ALIGN_LABEL[mode])}
+                      aria-label={mode}
+                      onClick={() => patch({ align: mode })}
+                    >
+                      {mode === 'stretch' ? <StretchIcon axis={crossAxis} /> : <AxisAlignIcon axis={crossAxis} mode={mode} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </>
       ) : null}
     </section>

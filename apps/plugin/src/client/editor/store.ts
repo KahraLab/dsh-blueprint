@@ -25,6 +25,7 @@ import {
   reorderLayer,
   setFrameLayout,
   setLayerLayout,
+  replaceColorInDocument,
   updateFrame,
   updateLayer,
   type BlueprintDocument,
@@ -61,6 +62,8 @@ interface BlueprintState {
   moveLayerTo(frameId: string | null, layerId: string, target: InsertTarget, point: { x: number; y: number } | null): void;
   updateFrame(frameId: string, patch: RectPatch): void;
   updateLayer(frameId: string | null, layerId: string, patch: LayerRectPatch): void;
+  /** Replace one colour across a selection's subtree; fills and strokes alike. */
+  replaceColor(selection: Selection, from: string, to: string): void;
   setFrameLayout(frameId: string, layout: StackLayout | null): void;
   setLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
   deleteSelection(): void;
@@ -168,6 +171,10 @@ export const useBlueprint = create<BlueprintState>()(
 
       updateFrame: (frameId, patch) => set({ doc: updateFrame(get().doc, frameId, patch) }),
       updateLayer: (frameId, layerId, patch) => set({ doc: updateLayer(get().doc, frameId, layerId, patch) }),
+      replaceColor: (selection, from, to) => {
+        const doc = replaceColorInDocument(get().doc, selection, from, to);
+        if (doc !== get().doc) set({ doc });
+      },
       setFrameLayout: (frameId, layout) => set({ doc: setFrameLayout(get().doc, frameId, layout) }),
       setLayerLayout: (frameId, layerId, layout) => set({ doc: setLayerLayout(get().doc, frameId, layerId, layout) }),
 

@@ -78,7 +78,11 @@ export interface FsService {
 export interface FetchRoute {
   path: string;
   methods: readonly string[];
-  requestBody?: 'buffered' | 'stream';
+  /**
+   * Required: the Host's HTTP bridge reads an absent mode as `stream`, which
+   * gives even a GET a body that `Request` refuses before the route runs.
+   */
+  requestBody: 'buffered' | 'stream';
   fetch(request: Request): Promise<Response> | Response;
 }
 

@@ -9,6 +9,9 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement } f
 import type { Frame, Layer, LayerRectPatch, Selection, StackLayout } from '../../model/document';
 import type { EditingLayer } from '../editor/types';
 import { fillBackground } from '../model/fill';
+import { backdropOf, boxShadowOf, filterOf } from '../model/effect';
+import { strokeShadow } from '../model/stroke';
+import { GuideOverlay } from './GuideOverlay';
 import { isFrameSelected, isLayerSelected } from './geometry';
 import { ShapeGraphic, containerStyle, flowItemStyle, freeItemStyle, visualStyle } from './style';
 import { measureText } from './text';
@@ -39,6 +42,7 @@ export function LayerView({ layer, frameId, container, context }: LayerViewProps
   const isEditing = editing?.layerId === layer.id && editing.frameId === frameId;
   const style: CSSProperties = { ...(container ? flowItemStyle(layer, container) : freeItemStyle(layer)), ...visualStyle(layer) };
   if (layer.layout) Object.assign(style, containerStyle(layer.layout));
+  style.overflow = layer.clipContent ? 'hidden' : 'visible';
 
   return (
     <div
@@ -84,7 +88,7 @@ export function LayerView({ layer, frameId, container, context }: LayerViewProps
             // installed for the canvas to show it.
             <IconGlyph svg={layer.svg} className="bp-icon-glyph" hidden />
           ) : (
-            <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} />
+            <ShapeGraphic kind={layer.kind} fills={layer.fills} width={layer.width} height={layer.height} stroke={layer.stroke} />
           )}
           {layer.children.map((child) => (
             <LayerView key={child.id} layer={child} frameId={frameId} container={layer.layout} context={context} />
@@ -120,8 +124,7 @@ export function FrameView({ frame, context, dropTarget }: FrameViewProps): React
         top: frame.y,
         width: frame.width,
         height: frame.height,
-        background: fillBackground(frame.fills),
-        opacity: frame.opacity,
+        borderRadius: frame.radius,
       }}
       onPointerDown={(event) => {
         // Clicking an unselected screen is not a way to grab it: it lets
@@ -149,11 +152,21 @@ export function FrameView({ frame, context, dropTarget }: FrameViewProps): React
         data-frame={frame.id}
         data-flow={frame.layout ? 'stack' : 'free'}
         data-direction={frame.layout?.direction ?? ''}
-        style={frame.layout ? containerStyle(frame.layout) : {}}
+        style={{
+          ...(frame.layout ? containerStyle(frame.layout) : {}),
+          background: fillBackground(frame.fills),
+          boxShadow: boxShadowOf(strokeShadow(frame.stroke), frame.effects ?? [], true),
+          filter: filterOf(frame.effects ?? [], false),
+          backdropFilter: backdropOf(frame.effects ?? []),
+          overflow: frame.clipContent ? 'hidden' : 'visible',
+          // Fade what the screen shows, not its canvas label and outline.
+          opacity: frame.opacity,
+        }}
       >
         {frame.children.map((layer) => (
           <LayerView key={layer.id} layer={layer} frameId={frame.id} container={frame.layout} context={context} />
         ))}
+        {frame.guide ? <GuideOverlay guide={frame.guide} width={frame.width} height={frame.height} /> : null}
       </div>
     </div>
   );
