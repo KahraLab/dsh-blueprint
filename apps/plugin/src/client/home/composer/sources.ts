@@ -107,13 +107,13 @@ export async function fileRows(
 ): Promise<TriggerRow[]> {
   const root = workspaceRoot(sources);
   if (root === null) return [];
-  const url = new URL('/api/blueprint/files', window.location.origin);
-  url.searchParams.set('workspace', root);
-  url.searchParams.set('q', query);
-  url.searchParams.set('limit', String(limit));
-  const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url.toString(), signal);
+  // Relative, like every other request here: the desktop app serves the page
+  // under a custom scheme whose origin does not form a usable absolute API URL.
+  const params = new URLSearchParams({ workspace: root, q: query, limit: String(limit) });
+  const url = `/api/blueprint/files?${params.toString()}`;
+  const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url, signal);
   if (answer.value?.files === undefined) {
-    console.warn('[blueprint] file menu request failed', url.toString(), answer.status, answer.error);
+    console.warn('[blueprint] file menu request failed', url, answer.status, answer.error);
     if (answer.status !== 200) {
       return [{
         key: 'files:unavailable',
@@ -182,11 +182,11 @@ export async function skillRows(
 ): Promise<TriggerRow[]> {
   const root = workspaceRoot(sources);
   if (root === null) return [];
-  const url = new URL('/api/blueprint/skills', window.location.origin);
-  url.searchParams.set('workspace', root);
-  const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url.toString(), signal);
+  const params = new URLSearchParams({ workspace: root });
+  const url = `/api/blueprint/skills?${params.toString()}`;
+  const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url, signal);
   if (answer.value?.skills === undefined) {
-    console.warn('[blueprint] skill menu request failed', url.toString(), answer.status, answer.error);
+    console.warn('[blueprint] skill menu request failed', url, answer.status, answer.error);
     if (answer.status !== 200) {
       return [{
         key: 'skills:unavailable',
