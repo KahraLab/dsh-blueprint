@@ -304,9 +304,10 @@ function toSelection(value: unknown): StoredSelection | null {
  */
 /**
  * Workspace files for the composer's trigger menus. The caller passes the
- * workspace explicitly because the entry page has no Session yet.
+ * workspace explicitly because the entry page has no Session yet; an absent
+ * one falls back to the default directory, like every other route here.
  */
-function createFilesRoute(): FetchRoute {
+function createFilesRoute(scope: PluginContext): FetchRoute {
   return {
     path: FILES_ENDPOINT,
     methods: ['GET'],
@@ -314,8 +315,7 @@ function createFilesRoute(): FetchRoute {
     fetch: (request) => guarded(async () => {
       const url = new URL(request.url);
       const requested = url.searchParams.get('workspace');
-      if (requested === null || requested === '') throw new RequestError('workspace 不能为空');
-      const root = resolve(requested);
+      const root = workspaceOf(scope, null, requested);
       if (!(await isWorkspace(root))) throw new BlueprintError(`工作区不存在：${root}`, 'missing');
       const query = url.searchParams.get('q') ?? '';
       const limit = Number(url.searchParams.get('limit') ?? '20');
@@ -435,7 +435,7 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'history', () => createHistoryRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
     register(scope, 'icons', () => createIconsRoute());
-    register(scope, 'files', () => createFilesRoute());
+    register(scope, 'files', () => createFilesRoute(scope));
     register(scope, 'skills', () => createSkillsRoute(scope));
   });
 

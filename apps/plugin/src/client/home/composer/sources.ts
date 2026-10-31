@@ -43,24 +43,36 @@ interface FileHit {
   kind: 'file' | 'directory';
 }
 
-/** Append the HTTP status when there is one, so a stale Host is obvious. */
-function withStatus(label: string, status: number): string {
-  return status === 0 ? label : `${label}（HTTP ${status}）`;
-}
-
 interface JsonAnswer<T> {
   status: number;
   value: T | null;
+  error: string | null;
 }
 
 async function fetchJson<T>(url: string, signal: AbortSignal): Promise<JsonAnswer<T>> {
   try {
     const response = await fetch(url, { signal });
-    if (!response.ok) return { status: response.status, value: null };
-    return { status: response.status, value: await response.json() as T };
+    if (!response.ok) {
+      let error: string | null = null;
+      try {
+        const body = await response.json() as { error?: unknown };
+        if (typeof body.error === 'string') error = body.error;
+      } catch {
+        // A non-JSON failure body still leaves the HTTP status as the message.
+      }
+      return { status: response.status, value: null, error };
+    }
+    return { status: response.status, value: await response.json() as T, error: null };
   } catch {
-    return { status: 0, value: null };
+    return { status: 0, value: null, error: null };
   }
+}
+
+/** Append the status and the Host's own message, so a failure is readable. */
+function withStatus(label: string, answer: JsonAnswer<unknown>): string {
+  if (answer.status === 0) return label;
+  const reason = answer.error === null ? '' : `: ${answer.error}`;
+  return `${label}（HTTP ${answer.status}${reason}）`;
 }
 
 function parentOf(path: string): string | undefined {
@@ -89,11 +101,11 @@ export async function fileRows(
   url.searchParams.set('limit', String(limit));
   const answer = await fetchJson<{ ok: boolean; files?: FileHit[] }>(url.toString(), signal);
   if (answer.value?.files === undefined) {
-    console.warn('[blueprint] file menu request failed', answer.status);
+    console.warn('[blueprint] file menu request failed', url.toString(), answer.status, answer.error);
     if (answer.status !== 200) {
       return [{
         key: 'files:unavailable',
-        label: withStatus(sources.t('menu.hostStale'), answer.status),
+        label: withStatus(sources.t('menu.hostStale'), answer),
         icon: 'file',
         section,
         disabled: true,
@@ -162,11 +174,11 @@ export async function skillRows(
   url.searchParams.set('workspace', workspace.path);
   const answer = await fetchJson<{ ok: boolean; skills?: SkillHit[] }>(url.toString(), signal);
   if (answer.value?.skills === undefined) {
-    console.warn('[blueprint] skill menu request failed', answer.status);
+    console.warn('[blueprint] skill menu request failed', url.toString(), answer.status, answer.error);
     if (answer.status !== 200) {
       return [{
         key: 'skills:unavailable',
-        label: withStatus(sources.t('menu.hostStale'), answer.status),
+        label: withStatus(sources.t('menu.hostStale'), answer),
         icon: 'skill',
         section: sources.t('menu.skills'),
         disabled: true,
