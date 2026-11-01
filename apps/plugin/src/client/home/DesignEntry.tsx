@@ -151,7 +151,6 @@ export function DesignEntry({ ctx, workspaces, sessions, workspace, onDashboard 
           </div>
         </div>
 
-        {starterOnly ? <p className="bp-entry-note">{t('home.starterHint')}</p> : null}
         {workspaces.phase === 'pending' ? <p className="bp-entry-note">{t('home.loading')}</p> : null}
         {workspaces.phase !== 'pending' && workspace === null ? <p className="bp-entry-error">{t('home.noWorkspace')}</p> : null}
         {error === null ? null : <p className="bp-entry-error" role="alert">{error}</p>}
