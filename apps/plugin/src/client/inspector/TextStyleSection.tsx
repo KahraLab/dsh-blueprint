@@ -1,12 +1,12 @@
 /**
  * Type: family, weight, size, line height and tracking.
  */
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TextLayer, LayerRectPatch } from '../../domain/document';
+import { FontPicker } from './font/FontPicker';
 import { NumberBox } from './NumberBox';
 
-const FONT_FAMILIES = ['Figtree', 'Inter', 'system-ui'] as const;
 const FONT_WEIGHTS = [
   { value: 300, label: 'Light' },
   { value: 400, label: 'Regular' },
@@ -22,23 +22,37 @@ interface TextStyleSectionProps {
 
 export function TextStyleSection({ layer, updateLayer }: TextStyleSectionProps): ReactElement {
   const { t } = useTranslation();
+  const [fontAnchor, setFontAnchor] = useState<HTMLButtonElement | null>(null);
   return (
     <section className="bp-inspector-section">
       <h5>{t('inspector.font')}</h5>
 
-      <label className="bp-input-box bp-full">
-        <select
-          className="bp-input-field"
-          value={layer.fontFamily}
-          onChange={(event) => updateLayer({ fontFamily: event.target.value })}
+      <div className="bp-input-box bp-full">
+        <button
+          type="button"
+          className="bp-input-field bp-font-button"
+          aria-label={t('inspector.fontPicker')}
+          style={{ fontFamily: `"${layer.fontFamily}"` }}
+          onClick={(event) => {
+            const anchor = event.currentTarget;
+            setFontAnchor((previous) => (previous === anchor ? null : anchor));
+          }}
         >
-          {FONT_FAMILIES.map((family) => (
-            <option key={family} value={family}>
-              {family}
-            </option>
-          ))}
-        </select>
-      </label>
+          <span className="bp-font-preview">{layer.fontFamily}</span>
+          <span className="bp-font-caret" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+      </div>
+
+      {fontAnchor === null ? null : (
+        <FontPicker
+          value={layer.fontFamily}
+          anchor={fontAnchor}
+          onChange={(fontFamily) => updateLayer({ fontFamily })}
+          onClose={() => setFontAnchor(null)}
+        />
+      )}
 
       <div className="bp-grid2">
         <label className="bp-input-box">

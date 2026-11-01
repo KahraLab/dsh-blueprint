@@ -1620,6 +1620,98 @@
   outline-offset: 1px;
 }
 
+/* ---------- font picker ---------- */
+.bp-font-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+.bp-font-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-font-caret {
+  flex: none;
+  font-size: 9px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+}
+.bp-font-pop {
+  --bp-font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  position: fixed;
+  z-index: 900;
+  width: 248px;
+  box-sizing: border-box;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2, #242426);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  font: 12px/1.4 var(--bp-font-sans);
+  color: var(--dsw-alias-label-primary, #eaeaea);
+}
+.bp-font-search {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base, #161616);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+.bp-font-search:focus {
+  border-color: #4fc3f7;
+}
+.bp-font-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.bp-font-row {
+  flex: none;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  /* 每一行用它自己的字体显示：挑字体时直接看效果，比读名字快。 */
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.bp-font-row[data-active='true'] {
+  background: rgba(255, 255, 255, 0.07);
+}
+.bp-font-row[data-selected='true'] {
+  color: #6ea8ff;
+}
+.bp-font-note,
+.bp-font-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #8f8f8f);
+}
+.bp-font-foot {
+  flex: none;
+}
+
 /* ---------- section header with an action ---------- */
 .bp-section-head {
   display: flex;

@@ -63,6 +63,7 @@ export interface AddArgs {
   size?: string;
   'font-size'?: string;
   'font-weight'?: string;
+  'font-family'?: string;
   icon?: string;
 }
 
@@ -124,6 +125,7 @@ export function addPayload(args: AddArgs): Record<string, unknown> {
   if (fontSize !== undefined) payload.fontSize = fontSize;
   const fontWeight = numberOf(args['font-weight'], 'font-weight');
   if (fontWeight !== undefined) payload.fontWeight = fontWeight;
+  if (args['font-family'] !== undefined) payload.fontFamily = args['font-family'];
   return payload;
 }
 
@@ -150,6 +152,7 @@ export interface SetArgs {
   opacity?: string;
   'font-size'?: string;
   'font-weight'?: string;
+  'font-family'?: string;
   'line-height'?: string;
   'letter-spacing'?: string;
   'text-align'?: 'left' | 'center' | 'right';
@@ -247,6 +250,7 @@ export function setPatch(args: SetArgs): Record<string, unknown> {
   if (args.guide !== undefined) patch.guide = guideOf(args.guide);
   if (args['text-align'] !== undefined) patch.textAlign = args['text-align'];
   if (args['vertical-align'] !== undefined) patch.verticalAlign = args['vertical-align'];
+  if (args['font-family'] !== undefined) patch.fontFamily = args['font-family'];
   if (args['size-mode'] !== undefined) {
     patch.sizeW = args['size-mode'];
     patch.sizeH = args['size-mode'];

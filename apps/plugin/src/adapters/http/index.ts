@@ -21,6 +21,7 @@ import { createDocumentRoute, createHistoryRoute } from './routes/document';
 import { createIconsRoute } from './routes/icons';
 import { createSelectionRoute } from './routes/selection';
 import { createFilesRoute, createSkillsRoute } from './routes/workspace';
+import { createFontsRoute } from './routes/fonts';
 import { WorkspaceWatchers } from '../../infrastructure/fs/watch';
 
 /** Register one route, and take it down cleanly if the plugin reloads. */
@@ -57,6 +58,7 @@ export function apply(ctx: PluginContext): void {
     register(scope, 'history', () => createHistoryRoute(scope));
     register(scope, 'selection', () => createSelectionRoute());
     register(scope, 'icons', () => createIconsRoute());
+    register(scope, 'fonts', () => createFontsRoute());
     register(scope, 'files', () => createFilesRoute(scope));
     register(scope, 'skills', () => createSkillsRoute(scope));
   });
