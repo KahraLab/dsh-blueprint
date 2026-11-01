@@ -58,9 +58,13 @@
   place-items: center;
   padding: 0;
 }
-.bp-icon:hover {
+.bp-icon:hover:not(:disabled) {
   background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.08));
   color: var(--dsw-alias-label-primary, #eee);
+}
+.bp-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .bp-icon[data-on='true'] {
   background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.1));
