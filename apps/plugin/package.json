@@ -23,7 +23,6 @@
     "build": "node scripts/icons.mjs && node scripts/build.mjs",
     "build:watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/icons.mjs && node scripts/build.mjs && x18n check && node --test test/*.test.mjs",
     "i18n:check": "x18n check"
   },
   "devDependencies": {

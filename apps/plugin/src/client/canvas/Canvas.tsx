@@ -5,7 +5,7 @@
  * gesture in flight from `useCanvasGestures`, and every painted mark is a small
  * view of its own; nothing here decides geometry or edits the document.
  */
-import { useRef, type MutableRefObject, type ReactElement } from 'react';
+import { useLayoutEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
 import { findLayer } from '../../domain/document';
 import type {
   BlueprintDocument,
@@ -87,7 +87,9 @@ export function Canvas({
   const hostSize = hostRef.current;
   const hostWidth = hostSize?.clientWidth ?? 0;
   const hostHeight = hostSize?.clientHeight ?? 0;
-  viewportRef.current = { ...viewport, width: hostWidth, height: hostHeight };
+  useLayoutEffect(() => {
+    viewportRef.current = { ...viewport, width: hostWidth, height: hostHeight };
+  }, [hostHeight, hostWidth, viewport, viewportRef]);
 
   const visibleWorld = hostWidth > 0 && hostHeight > 0
     ? {

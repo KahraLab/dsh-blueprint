@@ -8,7 +8,7 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Frame, Layer, LayerRectPatch, RectPatch } from '../../domain/document';
+import type { Layer, LayerRectPatch, Node, RectPatch } from '../../domain/document';
 import { SizeFillIcon, SizeFixedIcon, SizeHugIcon } from '../icons';
 import { Segmented } from '../ui/Segmented';
 import { NumberBox } from './NumberBox';
@@ -22,52 +22,51 @@ const SIZE_MODES = [
 ] as const;
 
 interface SizeSectionProps {
-  frame: Frame;
-  layer: Layer | null;
+  node: Node;
   updateFrame(patch: RectPatch): void;
   updateLayer(patch: LayerRectPatch): void;
 }
 
-export function SizeSection({ frame, layer, updateFrame, updateLayer }: SizeSectionProps): ReactElement {
+export function SizeSection({ node, updateFrame, updateLayer }: SizeSectionProps): ReactElement {
   const { t } = useTranslation();
 
   return (
     <section className="bp-inspector-section">
       <h5>{t('inspector.size')}</h5>
-      {layer === null ? (
-        <div className="bp-grid2">
-          <NumberBox label="W" value={frame.width} onChange={(next) => updateFrame({ width: Math.max(40, next) })} />
-          <NumberBox label="H" value={frame.height} onChange={(next) => updateFrame({ height: Math.max(40, next) })} />
-        </div>
-      ) : (
+      {'kind' in node ? (
         <>
           <div className="bp-size-row">
             <NumberBox
               label="W"
-              value={layer.width}
-              disabled={layer.sizeW !== 'fixed'}
+              value={node.width}
+              disabled={node.sizeW !== 'fixed'}
               onChange={(next) => updateLayer({ width: Math.max(4, next) })}
             />
             <SizeModes
               axis="w"
-              value={layer.sizeW}
-              onChange={(mode) => updateLayer({ sizeW: mode, width: mode === 'fixed' ? Math.max(4, layer.width) : layer.width })}
+              value={node.sizeW}
+              onChange={(mode) => updateLayer({ sizeW: mode, width: mode === 'fixed' ? Math.max(4, node.width) : node.width })}
             />
           </div>
           <div className="bp-size-row">
             <NumberBox
               label="H"
-              value={layer.height}
-              disabled={layer.sizeH !== 'fixed'}
+              value={node.height}
+              disabled={node.sizeH !== 'fixed'}
               onChange={(next) => updateLayer({ height: Math.max(4, next) })}
             />
             <SizeModes
               axis="h"
-              value={layer.sizeH}
-              onChange={(mode) => updateLayer({ sizeH: mode, height: mode === 'fixed' ? Math.max(4, layer.height) : layer.height })}
+              value={node.sizeH}
+              onChange={(mode) => updateLayer({ sizeH: mode, height: mode === 'fixed' ? Math.max(4, node.height) : node.height })}
             />
           </div>
         </>
+      ) : (
+        <div className="bp-grid2">
+          <NumberBox label="W" value={node.width} onChange={(next) => updateFrame({ width: Math.max(40, next) })} />
+          <NumberBox label="H" value={node.height} onChange={(next) => updateFrame({ height: Math.max(40, next) })} />
+        </div>
       )}
     </section>
   );

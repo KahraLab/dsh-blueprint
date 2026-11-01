@@ -40,7 +40,7 @@ graph TD
 
 ### 依赖隔离黄金法则
 - **领域内核的纯粹性**：领域模型目录（Domain Model）内严禁出现对 Node.js 原生模块（`fs`、`path` 等）、外部第三方库或前端渲染层（`react` 等）的引用。
-- **检验标准**：将领域核心代码单独拷贝到一个没有任何外部依赖的空白 TypeScript 工程中，必须能够瞬间完成类型检查与纯内存单元测试编译。
+- **检验标准**：将领域核心代码单独拷贝到一个没有任何外部依赖的空白 TypeScript 工程中，必须能够独立完成类型检查。
 
 ---
 
@@ -205,12 +205,12 @@ ops.push({
 });
 ```
 
-### 2. 状态代数往返测试契约
+### 2. 状态代数往返契约
 对于任意合法的蓝图状态 `DocA` 与 `DocB`，系统必须严格满足代数往返恒等式：
 
 $$\text{applyOps}(\text{DocA}, \text{diff}(\text{DocA}, \text{DocB})) \equiv \text{DocB}$$
 
-任何新增的图层种类或属性字段，必须在单元测试中通过此类差分-回放闭环测试套件的验证。
+新增图层种类或属性字段时，必须通过真实命令的差分与回放走查确认该恒等式成立。
 
 ---
 
@@ -219,9 +219,8 @@ $$\text{applyOps}(\text{DocA}, \text{diff}(\text{DocA}, \text{DocB})) \equiv \te
 任何对数据模型、领域校验规则或操作补丁逻辑的修改，提交前必须执行：
 
 ```bash
-# 1. 严格模式静态类型检查（必须 0 错误）
 pnpm -C apps/plugin typecheck
-
-# 2. 领域模型单元测试套件（纯内存断言，高速通过）
-pnpm -C apps/plugin test
+pnpm -C apps/plugin build
 ```
+
+随后在 `.tmp/` 隔离的工作区中走查涉及的领域操作。

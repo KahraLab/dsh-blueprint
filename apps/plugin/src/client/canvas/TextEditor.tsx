@@ -5,10 +5,10 @@
  * re-render that arrives mid-keystroke.
  */
 import { useEffect, useRef, type ReactElement } from 'react';
-import type { Layer } from '../../domain/document';
+import type { TextLayer } from '../../domain/document';
 
 interface TextEditorProps {
-  layer: Layer;
+  layer: TextLayer;
   onTextInput(text: string): void;
   onFinishEditing(): void;
 }

@@ -141,7 +141,7 @@ function layerSummary(layer: Layer): Record<string, unknown> {
     sizeW: layer.sizeW,
     sizeH: layer.sizeH,
     childCount: layer.children.length,
-    ...(layer.text.length > 0 ? { text: layer.text } : {}),
+    ...(layer.kind === 'text' && layer.text.length > 0 ? { text: layer.text } : {}),
   };
 }
 
@@ -156,7 +156,7 @@ function describeSelection(found: NodeLocation): Record<string, unknown> {
 }
 
 function describeMatch(found: NodeLocation): Record<string, unknown> {
-  const text = (found.node as Partial<Layer>).text;
+  const text = 'kind' in found.node && found.node.kind === 'text' ? found.node.text : undefined;
   return {
     id: found.node.id,
     kind: kindOf(found),

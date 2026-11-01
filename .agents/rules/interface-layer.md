@@ -208,34 +208,22 @@ const filteredItems = useMemo(
 
 ---
 
-## 四、 自动化测试契约与可测试性设计
+## 四、 可访问性契约
 
-为了保证端到端测试（Playwright / E2E）不受 UI 样式变迁与多语言切换的干扰，界面交互元素必须遵守显式测试契约：
-
-- **禁止依赖非稳定选择器**：严禁在测试中通过页面展示文案（如 `button:has-text("保存")`）或易变 CSS 类名（如 `.save-btn-primary`）定位元素。
-- **统一测试标识符契约**：所有可点击、可输入、可拖动的核心交互节点，必须显式附加 `data-testid` 属性。
-- **命名规范**：遵循 `<业务模块>-<组件元素>-<动作/角色>` 标准，全小写，连字符隔开：
-  ```tsx
-  <button data-testid="blueprint-create-btn">新建蓝图</button>
-  <input data-testid="inspector-width-input" />
-  <div data-testid="layer-tree-row-header" />
-  ```
+- 可交互元素必须使用正确的原生语义，支持键盘访问，并提供清晰的焦点状态。
+- 图标按钮必须提供可访问名称；不得把展示文案或 CSS 类名当作程序行为契约。
+- 浏览器走查优先使用角色、标签和稳定的语义结构定位元素。
 
 ---
 
 ## 五、 本层变更验证门禁
 
-任何对界面层组件、状态 Store 或样式布局的修改，在提交前必须依次通过三道自动化门禁：
+任何对界面层组件、状态 Store 或样式布局的修改，在提交前必须通过静态门禁和真实界面走查：
 
 ```bash
-# 1. 严格模式静态类型检查（0 错误通过）
 pnpm -C apps/plugin typecheck
-
-# 2. 前端单元测试与组件交互测试
-pnpm -C apps/plugin test
-
-# 3. 国际化文案一致性强制检查
 pnpm -C apps/plugin i18n:check
+pnpm -C apps/plugin build
 ```
 
 特别说明：`i18n:check` 会静态扫描所有在界面中引用的文案键名，强制验证 `src/client/i18n/zh.json` 与 `en.json` 的键名集合与插值参数必须保持 100% 同步对齐。

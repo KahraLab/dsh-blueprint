@@ -5,7 +5,7 @@
  * size are measured from the painted elements after every render. Keeping that
  * in one hook means the canvas never has to know which effects write CSS.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type { BlueprintDocument, Selection } from '../../domain/document';
 import type { Viewport } from '../editor/types';
 import type { WorldRect } from './geometry';
@@ -81,7 +81,7 @@ export function useSelectionChrome({ hostRef, selections, doc, live }: ChromeOpt
 
   // Multi-selection gets one box around the union of what was chosen. Its
   // per-item outlines come from the elements themselves.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (selections.length < 2) {
       setMultiBox(null);
       return;

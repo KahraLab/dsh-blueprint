@@ -40,7 +40,6 @@ interface RenameState {
   value: string;
 }
 
-
 export function LayerTree({
   doc,
   selections,
@@ -252,9 +251,9 @@ export function LayerTree({
           hasChildren: row.hasChildren,
           collapsed: row.collapsed,
           info: { kind: row.kind, frameId: row.frameId, parentId: row.parentId, id: row.id },
-          nodeKind: row.kind === 'frame' ? 'frame' : row.layer!.kind,
+          nodeKind: row.kind === 'frame' ? 'frame' : row.layer.kind,
           dragging: dragging?.id === row.id,
-          group: row.layer?.kind === 'group',
+          group: row.kind === 'layer' && row.layer.kind === 'group',
           rename,
           onToggleCollapsed: () => toggleCollapsed(row.id),
           onPress: (event: ReactPointerEvent<HTMLDivElement>) => pressRow(event, row),
@@ -262,7 +261,7 @@ export function LayerTree({
         } as const;
 
         if (row.kind === 'frame') {
-          const frame = row.frame!;
+          const { frame } = row;
           return (
             <LayerRow
               {...common}
@@ -275,7 +274,7 @@ export function LayerTree({
           );
         }
 
-        const layer = row.layer!;
+        const { layer } = row;
         return (
           <LayerRow
             {...common}

@@ -115,7 +115,7 @@ function requireNode(doc: BlueprintDocument, id: string): NonNullable<ReturnType
  */
 function buildNode(wire: WireNode, mode: 'insert' | 'replace', refs: Map<string, string>, replaceId?: string, base?: Node): Node {
   const isFrame = wire.fields.kind === undefined;
-  const kind = isFrame ? 'frame' : 'layer';
+  const kind = isFrame ? 'frame' : wire.fields.kind as LayerKind;
 
   const merged = mode === 'replace' && base ? { ...nodeFields(base), ...wire.fields } : wire.fields;
   const cleaned = cleanFields(merged, kind);

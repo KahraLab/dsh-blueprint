@@ -12,11 +12,11 @@ import {
   TextAlignLeftIcon,
   TextAlignRightIcon,
 } from '../icons';
-import type { Layer, LayerRectPatch } from '../../domain/document';
+import type { TextLayer, LayerRectPatch } from '../../domain/document';
 import { Segmented } from '../ui/Segmented';
 
 interface TextAlignSectionProps {
-  layer: Layer;
+  layer: TextLayer;
   updateLayer(patch: LayerRectPatch): void;
 }
 

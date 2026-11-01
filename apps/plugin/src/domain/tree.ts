@@ -1,30 +1,81 @@
-/**
- * Reading the document tree.
- *
- * Writing has its own vocabulary in `ops.ts`. This module only answers
- * questions: where does a node sit, what is it called, which ancestors does it
- * have, and which nodes match a name, a kind, or a container. The command line
- * and the canvas both ask here, so "the path of this layer" has one answer.
- */
-import type { BlueprintDocument, Layer, LayerKind, Node } from './document';
+import type { BlueprintDocument, Frame, Layer, LayerKind, Selection, StackLayout } from './model';
 
-export interface NodeLocation {
-  node: Node;
-  kind: 'frame' | 'layer';
-  /** Screen this node belongs to. A frame is its own screen. */
-  frameId: string | null;
-  /** Container layer id; null when the node sits in a screen or on the page root. */
-  parentId: string | null;
-  /** Position among its siblings. */
+interface LocationBase {
+  /** Position among the node's siblings. */
   index: number;
   /** Names from the outermost ancestor down to this node. */
   path: readonly string[];
 }
 
+export interface FrameLocation extends LocationBase {
+  node: Frame;
+  kind: 'frame';
+  /** A frame is its own screen. */
+  frameId: string;
+  parentId: null;
+}
+
+export interface LayerLocation extends LocationBase {
+  node: Layer;
+  kind: 'layer';
+  /** Screen this node belongs to, or null for a loose canvas layer. */
+  frameId: string | null;
+  /** Container layer id; null when the node sits in a screen or on the page root. */
+  parentId: string | null;
+}
+
+export type NodeLocation = FrameLocation | LayerLocation;
+
+/** Depth-first search through a layer list. */
+export function findInTree(layers: readonly Layer[], layerId: string): Layer | undefined {
+  for (const layer of layers) {
+    if (layer.id === layerId) return layer;
+    const hit = findInTree(layer.children, layerId);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+export function findFrame(doc: BlueprintDocument, frameId: string): Frame | undefined {
+  return doc.frames.find((frame) => frame.id === frameId);
+}
+
+export function findLayer(doc: BlueprintDocument, frameId: string | null, layerId: string): Layer | undefined {
+  if (frameId === null) return findInTree(doc.layers, layerId);
+  const frame = findFrame(doc, frameId);
+  return frame ? findInTree(frame.children, layerId) : undefined;
+}
+
+/** The container a layer sits in, plus how that container arranges it. */
+export function findParent(
+  doc: BlueprintDocument,
+  frameId: string | null,
+  layerId: string,
+): { parentId: string | null; layout: StackLayout | null } | null {
+  const walk = (layers: readonly Layer[], parentId: string | null, layout: StackLayout | null): { parentId: string | null; layout: StackLayout | null } | null => {
+    for (const layer of layers) {
+      if (layer.id === layerId) return { parentId, layout };
+      if (layer.children.length === 0) continue;
+      const hit = walk(layer.children, layer.id, layer.layout);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  if (frameId === null) return walk(doc.layers, null, null);
+  const frame = findFrame(doc, frameId);
+  return frame ? walk(frame.children, null, frame.layout) : null;
+}
+
+/** The name shown in the layer list and the inspector header. */
+export function selectionLabel(doc: BlueprintDocument, selection: Selection): string {
+  if (selection.kind === 'frame') return findFrame(doc, selection.frameId)?.name ?? '画板';
+  return findLayer(doc, selection.frameId, selection.layerId)?.name ?? '图层';
+}
+
 /** Walk every frame, then every element, in document order. Stop early by returning true. */
 export function eachNode(doc: BlueprintDocument, visit: (entry: NodeLocation) => boolean): NodeLocation | null {
   for (const [index, frame] of doc.frames.entries()) {
-    const entry: NodeLocation = { node: frame, kind: 'frame', frameId: frame.id, parentId: null, index, path: [frame.name] };
+    const entry: FrameLocation = { node: frame, kind: 'frame', frameId: frame.id, parentId: null, index, path: [frame.name] };
     if (visit(entry)) return entry;
     const hit = walk(frame.children, frame.id, null, entry.path, visit);
     if (hit) return hit;
@@ -41,7 +92,7 @@ function walk(
 ): NodeLocation | null {
   for (const [index, layer] of layers.entries()) {
     const path = [...basePath, layer.name];
-    const entry: NodeLocation = { node: layer, kind: 'layer', frameId, parentId, index, path };
+    const entry: LayerLocation = { node: layer, kind: 'layer', frameId, parentId, index, path };
     if (visit(entry)) return entry;
     const hit = walk(layer.children, frameId, layer.id, path, visit);
     if (hit) return hit;
@@ -84,11 +135,7 @@ export function findNodes(doc: BlueprintDocument, filter: FindFilter, limit = 50
 
   if (filter.within) {
     const { node, kind, frameId, path } = filter.within;
-    if (kind === 'frame') {
-      walk((node as { children: readonly Layer[] }).children, frameId, null, path, consider);
-    } else {
-      walk((node as Layer).children, frameId, (node as Layer).id, path, consider);
-    }
+    walk(node.children, frameId, kind === 'frame' ? null : node.id, path, consider);
   } else {
     eachNode(doc, consider);
   }
@@ -97,7 +144,7 @@ export function findNodes(doc: BlueprintDocument, filter: FindFilter, limit = 50
 
 /** The node kind as the protocol names it: `frame`, or the layer kind. */
 export function kindOf(entry: NodeLocation): 'frame' | LayerKind {
-  return entry.kind === 'frame' ? 'frame' : (entry.node as Layer).kind;
+  return entry.kind === 'frame' ? 'frame' : entry.node.kind;
 }
 
 /** How many nodes the document holds, screens and elements together. */

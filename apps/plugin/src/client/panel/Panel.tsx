@@ -165,11 +165,7 @@ export function Panel({ sessionId: tabSessionId }: PanelProps): ReactElement {
     void useBlueprintLibrary.getState().load(scope, messages);
   }, [messages, scope]);
 
-  const hosts = (
-    <>
-      <ContextMenuHost />
-    </>
-  );
+  const hosts = <ContextMenuHost />;
 
   if (view.screen === 'gallery') {
     return (

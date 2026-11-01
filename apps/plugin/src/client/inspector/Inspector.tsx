@@ -10,6 +10,8 @@ import {
   findLayer,
   findParent,
   type BlueprintDocument,
+  type Frame,
+  type Layer,
   type LayerRectPatch,
   type RectPatch,
   type Selection,
@@ -45,17 +47,42 @@ export interface InspectorProps {
   onSetLayerLayout(frameId: string | null, layerId: string, layout: StackLayout | null): void;
 }
 
-interface Single {
-  kind: 'frame' | 'layer';
-  frameId: string | null;
-  layerId?: string;
+interface ResolvedFrame {
+  kind: 'frame';
+  node: Frame;
+  selection: Selection;
 }
 
-function singleSelection(selections: readonly Selection[]): Single | null {
+interface ResolvedLayer {
+  kind: 'layer';
+  node: Layer;
+  frameId: string | null;
+  parent: ReturnType<typeof findParent>;
+  parentBox: { width: number; height: number } | null;
+  selection: Selection;
+}
+
+type ResolvedSelection = ResolvedFrame | ResolvedLayer;
+
+function resolveSelection(doc: BlueprintDocument, selections: readonly Selection[]): ResolvedSelection | null {
   if (selections.length !== 1) return null;
-  const only = selections[0];
-  if (!only) return null;
-  return { kind: only.kind, frameId: only.frameId, layerId: only.kind === 'layer' ? only.layerId : undefined };
+  const selected = selections[0];
+  if (!selected) return null;
+
+  if (selected.kind === 'frame') {
+    const frame = doc.frames.find((item) => item.id === selected.frameId);
+    return frame ? { kind: 'frame', node: frame, selection: selected } : null;
+  }
+
+  const layer = findLayer(doc, selected.frameId, selected.layerId);
+  if (!layer) return null;
+  const parent = findParent(doc, selected.frameId, layer.id);
+  const parentLayer = parent?.parentId ? findLayer(doc, selected.frameId, parent.parentId) : undefined;
+  const parentFrame = selected.frameId === null ? undefined : doc.frames.find((item) => item.id === selected.frameId);
+  const parentBox = parent !== null && parent.parentId === null
+    ? parentFrame ? { width: parentFrame.width, height: parentFrame.height } : null
+    : parentLayer ? { width: parentLayer.width, height: parentLayer.height } : null;
+  return { kind: 'layer', node: layer, frameId: selected.frameId, parent, parentBox, selection: selected };
 }
 
 export function Inspector({
@@ -71,153 +98,130 @@ export function Inspector({
   onSetLayerLayout,
 }: InspectorProps): ReactElement {
   const { t } = useTranslation();
-  // Both branches of the early return below must keep the same hook order.
   const palette = useMemo(() => collectDocumentColors(doc), [doc]);
   if (framePresets) return <FramePresets width={width} onPick={onPickPreset} />;
 
-  const picked = singleSelection(selections);
-  const frame = picked?.frameId ? doc.frames.find((item) => item.id === picked.frameId) : undefined;
-  const layer = picked?.kind === 'layer' && picked.layerId ? findLayer(doc, picked.frameId, picked.layerId) : undefined;
+  const picked = resolveSelection(doc, selections);
+  if (!picked) {
+    return <EmptyInspector width={width} message={selections.length > 1 ? t('inspector.selectedCount', { count: selections.length }) : t('inspector.noSelection')} />;
+  }
 
-  if (!picked) return <EmptyInspector width={width} message={selections.length === 0 ? t('inspector.noSelection') : t('inspector.selectedCount', { count: selections.length })} />;
-  if (picked.kind === 'frame' && frame === undefined) return <EmptyInspector width={width} message={t('inspector.noSelection')} />;
-  if (picked.kind === 'layer' && layer === undefined) return <EmptyInspector width={width} message={t('inspector.noSelection')} />;
-
-  const isFrame = picked.kind === 'frame';
-  const parent = isFrame ? null : findParent(doc, picked.frameId, layer!.id);
-  const inFlow = parent !== null && parent.layout !== null;
-  // The box a free element is aligned within: its frame, or a free parent layer.
-  const parentLayer = parent?.parentId ? findLayer(doc, picked.frameId, parent.parentId) : undefined;
-  const parentBox =
-    isFrame || parent === null
-      ? null
-      : parent.parentId === null
-        ? picked.frameId !== null && frame !== undefined
-          ? { width: frame.width, height: frame.height }
-          : null
-        : parentLayer !== undefined
-          ? { width: parentLayer.width, height: parentLayer.height }
-          : null;
-  const isText = !isFrame && layer!.kind === 'text';
-  const isGroup = !isFrame && layer!.kind === 'group';
-  const fills = isFrame ? frame!.fills : layer!.fills;
-  const target: Selection = isFrame
-    ? { kind: 'frame', frameId: frame!.id }
-    : { kind: 'layer', frameId: picked.frameId, layerId: layer!.id };
-  const colorUses = collectNodeColors(isFrame ? frame! : layer!);
+  const { node } = picked;
+  const textLayer = picked.kind === 'layer' && picked.node.kind === 'text' ? picked.node : null;
+  const groupLayer = picked.kind === 'layer' && picked.node.kind === 'group' ? picked.node : null;
+  const inFlow = picked.kind === 'layer' && picked.parent !== null && picked.parent.layout !== null;
+  const colorUses = collectNodeColors(node);
 
   const actions: InspectorActions = {
-    updateFrame: (patch) => onUpdateFrame(frame!.id, patch),
-    updateLayer: (patch) => onUpdateLayer(picked.frameId, layer!.id, patch),
-    setFrameLayout: (layout) => onSetFrameLayout(frame!.id, layout),
-    setLayerLayout: (layout) => onSetLayerLayout(picked.frameId, layer!.id, layout),
+    updateFrame: (patch) => {
+      if (picked.kind === 'frame') onUpdateFrame(picked.node.id, patch);
+    },
+    updateLayer: (patch) => {
+      if (picked.kind === 'layer') onUpdateLayer(picked.frameId, picked.node.id, patch);
+    },
+    setFrameLayout: (layout) => {
+      if (picked.kind === 'frame') onSetFrameLayout(picked.node.id, layout);
+    },
+    setLayerLayout: (layout) => {
+      if (picked.kind === 'layer') onSetLayerLayout(picked.frameId, picked.node.id, layout);
+    },
   };
 
   return (
     <aside className="bp-inspector" aria-label={t('inspector.properties')} style={{ width }}>
-      <div className="bp-inspector-head">{isFrame ? frame!.name : layer!.name}</div>
+      <div className="bp-inspector-head">{node.name}</div>
 
-      {!isFrame && layer!.kind === 'icon' ? (
+      {picked.kind === 'layer' && picked.node.kind === 'icon' ? (
         <section className="bp-inspector-section">
           <h5>{t('inspector.icon')}</h5>
-          <div className="bp-inspector-note">{layer!.iconSet}/{layer!.iconName}</div>
+          <div className="bp-inspector-note">{picked.node.iconSet}/{picked.node.iconName}</div>
         </section>
       ) : null}
 
       {inFlow ? null : (
         <PositionSection
-          x={isFrame ? frame!.x : layer!.x}
-          y={isFrame ? frame!.y : layer!.y}
-          width={isFrame ? frame!.width : layer!.width}
-          height={isFrame ? frame!.height : layer!.height}
-          bounds={parentBox}
-          onChange={(next) => (isFrame ? actions.updateFrame(next) : actions.updateLayer(next))}
+          x={node.x}
+          y={node.y}
+          width={node.width}
+          height={node.height}
+          bounds={picked.kind === 'layer' ? picked.parentBox : null}
+          onChange={(next) => (picked.kind === 'frame' ? actions.updateFrame(next) : actions.updateLayer(next))}
         />
       )}
 
-      <SizeSection
-        frame={frame!}
-        layer={isFrame ? null : layer!}
-        updateFrame={actions.updateFrame}
-        updateLayer={actions.updateLayer}
-      />
+      <SizeSection node={node} updateFrame={actions.updateFrame} updateLayer={actions.updateLayer} />
 
-      {isGroup ? (
+      {groupLayer ? (
         <section className="bp-inspector-section">
           <h5>{t('inspector.group')}</h5>
           <div className="bp-inspector-note">{t('inspector.groupNote')}</div>
         </section>
-      ) : isText ? (
-        <TextAlignSection layer={layer!} updateLayer={actions.updateLayer} />
+      ) : textLayer ? (
+        <TextAlignSection layer={textLayer} updateLayer={actions.updateLayer} />
       ) : (
         <LayoutSection
-          layout={isFrame ? frame!.layout : layer!.layout}
-          onSet={isFrame ? actions.setFrameLayout : actions.setLayerLayout}
+          layout={node.layout}
+          onSet={picked.kind === 'frame' ? actions.setFrameLayout : actions.setLayerLayout}
         />
       )}
 
       <AppearanceSection
-        opacity={isFrame ? frame!.opacity : layer!.opacity}
-        radius={isFrame ? frame!.radius : layer!.kind === 'rect' ? layer!.radius : null}
-        clip={isFrame ? frame!.clipContent : layer!.children.length > 0 || layer!.layout !== null ? layer!.clipContent : null}
-        rotation={isFrame ? null : layer!.rotation}
-        onChange={(patch) => (isFrame ? actions.updateFrame(patch) : actions.updateLayer(patch))}
+        opacity={node.opacity}
+        radius={picked.kind === 'frame' || picked.node.kind === 'rect' ? node.radius : null}
+        clip={picked.kind === 'frame' || node.children.length > 0 || node.layout !== null ? node.clipContent : null}
+        rotation={picked.kind === 'frame' ? null : picked.node.rotation}
+        onChange={(patch) => (picked.kind === 'frame' ? actions.updateFrame(patch) : actions.updateLayer(patch))}
       />
 
-      {isGroup ? null : (
+      {groupLayer ? null : (
         <FillSection
-          fills={fills}
-          newFillColor={isText ? '#101828' : '#FFFFFF'}
+          fills={node.fills}
+          newFillColor={textLayer ? '#101828' : '#FFFFFF'}
           palette={palette}
-          onChange={(next) => (isFrame ? actions.updateFrame({ fills: next }) : actions.updateLayer({ fills: next }))}
+          onChange={(fills) => (picked.kind === 'frame' ? actions.updateFrame({ fills }) : actions.updateLayer({ fills }))}
         />
       )}
 
-      {supportsStroke(isFrame ? 'frame' : layer!.kind) ? (
+      {supportsStroke(picked.kind === 'frame' ? 'frame' : picked.node.kind) ? (
         <StrokeSection
-          stroke={isFrame ? frame!.stroke : layer!.stroke}
+          stroke={node.stroke}
           palette={palette}
-          onChange={(stroke) => (isFrame ? actions.updateFrame({ stroke }) : actions.updateLayer({ stroke }))}
+          onChange={(stroke) => (picked.kind === 'frame' ? actions.updateFrame({ stroke }) : actions.updateLayer({ stroke }))}
         />
       ) : null}
 
       <EffectsSection
-        effects={(isFrame ? frame!.effects : layer!.effects) ?? []}
+        effects={node.effects}
         palette={palette}
         capabilities={{
-          innerShadow: isFrame || layer!.kind === 'rect',
-          backgroundBlur: isFrame || ['rect', 'ellipse', 'polygon', 'star'].includes(layer!.kind),
+          innerShadow: picked.kind === 'frame' || picked.node.kind === 'rect',
+          backgroundBlur: picked.kind === 'frame' || ['rect', 'ellipse', 'polygon', 'star'].includes(picked.node.kind),
         }}
-        onChange={(effects) => (isFrame ? actions.updateFrame({ effects }) : actions.updateLayer({ effects }))}
+        onChange={(effects) => (picked.kind === 'frame' ? actions.updateFrame({ effects }) : actions.updateLayer({ effects }))}
       />
 
       {colorUses.length === 0 ? null : (
         <SelectionColorsSection
           colors={colorUses}
           palette={palette}
-          onReplace={(from, to) => onReplaceColor(target, from, to)}
+          onReplace={(from, to) => onReplaceColor(picked.selection, from, to)}
         />
       )}
 
-      {isFrame ? (
+      {picked.kind === 'frame' ? (
         <GuideSection
-          guide={frame!.guide}
+          guide={picked.node.guide}
           palette={palette}
           onChange={(guide) => actions.updateFrame({ guide })}
         />
       ) : null}
 
-      <ExportSection
-        kind={isFrame ? 'frame' : 'layer'}
-        nodeId={isFrame ? frame!.id : layer!.id}
-        name={isFrame ? frame!.name : layer!.name}
-        doc={doc}
-      />
+      <ExportSection kind={picked.kind} nodeId={node.id} name={node.name} doc={doc} />
 
-      {isText ? (
+      {textLayer ? (
         <>
-          <TextContentSection text={layer!.text} onChange={(text) => actions.updateLayer({ text })} />
-          <TextStyleSection layer={layer!} updateLayer={actions.updateLayer} />
+          <TextContentSection text={textLayer.text} onChange={(text) => actions.updateLayer({ text })} />
+          <TextStyleSection layer={textLayer} updateLayer={actions.updateLayer} />
         </>
       ) : null}
     </aside>

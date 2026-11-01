@@ -100,7 +100,7 @@ function insertOp(doc: BlueprintDocument, parent: string | null, index: number |
 
   const target = siblingsOf(doc, parent);
   if (typeof target === 'string') return target;
-  return insertLayer(doc, target.insertTarget(doc, index), asLayer(node));
+  return insertLayer(doc, target.insertTarget(doc, index), node);
 }
 
 function removeOp(doc: BlueprintDocument, id: string): BlueprintDocument | string {
@@ -122,7 +122,7 @@ function setOp(doc: BlueprintDocument, id: string, patch: Record<string, unknown
 
   const found = locateLayer(doc, id);
   if (!found) return `找不到 id 为 ${id} 的元素`;
-  const checked = cleanFields(patch, 'layer');
+  const checked = cleanFields(patch, found.node.kind);
   if (!checked.ok) return checked.message;
   return updateLayer(doc, found.frameId, id, checked.value as LayerRectPatch);
 }
@@ -161,7 +161,7 @@ function replaceOp(doc: BlueprintDocument, id: string, node: Node): BlueprintDoc
   // screen itself is still the list it belongs to.
   const target = siblingsOf(removed, found.parentId ?? found.frameId);
   if (typeof target === 'string') return target;
-  return insertLayer(removed, target.insertTarget(removed, found.index), asLayer(node));
+  return insertLayer(removed, target.insertTarget(removed, found.index), node);
 }
 
 // ---------------------------------------------------------------- addressing
@@ -176,7 +176,7 @@ interface FoundLayer {
 function locateLayer(doc: BlueprintDocument, id: string): FoundLayer | null {
   const found = locateNode(doc, id);
   if (!found || found.kind !== 'layer') return null;
-  return { frameId: found.frameId, parentId: found.parentId, node: found.node as Layer, index: found.index };
+  return { frameId: found.frameId, parentId: found.parentId, node: found.node, index: found.index };
 }
 
 /** The container a layer sits in: a screen id, a container layer id, or null for the page root. */
@@ -233,21 +233,9 @@ function reorder<T extends { id: string }>(list: readonly T[], id: string, index
   return splice(rest, item, index);
 }
 
-/**
- * Screens and layers are structurally similar enough that TypeScript will not
- * separate them on its own; the one real difference is that a layer carries a
- * `kind`. These three helpers keep the casts in one place.
- */
+/** A layer carries `kind`; a frame does not. */
 function isFrame(node: Node): node is Frame {
   return !('kind' in node);
-}
-
-function asFrame(node: Node): Frame {
-  return node as Frame;
-}
-
-function asLayer(node: Node): Layer {
-  return node as Layer;
 }
 
 // ---------------------------------------------------------------- validation
@@ -260,7 +248,7 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
   if (docHasId(doc, node.id) && node.id !== replaceId) return `id ${node.id} 已经被占用了，换个新的`;
 
   if (isFrame(node)) {
-    const frame = asFrame(node);
+    const frame = node;
     const bad = finite(frame, ['x', 'y', 'width', 'height', 'opacity']);
     if (bad) return `画板 ${frame.id} 的 ${bad} 不是数字`;
     const badOptional = finiteIfPresent(frame, ['radius']);
@@ -278,7 +266,7 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
     return null;
   }
 
-  const layer = asLayer(node);
+  const layer = node;
   if (!LAYER_KINDS.includes(layer.kind)) return `图层 ${layer.id} 的 kind 不认识：${String(layer.kind)}`;
   // Geometry is what the canvas manipulates; newer style fields are optional in
   // a saved snapshot and the write pipeline fills their defaults.
@@ -288,7 +276,7 @@ function checkNode(doc: BlueprintDocument, node: Node, replaceId?: string): stri
   if (badOptional) return `图层 ${layer.id} 的 ${badOptional} 不是数字`;
   if (!Array.isArray(layer.fills)) return `图层 ${layer.id} 的 fills 要是数组`;
   if (!Array.isArray(layer.children)) return `图层 ${layer.id} 的 children 要是数组`;
-  if (typeof layer.text !== 'string') return `图层 ${layer.id} 的 text 要是字符串`;
+  if (layer.kind === 'text' && typeof layer.text !== 'string') return `图层 ${layer.id} 的 text 要是字符串`;
   if (layer.stroke !== undefined && layer.stroke !== null && typeof layer.stroke !== 'object') {
     return `图层 ${layer.id} 的 stroke 要么是 null，要么是 { color, width, align }`;
   }
@@ -423,11 +411,11 @@ function withoutChildren(node: Node): Node {
   // Every new subtree enters the document node by node: the container first,
   // then its children through `diffList`. Keeping the children here would
   // insert the same ids twice and the batch would be rejected.
-  return { ...node, children: [] } as Node;
+  return { ...node, children: [] };
 }
 
 function childrenOf(node: Node): readonly Layer[] {
-  return isFrame(node) ? asFrame(node).children : asLayer(node).children;
+  return node.children;
 }
 
 function changedFields(before: Node, after: Node): Record<string, unknown> | null {

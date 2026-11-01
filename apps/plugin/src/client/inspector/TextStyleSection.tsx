@@ -3,7 +3,7 @@
  */
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Layer, LayerRectPatch } from '../../domain/document';
+import type { TextLayer, LayerRectPatch } from '../../domain/document';
 import { NumberBox } from './NumberBox';
 
 const FONT_FAMILIES = ['Figtree', 'Inter', 'system-ui'] as const;
@@ -16,7 +16,7 @@ const FONT_WEIGHTS = [
 ] as const;
 
 interface TextStyleSectionProps {
-  layer: Layer;
+  layer: TextLayer;
   updateLayer(patch: LayerRectPatch): void;
 }
 

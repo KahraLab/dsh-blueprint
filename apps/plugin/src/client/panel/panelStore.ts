@@ -33,7 +33,6 @@ interface PanelUiState {
   inspectorWidth: number;
   menus: Readonly<Record<MenuName, boolean>>;
 
-  modeOf(key: string): PanelMode;
   openBlueprint(key: string, blueprintId: string): void;
   showGallery(key: string, blueprintId: string | null): void;
   setLayersWidth(width: number): void;
@@ -43,13 +42,11 @@ interface PanelUiState {
   setIconPicker(open: boolean): void;
 }
 
-export const usePanelUi = create<PanelUiState>()((set, get) => ({
+export const usePanelUi = create<PanelUiState>()((set) => ({
   modes: {},
   layersWidth: LAYERS_DEFAULT_WIDTH,
   inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
   menus: NO_MENUS,
-
-  modeOf: (key) => get().modes[key] ?? AUTO,
   openBlueprint: (key, blueprintId) => set((state) => ({
     modes: { ...state.modes, [key]: { kind: 'editor', blueprintId } },
     menus: NO_MENUS,

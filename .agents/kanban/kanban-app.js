@@ -219,7 +219,12 @@ export function applyI18n(lang = getCurrentLang()) {
     if (val !== undefined) el.setAttribute('aria-label', val);
   });
 
-  document.title = t.title;
+  const projectName = document.documentElement.dataset.projectName?.trim();
+  const pageTitle = projectName ? `${projectName} · ${t.title}` : t.title;
+  document.title = pageTitle;
+
+  const brandTitle = document.getElementById('brand-title');
+  if (brandTitle) brandTitle.textContent = pageTitle;
 
   initKanban({ lang });
 

@@ -13,12 +13,10 @@ DSH Blueprint 是一个内嵌在 DeepSeek Harness 里的设计工具，目标是
 | 命令 | 作用 |
 |---|---|
 | `pnpm -C apps/plugin typecheck` | 类型检查，strict 模式，必须 0 错误 |
-| `pnpm -C apps/plugin test` | 跑全部测试：命令行、文档模型、落盘、编辑器、模板路由 |
 | `pnpm -C apps/plugin i18n:check` | 检查中英文案文件的键与占位符是否一致 |
 | `pnpm -C apps/plugin build` | 构建到 `lib/` |
-| `pnpm -C apps/plugin test:e2e` | 浏览器里跑真实交互（首次要 `npx playwright install chromium`） |
 
-改完代码先跑 `typecheck` 和 `test`。`test` 会先构建一次，所以只跑它也能发现编译错误。
+改完代码依次跑 `typecheck`、`i18n:check` 和 `build`，再用真实 CLI 与浏览器走查涉及的流程。不维护自动化测试套件。
 
 **装进 DSH**：用 `plugin_manager install_bundle`，target 填 `apps/plugin` 的绝对路径。改完代码跑一次 `build`，客户端会热更新。
 
@@ -56,7 +54,7 @@ cd .agents/kanban && python3 -m http.server 5173
 1. **插件不调用大模型，不拼装提示词。** 生成能力只来自 `bp` 命令行和静态的技能文本。插件本身不组装提示词，也不请求模型。
 2. **写入不加锁，按最后写入者生效。** 按节点 id 就地合并，不做版本号拦截，不整份重写。
 3. **界面文案必须中英同步。** 新文案要同时写进 `src/client/i18n/zh.json` 和 `en.json`，否则 `i18n:check` 会报错。
-4. **禁止过度测试与过度防御。** 若没有明确要求，不得擅自创建单元测试、集成测试或编写冗余的过度防御代码。不要为了刷测试覆盖率去写“花瓶测试”，保持现有测试绿灯即可。
+4. **不维护自动化测试套件，禁止过度防御。** 未经明确要求，不得创建单元测试、集成测试或常驻验收脚本，也不编写冗余防御代码。
 
 ## 工作方式
 

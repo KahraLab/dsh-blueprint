@@ -151,14 +151,11 @@ bp find --name=<语义名称>            # 通过模糊名称定位目标 ID，�
 
 ## 七、 协议变更验证门禁
 
-凡涉及 CLI 契约定义、输出字段或校验逻辑的修改，提交前必须完整执行以下自动化套件：
+凡涉及 CLI 契约定义、输出字段或校验逻辑的修改，提交前必须执行：
 
 ```bash
-# 1. 运行底层协议与格式契约自动化测试
-pnpm -C apps/plugin test
-
-# 2. 在真实沙箱工作区中运行端到端验收脚本
-node apps/plugin/scripts/acceptance.mjs
+pnpm -C apps/plugin typecheck
+pnpm -C apps/plugin build
 ```
 
-前者在内存级断言输入输出 JSON 格式契约的完备性，后者模拟外部智能体在真实文件系统上走通全流程操作。
+随后在 `.tmp/` 隔离的真实工作区中走通本次涉及的命令，检查单行 JSON、退出码、文档落盘结果与错误分支。不得新增常驻测试脚本。

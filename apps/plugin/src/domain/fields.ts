@@ -152,6 +152,15 @@ export const DIRECTIONS: readonly StackDirection[] = ['row', 'column', 'grid'];
 export const ALIGNS: readonly StackAlign[] = ['start', 'center', 'end', 'stretch'];
 export const JUSTIFIES: readonly StackJustify[] = ['start', 'center', 'end', 'between'];
 
+const TEXT_LAYER_FIELDS = ['text', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign', 'verticalAlign'];
+const ICON_LAYER_FIELDS = ['iconSet', 'iconName', 'svg'];
+
+function fieldsFor(nodeKind: 'frame' | LayerKind): readonly string[] {
+  if (nodeKind === 'frame') return FRAME_FIELDS;
+  const excluded = nodeKind === 'text' ? ICON_LAYER_FIELDS : nodeKind === 'icon' ? TEXT_LAYER_FIELDS : [...TEXT_LAYER_FIELDS, ...ICON_LAYER_FIELDS];
+  return LAYER_FIELDS.filter((field) => !excluded.includes(field));
+}
+
 export type CleanedField = { ok: true; value: Record<string, unknown> } | { ok: false; message: string };
 
 /**
@@ -160,8 +169,8 @@ export type CleanedField = { ok: true; value: Record<string, unknown> } | { ok: 
  * Rejecting an unknown field or a wrong type happens here too, so the canvas
  * and the command line cannot drift apart.
  */
-export function cleanFields(raw: Record<string, unknown>, nodeKind: 'frame' | 'layer'): CleanedField {
-  const fields = nodeKind === 'frame' ? FRAME_FIELDS : LAYER_FIELDS;
+export function cleanFields(raw: Record<string, unknown>, nodeKind: 'frame' | LayerKind): CleanedField {
+  const fields = fieldsFor(nodeKind);
   const allowed = new Set<string>(fields);
   const editable = fields.filter((name) => name !== 'kind').join('、');
   const value: Record<string, unknown> = {};

@@ -21,16 +21,32 @@ export interface RowInfo {
   id: string;
 }
 
-export interface LayerRowData extends RowInfo {
+interface RowDisplayFields {
   name: string;
   depth: number;
   visible: boolean;
   locked: boolean;
   hasChildren: boolean;
   collapsed: boolean;
-  frame?: Frame;
-  layer?: Layer;
 }
+
+export interface FrameRowData extends RowDisplayFields {
+  kind: 'frame';
+  frameId: string;
+  parentId: null;
+  id: string;
+  frame: Frame;
+}
+
+export interface LayerNodeRowData extends RowDisplayFields {
+  kind: 'layer';
+  frameId: string | null;
+  parentId: string | null;
+  id: string;
+  layer: Layer;
+}
+
+export type LayerRowData = FrameRowData | LayerNodeRowData;
 
 export interface LayerRowModel {
   row: LayerRowData;
@@ -227,23 +243,28 @@ export function groupTargetOf(
   if (selections.some((item) => item.kind !== 'layer')) return null;
 
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const picked = selections.map((item) => byId.get(item.kind === 'layer' ? item.layerId : item.frameId));
-  if (picked.some((row) => row === undefined || row.kind !== 'layer')) return null;
+  const picked: LayerNodeRowData[] = [];
+  for (const selection of selections) {
+    if (selection.kind !== 'layer') return null;
+    const row = byId.get(selection.layerId);
+    if (row?.kind !== 'layer') return null;
+    picked.push(row);
+  }
 
-  const first = picked[0]!;
-  if (picked.some((row) => row!.frameId !== first.frameId || row!.parentId !== first.parentId)) return null;
+  const first = picked[0];
+  if (!first || picked.some((row) => row.frameId !== first.frameId || row.parentId !== first.parentId)) return null;
 
   if (first.parentId === null) {
-    const frame = first.frameId === null ? null : byId.get(first.frameId)?.frame ?? null;
-    if (frame !== null && frame.layout !== null) return null;
+    const frameRow = first.frameId === null ? undefined : byId.get(first.frameId);
+    if (frameRow?.kind === 'frame' && frameRow.frame.layout !== null) return null;
   } else {
     const parent = byId.get(first.parentId);
-    if (parent === undefined || parent.layer === undefined || parent.layer.layout !== null) return null;
+    if (parent?.kind !== 'layer' || parent.layer.layout !== null) return null;
   }
 
   return {
     frameId: first.frameId,
     parentId: first.parentId,
-    layerIds: picked.map((row) => row!.id),
+    layerIds: picked.map((row) => row.id),
   };
 }
